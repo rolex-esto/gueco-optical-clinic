@@ -199,6 +199,296 @@ function getPatientDisplayName(array $patient): string {
     return $name;
 }
 
+/**
+ * Validates and sanitizes walk-in patient registration inputs to prevent spam,
+ * gibberish, or nonsense data from being entered.
+ *
+ * @param array $data Input data (full_name, email, phone, gender, birthdate, address)
+ * @return array ['valid' => bool, 'errors' => array, 'cleaned' => array]
+ */
+function validateWalkinPatientData(array $data): array {
+    $errors = [];
+    $cleaned = [];
+
+    // 1. FULL NAME VALIDATION
+    $rawName = trim($data['full_name'] ?? '');
+    // Normalize spaces and camelCase accidental joins
+    $cleanName = preg_replace('/\s+/', ' ', $rawName);
+    $cleanName = preg_replace('/([a-z])([A-Z])/', '$1 $2', $cleanName);
+    $cleanName = ucwords(strtolower($cleanName));
+
+    if (empty($cleanName)) {
+        $errors['full_name'] = 'Full Name is required.';
+    } elseif (mb_strlen($cleanName) < 3) {
+        $errors['full_name'] = 'Full Name must be at least 3 characters long.';
+    } elseif (mb_strlen($cleanName) > 100) {
+        $errors['full_name'] = 'Full Name cannot exceed 100 characters.';
+    } elseif (!preg_match("/^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\.\'\-]+$/u", $cleanName)) {
+        $errors['full_name'] = 'Full Name must only contain letters, spaces, hyphens, periods, or apostrophes (no numbers or symbols).';
+    } elseif (preg_match('/(.)\1{2,}/iu', $cleanName)) {
+        $errors['full_name'] = 'Full Name contains excessive repetitive characters. Please enter a legitimate patient name.';
+    } else {
+        // Enforce at least 2 words (e.g. First Name and Last Name)
+        $words = array_values(array_filter(explode(' ', $cleanName), fn($w) => mb_strlen(trim($w)) > 0));
+        if (count($words) < 2) {
+            $errors['full_name'] = 'Please enter both First Name and Last Name (e.g., "Juan Dela Cruz").';
+        } else {
+            // Check that words of >1 letter contain vowels (rejects keyboard mashing like "asdfghjkl zxcvbnm")
+            $nonsenseWordFound = false;
+            foreach ($words as $w) {
+                $stripped = rtrim($w, '.');
+                if (mb_strlen($stripped) > 1 && !preg_match('/[aeiouyAEIOUYñÑáéíóúÁÉÍÓÚ]/u', $stripped)) {
+                    $nonsenseWordFound = true;
+                    break;
+                }
+            }
+            if ($nonsenseWordFound) {
+                $errors['full_name'] = 'Full Name contains invalid words without vowels. Please enter a legitimate name.';
+            }
+
+            // Check against known placeholder/spam names
+            $lower = strtolower($cleanName);
+            $disallowed = [
+                'test', 'testing', 'test patient', 'sample', 'sample patient',
+                'asdf', 'asdf asdf', 'qwerty', 'zxcv', 'none', 'n/a', 'unknown',
+                'anonymous', 'walkin', 'walk in', 'walk-in', 'patient', 'fake name',
+                'no name', 'hello world', 'admin', 'user'
+            ];
+            foreach ($disallowed as $bad) {
+                if ($lower === $bad || str_starts_with($lower, $bad . ' ') || str_ends_with($lower, ' ' . $bad)) {
+                    $errors['full_name'] = 'Please enter a genuine patient name, not a placeholder or test string.';
+                    break;
+                }
+            }
+        }
+    }
+    $cleaned['full_name'] = $cleanName;
+
+    // 2. EMAIL VALIDATION (OPTIONAL)
+    $email = trim($data['email'] ?? '');
+    if (!empty($email)) {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = 'Invalid email address format (e.g. name@example.com).';
+        } elseif (preg_match('/@(gmai|gmal|gmial|gmaill|gmil)\.com$/i', $email)) {
+            $errors['email'] = 'Did you mean @gmail.com? Please check your email spelling.';
+        } elseif (preg_match('/(.)\1{4,}@/i', $email)) {
+            $errors['email'] = 'Email contains invalid repetitive characters.';
+        } else {
+            $cleaned['email'] = strtolower($email);
+        }
+    } else {
+        $cleaned['email'] = ''; // Will generate walkin dummy email
+    }
+
+    // 3. PHONE NUMBER VALIDATION (OPTIONAL)
+    $rawPhone = trim($data['phone'] ?? '');
+    if (!empty($rawPhone)) {
+        $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
+        if (str_starts_with($cleanPhone, '63') && strlen($cleanPhone) === 12) {
+            $cleanPhone = '0' . substr($cleanPhone, 2);
+        }
+
+        if (!preg_match('/^09\d{9}$/', $cleanPhone)) {
+            $errors['phone'] = 'Phone number must be an 11-digit Philippine mobile number starting with 09 (e.g., 09171234567).';
+        } elseif (preg_match('/^09(\d)\1{8}$/', $cleanPhone)) {
+            $errors['phone'] = 'Please enter a valid phone number, not repeated digits.';
+        } elseif ($cleanPhone === '09123456789' || $cleanPhone === '09987654321') {
+            $errors['phone'] = 'Please enter a valid phone number, not a sequential test number.';
+        } else {
+            $cleaned['phone'] = $cleanPhone;
+        }
+    } else {
+        $cleaned['phone'] = null;
+    }
+
+    // 4. GENDER VALIDATION (OPTIONAL)
+    $gender = trim($data['gender'] ?? '');
+    if (!empty($gender)) {
+        if (!in_array($gender, ['male', 'female', 'other'], true)) {
+            $errors['gender'] = 'Invalid gender selected.';
+        } else {
+            $cleaned['gender'] = $gender;
+        }
+    } else {
+        $cleaned['gender'] = null;
+    }
+
+    // 5. BIRTHDATE VALIDATION (OPTIONAL)
+    $birthdate = trim($data['birthdate'] ?? '');
+    if (!empty($birthdate)) {
+        $ts = strtotime($birthdate);
+        $todayTs = strtotime(date('Y-m-d'));
+        $minTs = strtotime('1900-01-01');
+
+        if ($ts === false) {
+            $errors['birthdate'] = 'Invalid birthdate format.';
+        } elseif ($ts > $todayTs) {
+            $errors['birthdate'] = 'Birthdate cannot be in the future.';
+        } elseif ($ts < $minTs) {
+            $errors['birthdate'] = 'Birthdate cannot be earlier than year 1900.';
+        } else {
+            $cleaned['birthdate'] = date('Y-m-d', $ts);
+        }
+    } else {
+        $cleaned['birthdate'] = null;
+    }
+
+    // 6. ADDRESS VALIDATION (OPTIONAL)
+    $rawAddress = trim($data['address'] ?? '');
+    if (!empty($rawAddress)) {
+        $cleanAddress = preg_replace('/\s+/', ' ', $rawAddress);
+        if (mb_strlen($cleanAddress) < 3) {
+            $errors['address'] = 'Address must be at least 3 characters long.';
+        } elseif (mb_strlen($cleanAddress) > 255) {
+            $errors['address'] = 'Address cannot exceed 255 characters.';
+        } elseif (!preg_match('/[a-zA-Z]/', $cleanAddress)) {
+            $errors['address'] = 'Address must contain letters identifying the location.';
+        } elseif (preg_match('/(.)\1{4,}/iu', $cleanAddress)) {
+            $errors['address'] = 'Address contains invalid repetitive spam characters.';
+        } else {
+            $cleaned['address'] = $cleanAddress;
+        }
+    } else {
+        $cleaned['address'] = null;
+    }
+
+    return [
+        'valid'   => empty($errors),
+        'errors'  => $errors,
+        'cleaned' => $cleaned
+    ];
+}
+
+/**
+ * Creates an end-to-end Walk-in Patient & Appointment record.
+ * 
+ * - Date & Time: Automatically sets date to TODAY and scheduled_time to current timestamp.
+ * - Appointment Type: 'WALK_IN'.
+ * - Initial Status: 'confirmed' (Waiting) or 'in_progress' (Examining Now). Never 'pending'.
+ *
+ * @param PDO $db
+ * @param array $patientInput Data array containing either patient_id OR new patient fields
+ * @param string $initialStatus 'confirmed' or 'in_progress'
+ * @param int $staffUserId
+ * @param string $purpose
+ * @return array ['success' => bool, 'error' => ?string, 'patient_id' => int, 'appointment_id' => int, 'status' => string]
+ */
+function createWalkinAppointment(PDO $db, array $patientInput, string $initialStatus = 'confirmed', int $staffUserId = 0, string $purpose = 'consultation'): array {
+    $initialStatus = strtolower(trim($initialStatus));
+    // Walk-ins must NEVER be 'pending'. Default to 'confirmed' if invalid or pending passed.
+    if ($initialStatus !== 'in_progress') {
+        $initialStatus = 'confirmed';
+    }
+
+    $validPurposes = ['consultation', 'eyeglass_claim', 'follow_up', 'contact_lens_fitting', 'other'];
+    if (!in_array($purpose, $validPurposes, true)) {
+        $purpose = 'consultation';
+    }
+
+    $existingPatientId = (int)($patientInput['patient_id'] ?? 0);
+    $patientId = 0;
+    $patientName = '';
+    $patientPhone = '';
+
+    if ($existingPatientId > 0) {
+        $ptStmt = $db->prepare("SELECT id, full_name, phone FROM patients WHERE id = ?");
+        $ptStmt->execute([$existingPatientId]);
+        $pt = $ptStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$pt) {
+            return ['success' => false, 'error' => 'Selected patient does not exist.'];
+        }
+        $patientId = (int)$pt['id'];
+        $patientName = $pt['full_name'];
+        $patientPhone = $pt['phone'] ?? '';
+    } else {
+        // Register new walk-in patient with validation
+        $val = validateWalkinPatientData($patientInput);
+        if (!$val['valid']) {
+            return ['success' => false, 'error' => reset($val['errors']), 'errors' => $val['errors']];
+        }
+
+        $cleaned   = $val['cleaned'];
+        $fullName  = $cleaned['full_name'];
+        $email     = $cleaned['email'];
+        $phone     = $cleaned['phone'];
+        $address   = $cleaned['address'];
+        $gender    = $cleaned['gender'];
+        $birthdate = $cleaned['birthdate'];
+
+        if (empty($email)) {
+            $email = 'walkin_' . time() . '_' . rand(100, 999) . '@guest.gueco.local';
+        }
+
+        // Check if email taken
+        $check = $db->prepare("SELECT id FROM patients WHERE email = ?");
+        $check->execute([$email]);
+        if ($check->fetch()) {
+            return ['success' => false, 'error' => 'Email address is already registered.'];
+        }
+
+        $nameParts = explode(' ', $fullName);
+        $lastName = count($nameParts) > 1 ? array_pop($nameParts) : $fullName;
+        $firstName = implode(' ', $nameParts);
+        $randomPass = bin2hex(random_bytes(6));
+
+        $insertPt = $db->prepare("
+            INSERT INTO patients (first_name, last_name, full_name, email, password, phone, address, gender, birthdate, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ");
+        $insertPt->execute([
+            $firstName,
+            $lastName,
+            $fullName,
+            $email,
+            password_hash($randomPass, PASSWORD_DEFAULT),
+            $phone,
+            $address,
+            $gender,
+            $birthdate
+        ]);
+        $patientId = (int)$db->lastInsertId();
+        $patientName = $fullName;
+        $patientPhone = $phone ?? '';
+    }
+
+    $today = date('Y-m-d');
+    $currentTime = date('H:i:s');
+    $notes = trim($patientInput['notes'] ?? 'Walk-in registration at clinic queue.');
+
+    $insertAppt = $db->prepare("
+        INSERT INTO appointments (patient_id, appointment_date, appointment_time, appointment_type, purpose, status, notes, verified_by, created_at)
+        VALUES (?, ?, ?, 'WALK_IN', ?, ?, ?, ?, NOW())
+    ");
+    $insertAppt->execute([
+        $patientId,
+        $today,
+        $currentTime,
+        $purpose,
+        $initialStatus,
+        $notes,
+        $staffUserId ?: null
+    ]);
+    $apptId = (int)$db->lastInsertId();
+
+    $statusLabel = $initialStatus === 'in_progress' ? 'In Consultation (Examining Now)' : 'Confirmed (Waiting in Queue)';
+    if ($staffUserId > 0) {
+        logActivity("Registered walk-in appointment #$apptId for patient $patientName (Status: $statusLabel)", "Appointments", $staffUserId, 'staff');
+    }
+
+    return [
+        'success'          => true,
+        'patient_id'       => $patientId,
+        'patient_name'     => $patientName,
+        'patient_phone'    => $patientPhone,
+        'appointment_id'   => $apptId,
+        'appointment_date' => $today,
+        'appointment_time' => $currentTime,
+        'appointment_type' => 'WALK_IN',
+        'status'           => $initialStatus,
+        'purpose'          => $purpose
+    ];
+}
+
 function generateCsrfToken(): string {
     startSession();
     if (empty($_SESSION['csrf_token'])) {

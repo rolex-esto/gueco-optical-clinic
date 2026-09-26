@@ -72,6 +72,27 @@ $extraHead .= '<link rel="stylesheet" href="'.BASE_URL.'assets/css/pages/dashboa
 include __DIR__ . '/../includes/header.php';
 ?>
 
+<style>
+/* Walk-in highlight styling */
+.cal-event-card.is-walkin,
+.cal-week-card.is-walkin {
+  border-left: 3px solid #f59e0b !important;
+}
+.cal-walkin-badge {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: inline-block;
+  line-height: 1.2;
+}
+</style>
+
 <!-- Quick Stats Summary Header (Side by Side Colored Indicators) -->
 <div class="row g-3 mb-4">
   <!-- Card 1: Today's Appointments -->
@@ -171,8 +192,11 @@ include __DIR__ . '/../includes/header.php';
 
     <!-- Quick Sale Button & View Switcher -->
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <a href="pos.php?mode=retail" class="btn btn-warning btn-sm d-flex align-items-center gap-1 fw-bold shadow-sm" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;color:#fff;border-radius:8px;padding:6px 14px;font-size:0.8rem;text-decoration:none;">
-        <i class="fas fa-bolt"></i> Quick Sale / Walk-in
+      <button type="button" class="btn btn-warning btn-sm d-flex align-items-center gap-1 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#registerWalkinModal" style="border:none;border-radius:8px;padding:6px 14px;font-size:0.8rem;">
+        <i class="fas fa-user-plus"></i> + Walk-in Patient
+      </button>
+      <a href="pos.php?mode=retail" class="btn btn-outline-warning btn-sm d-flex align-items-center gap-1 fw-bold shadow-sm" style="border-radius:8px;padding:6px 14px;font-size:0.8rem;text-decoration:none;">
+        <i class="fas fa-bolt"></i> Quick Sale (POS)
       </a>
       <div class="cal-view-switcher">
         <button type="button" class="cal-view-btn" data-view="week" id="viewBtnWeek">
@@ -199,6 +223,9 @@ include __DIR__ . '/../includes/header.php';
       </button>
       <button type="button" class="cal-filter-pill" data-status="confirmed">
         <span class="cal-bullet bullet-confirmed"></span> Confirmed (<span id="countConfirmed">0</span>)
+      </button>
+      <button type="button" class="cal-filter-pill" data-status="in_progress">
+        <span class="cal-bullet" style="background:#0ea5e9;"></span> In-Progress (<span id="countInProgress">0</span>)
       </button>
       <button type="button" class="cal-filter-pill" data-status="pending">
         <span class="cal-bullet bullet-pending"></span> Pending (<span id="countPending">0</span>)
@@ -287,6 +314,7 @@ include __DIR__ . '/../includes/header.php';
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
+          <span id="modalWalkinBadge"></span>
           <span id="modalStatusBadge"></span>
           <button type="button" class="btn-close cal-modal-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
@@ -395,6 +423,103 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <!-- ============================================================ -->
+<!-- REGISTER WALK-IN PATIENT MODAL                               -->
+<!-- ============================================================ -->
+<div class="modal fade" id="registerWalkinModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content cal-modal">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-2">
+          <div style="width:38px;height:38px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#f59e0b;">
+            <i class="fas fa-walking"></i>
+          </div>
+          <div>
+            <h5 class="modal-title fw-bold cal-modal-title mb-0">Register Walk-in Patient</h5>
+            <small class="text-muted">Direct Check-in &bull; Scheduled for Today</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close cal-modal-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <form id="formRegisterWalkin" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+        <div class="modal-body p-4">
+          <div id="walkinAlert" class="alert alert-danger py-2 px-3 mb-3 d-none" style="font-size:0.85rem;"></div>
+
+          <div class="row g-3">
+            <div class="col-md-7">
+              <label class="form-label small fw-bold text-muted text-uppercase">Full Name <span class="text-danger">*</span></label>
+              <input type="text" name="full_name" id="walkinInputFullName" class="form-control" placeholder="e.g. Juan Dela Cruz" required maxlength="100">
+            </div>
+
+            <div class="col-md-5">
+              <label class="form-label small fw-bold text-muted text-uppercase">Mobile Number (09XXXXXXXXX) <span class="text-danger">*</span></label>
+              <input type="tel" name="phone" id="walkinInputPhone" class="form-control" placeholder="09XXXXXXXXX" required maxlength="11" inputmode="numeric">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-muted text-uppercase">Email (Optional)</label>
+              <input type="email" name="email" id="walkinInputEmail" class="form-control" placeholder="Leave blank if none">
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-bold text-muted text-uppercase">Gender</label>
+              <select name="gender" id="walkinInputGender" class="form-select">
+                <option value="">Select</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-bold text-muted text-uppercase">Birthdate</label>
+              <input type="date" name="birthdate" id="walkinInputBirthdate" class="form-control" max="<?= date('Y-m-d') ?>">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold text-muted text-uppercase">Address (Optional)</label>
+              <input type="text" name="address" id="walkinInputAddress" class="form-control" placeholder="Barangay, City / Municipality">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-muted text-uppercase">Consultation Purpose</label>
+              <select name="purpose" id="walkinInputPurpose" class="form-select">
+                <option value="consultation" selected>Comprehensive Eye Examination / Refraction</option>
+                <option value="eyeglass_claim">Eyeglass Claim / Fitting</option>
+                <option value="follow_up">Follow-up Check</option>
+                <option value="contact_lens_fitting">Contact Lens Assessment</option>
+                <option value="other">Other Optical Concerns</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-muted text-uppercase">Initial Queue Status</label>
+              <select name="initial_status" id="walkinInputInitialStatus" class="form-select">
+                <option value="confirmed" selected>Waiting in Clinic (Confirmed)</option>
+                <option value="in_progress">Direct to Doctor (Examining Now / In-Progress)</option>
+              </select>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold text-muted text-uppercase">Staff / Notes (Optional)</label>
+              <textarea name="notes" id="walkinInputNotes" class="form-control" rows="2" placeholder="e.g. Frame selection, blurry vision, urgent claim..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-secondary btn-sm px-4" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold" id="btnSubmitWalkin">
+            <i class="fas fa-check-circle me-1"></i> Register & Add to Queue
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
 <!-- CALENDAR JAVASCRIPT LOGIC ENGINE                             -->
 <!-- ============================================================ -->
 <script>
@@ -465,11 +590,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function getStatusBadgeHtml(status) {
     const map = {
-      'confirmed': '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-check-circle me-1"></i>Confirmed</span>',
-      'pending':   '<span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1"><i class="fas fa-clock me-1"></i>Pending</span>',
-      'completed': '<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="fas fa-check-double me-1"></i>Done</span>',
-      'cancelled': '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="fas fa-times-circle me-1"></i>Cancelled</span>',
-      'no_show':   '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="fas fa-user-slash me-1"></i>No-Show</span>'
+      'confirmed':   '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-check-circle me-1"></i>Confirmed</span>',
+      'in_progress': '<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1"><i class="fas fa-stethoscope me-1"></i>In-Progress</span>',
+      'pending':     '<span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1"><i class="fas fa-clock me-1"></i>Pending</span>',
+      'completed':   '<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="fas fa-check-double me-1"></i>Done</span>',
+      'cancelled':   '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="fas fa-times-circle me-1"></i>Cancelled</span>',
+      'no_show':     '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="fas fa-user-slash me-1"></i>No-Show</span>'
     };
     return map[status] || `<span class="badge bg-secondary">${status}</span>`;
   }
@@ -495,12 +621,15 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateCounts() {
     const total = rawAppointments.length;
     const confirmed = rawAppointments.filter(a => a.status === 'confirmed').length;
+    const inProgress = rawAppointments.filter(a => a.status === 'in_progress').length;
     const pending = rawAppointments.filter(a => a.status === 'pending').length;
     const completed = rawAppointments.filter(a => a.status === 'completed').length;
     const noShow = rawAppointments.filter(a => a.status === 'no_show').length;
 
     document.getElementById('countAll').textContent = total;
     document.getElementById('countConfirmed').textContent = confirmed;
+    const inProgEl = document.getElementById('countInProgress');
+    if (inProgEl) inProgEl.textContent = inProgress;
     document.getElementById('countPending').textContent = pending;
     document.getElementById('countCompleted').textContent = completed;
     document.getElementById('countNoShow').textContent = noShow;
@@ -612,13 +741,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const overflowCount = appts.length - maxVisible;
 
     visibleAppts.forEach(appt => {
+      const isWalkin = (appt.appointment_type === 'WALK_IN');
       const card = document.createElement('div');
-      card.className = `cal-event-card status-${appt.status}`;
+      card.className = `cal-event-card status-${appt.status}${isWalkin ? ' is-walkin' : ''}`;
       const timeStr = formatTime12(appt.appointment_time);
 
       card.innerHTML = `
         <div class="cal-card-chips-row">
           <span class="cal-event-time"><i class="far fa-clock"></i> ${timeStr}</span>
+          ${isWalkin ? '<span class="cal-walkin-badge">Walk-in</span>' : ''}
           <span class="cal-side-chip chip-${appt.status}">${appt.status.replace('_', ' ')}</span>
         </div>
         <div class="cal-event-title">${escapeHtml(appt.patient_name)}</div>
@@ -706,12 +837,14 @@ document.addEventListener('DOMContentLoaded', function() {
         eventsList.innerHTML = `<div class="text-center text-muted small py-4" style="opacity:0.5;">No appts</div>`;
       } else {
         dayAppts.forEach(appt => {
+          const isWalkin = (appt.appointment_type === 'WALK_IN');
           const card = document.createElement('div');
-          card.className = `cal-week-card status-${appt.status}`;
+          card.className = `cal-week-card status-${appt.status}${isWalkin ? ' is-walkin' : ''}`;
           
           card.innerHTML = `
             <div class="cal-card-chips-row">
               <span class="cal-event-time"><i class="far fa-clock me-1"></i>${formatTime12(appt.appointment_time)}</span>
+              ${isWalkin ? '<span class="cal-walkin-badge">Walk-in</span>' : ''}
               <span class="cal-side-chip chip-${appt.status}">${appt.status.replace('_', ' ')}</span>
             </div>
             <div class="cal-week-card-name">${escapeHtml(appt.patient_name)}</div>
@@ -781,6 +914,7 @@ document.addEventListener('DOMContentLoaded', function() {
       itemsWrap.className = 'cal-agenda-items';
 
       appts.forEach(appt => {
+        const isWalkin = (appt.appointment_type === 'WALK_IN');
         const item = document.createElement('div');
         item.className = 'cal-agenda-item';
 
@@ -790,7 +924,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <i class="far fa-clock me-1"></i>${formatTime12(appt.appointment_time)}
             </div>
             <div class="cal-agenda-patient-info">
-              <h6>${escapeHtml(appt.patient_name)}</h6>
+              <h6>${escapeHtml(appt.patient_name)}${isWalkin ? ' <span class="cal-walkin-badge ms-1">Walk-in</span>' : ''}</h6>
               <div class="d-flex align-items-center gap-2 mt-1">
                 <span class="cal-side-chip chip-${appt.status}">${appt.status.replace('_', ' ')}</span>
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle small"><i class="fas fa-tag me-1"></i>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>
@@ -840,13 +974,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     filteredAppts.forEach((appt, idx) => {
+      const isWalkin = (appt.appointment_type === 'WALK_IN');
       const tr = document.createElement('tr');
       const apptDateObj = new Date(appt.appointment_date + 'T00:00:00');
 
       tr.innerHTML = `
         <td class="text-muted fw-bold">${idx + 1}</td>
         <td>
-          <div class="fw-bold cal-modal-title">${escapeHtml(appt.patient_name)}</div>
+          <div class="fw-bold cal-modal-title">
+            ${escapeHtml(appt.patient_name)}
+            ${isWalkin ? '<span class="cal-walkin-badge ms-1">Walk-in</span>' : ''}
+          </div>
           <small class="text-muted">${escapeHtml(appt.patient_phone || '')}</small>
         </td>
         <td>${escapeHtml(appt.patient_phone || '—')}</td>
@@ -949,6 +1087,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('modalStatusBadge').innerHTML = getStatusBadgeHtml(appt.status);
 
+    const isWalkin = (appt.appointment_type === 'WALK_IN');
+    const walkinBadge = document.getElementById('modalWalkinBadge');
+    if (walkinBadge) {
+      if (isWalkin) {
+        walkinBadge.innerHTML = '<span class="badge bg-warning text-dark px-2 py-1"><i class="fas fa-walking me-1"></i>Walk-in</span>';
+      } else {
+        walkinBadge.innerHTML = '';
+      }
+    }
+
     const apptDateObj = new Date(appt.appointment_date + 'T00:00:00');
     document.getElementById('modalDate').textContent = formatDisplayDate(apptDateObj);
     document.getElementById('modalTime').textContent = formatTime12(appt.appointment_time);
@@ -966,7 +1114,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const lockAlert = document.getElementById('modalConsultationLockAlert');
     const purpose = (appt.purpose || 'consultation').toLowerCase();
     const isConsultation = purpose.includes('consultation') || purpose.includes('eye_exam') || purpose.includes('checkup');
-    const isExamCompleted = appt.status === 'completed' || (parseInt(appt.rx_count, 10) > 0 && appt.status !== 'pending');
+    const isExamCompleted = appt.status === 'completed' || (parseInt(appt.rx_count, 10) > 0 && appt.status !== 'pending' && appt.status !== 'in_progress');
     const isCancelledOrNoShow = appt.status === 'cancelled' || appt.status === 'no_show';
     const hasSale = !!appt.sale_id;
 
@@ -986,9 +1134,29 @@ document.addEventListener('DOMContentLoaded', function() {
       btnPos.style.pointerEvents = 'none';
       btnPos.style.opacity = '0.65';
       btnPos.innerHTML = `<i class="fas fa-ban me-1"></i> ${appt.status === 'cancelled' ? 'Appointment Cancelled' : 'No-Show Recorded'}`;
+    } else if (appt.status === 'in_progress') {
+      if (lockAlert) {
+        lockAlert.style.display = 'flex';
+        lockAlert.className = 'alert alert-info d-flex align-items-center gap-2 mb-3 py-2 px-3';
+        lockAlert.style.border = '1.5px solid #0ea5e9';
+        lockAlert.style.background = 'rgba(14, 165, 233, 0.08)';
+        lockAlert.innerHTML = '<i class="fas fa-stethoscope fa-lg text-info flex-shrink-0"></i><div><strong>With Doctor (Examining):</strong> Optometrist is currently seeing the patient. POS unlocks once consultation is marked completed.</div>';
+      }
+      btnPos.removeAttribute('href');
+      btnPos.target = '_self';
+      btnPos.className = 'btn btn-secondary btn-sm flex-fill py-2 disabled';
+      btnPos.style.pointerEvents = 'none';
+      btnPos.style.opacity = '0.85';
+      btnPos.innerHTML = `<i class="fas fa-stethoscope me-1"></i> In Consultation with Doctor`;
     } else if (isConsultation && !isExamCompleted) {
       // Consultation pending Doctor Examination -> LOCK POS BUTTON
-      if (lockAlert) lockAlert.style.display = 'flex';
+      if (lockAlert) {
+        lockAlert.style.display = 'flex';
+        lockAlert.className = 'alert alert-warning d-flex align-items-center gap-2 mb-3 py-2 px-3';
+        lockAlert.style.border = '1.5px solid #f59e0b';
+        lockAlert.style.background = 'rgba(245, 158, 11, 0.08)';
+        lockAlert.innerHTML = '<i class="fas fa-lock fa-lg text-warning flex-shrink-0"></i><div><strong>Awaiting Doctor Examination:</strong> POS checkout unlocks automatically once Optometrist inputs prescription and completes consultation.</div>';
+      }
       btnPos.removeAttribute('href');
       btnPos.target = '_self';
       btnPos.className = 'btn btn-secondary btn-sm flex-fill py-2 disabled';
@@ -1086,6 +1254,98 @@ document.addEventListener('DOMContentLoaded', function() {
 
     dayQueueModal.show();
   }
+
+  // ── Register Walk-in Form Submission Handler ──────────────────
+  const formRegisterWalkin = document.getElementById('formRegisterWalkin');
+  if (formRegisterWalkin) {
+    const walkinAlert = document.getElementById('walkinAlert');
+    const btnSubmitWalkin = document.getElementById('btnSubmitWalkin');
+
+    formRegisterWalkin.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (walkinAlert) {
+        walkinAlert.textContent = '';
+        walkinAlert.classList.add('d-none');
+      }
+
+      btnSubmitWalkin.disabled = true;
+      btnSubmitWalkin.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Registering...';
+
+      const formData = new FormData(this);
+
+      fetch('../api/register_walkin.php', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        btnSubmitWalkin.disabled = false;
+        btnSubmitWalkin.innerHTML = '<i class="fas fa-check-circle me-1"></i> Register & Add to Queue';
+
+        if (!data.success) {
+          if (walkinAlert) {
+            walkinAlert.textContent = data.error || 'Failed to register walk-in patient.';
+            walkinAlert.classList.remove('d-none');
+          }
+          return;
+        }
+
+        // 1. Add new appointment to local calendar cache
+        if (data.appointment) {
+          rawAppointments.push(data.appointment);
+          render();
+        }
+
+        // 2. Hide register modal & reset form
+        const registerModalEl = document.getElementById('registerWalkinModal');
+        const modalInstance = bootstrap.Modal.getInstance(registerModalEl);
+        if (modalInstance) modalInstance.hide();
+        formRegisterWalkin.reset();
+
+        // 3. Open details modal for confirmation
+        if (data.appointment) {
+          setTimeout(() => {
+            openAppointmentModal(data.appointment);
+          }, 350);
+        }
+      })
+      .catch(err => {
+        btnSubmitWalkin.disabled = false;
+        btnSubmitWalkin.innerHTML = '<i class="fas fa-check-circle me-1"></i> Register & Add to Queue';
+        if (walkinAlert) {
+          walkinAlert.textContent = 'Network or server error. Please try again.';
+          walkinAlert.classList.remove('d-none');
+        }
+      });
+    });
+  }
+
+  // ── Background Poller (every 12 seconds) ──────────────────────
+  setInterval(function() {
+    fetch('../api/get_calendar_events.php')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && Array.isArray(data.raw)) {
+          let changed = (data.raw.length !== rawAppointments.length);
+          if (!changed) {
+            for (let i = 0; i < data.raw.length; i++) {
+              const fresh = data.raw[i];
+              const existing = rawAppointments.find(a => a.id === fresh.id);
+              if (!existing || existing.status !== fresh.status || existing.notes !== fresh.notes) {
+                changed = true;
+                break;
+              }
+            }
+          }
+          if (changed) {
+            rawAppointments.length = 0;
+            data.raw.forEach(a => rawAppointments.push(a));
+            render();
+          }
+        }
+      })
+      .catch(() => {});
+  }, 12000);
 
   // Initial render
   render();

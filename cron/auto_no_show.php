@@ -35,6 +35,7 @@ function processAutoNoShowAppointments(PDO $db): array {
         FROM appointments a
         JOIN patients p ON p.id = a.patient_id
         WHERE a.status = 'confirmed'
+          AND (a.appointment_type IS NULL OR a.appointment_type != 'WALK_IN')
           AND (
             a.appointment_date < CURDATE()
             OR TIMESTAMP(a.appointment_date, a.appointment_time) <= NOW() - INTERVAL 24 HOUR

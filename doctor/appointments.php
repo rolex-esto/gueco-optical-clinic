@@ -16,12 +16,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'] ?? '';
     
     if ($apptId > 0) {
-        $ptStmt = $db->prepare("SELECT p.full_name, a.appointment_date, a.appointment_time, a.status FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE a.id=?");
+        $ptStmt = $db->prepare("SELECT p.full_name, a.appointment_date, a.appointment_time, a.status, a.appointment_type FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE a.id=?");
         $ptStmt->execute([$apptId]);
         $ptData = $ptStmt->fetch();
         $ptName = $ptData['full_name'] ?? ('Appointment #' . $apptId);
+        $isWalkin = ($ptData['appointment_type'] ?? '') === 'WALK_IN';
 
-        if ($action === 'complete') {
+        if ($action === 'start_consultation') {
+            $db->prepare("UPDATE appointments SET status='in_progress', verified_by=? WHERE id=?")->execute([$_SESSION['user_id'], $apptId]);
+            $_SESSION['flash_msg'] = 'Consultation started with patient: ' . $ptName . '.';
+            $_SESSION['flash_type'] = 'info';
+            logActivity("Started clinical consultation for patient: $ptName (Appointment #$apptId)", "Appointments", $_SESSION['user_id'], 'staff');
+        } elseif ($action === 'complete') {
             $apptDateTimeStr = ($ptData['appointment_date'] ?? '') . ' ' . ($ptData['appointment_time'] ?? '');
             $apptTimestamp = strtotime($apptDateTimeStr);
 
@@ -30,34 +36,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $_SESSION['flash_type'] = 'warning';
             } elseif ($ptData && ($ptData['status'] ?? '') === 'no_show') {
                 $db->prepare("UPDATE appointments SET status='completed' WHERE id=?")->execute([$apptId]);
-                $_SESSION['flash_msg'] = 'Appointment marked as completed (Delayed charting recorded).';
+                $_SESSION['flash_msg'] = 'Appointment marked as completed (Delayed charting recorded). Ready for Optical Dispensing & Checkout.';
                 $_SESSION['flash_type'] = 'success';
                 logActivity("Marked appointment #$apptId as completed from No-Show for patient: $ptName", "Appointments", $_SESSION['user_id'], 'staff');
-            } elseif ($apptTimestamp && time() < $apptTimestamp) {
+            } elseif (!$isWalkin && $apptTimestamp && time() < $apptTimestamp) {
                 $_SESSION['flash_msg'] = 'A consultation cannot be marked as completed before the scheduled appointment time (' . date('h:i A', $apptTimestamp) . ').';
                 $_SESSION['flash_type'] = 'warning';
             } else {
                 $db->prepare("UPDATE appointments SET status='completed' WHERE id=?")->execute([$apptId]);
-                $_SESSION['flash_msg'] = 'Appointment marked as completed.';
+                $_SESSION['flash_msg'] = 'Consultation marked as completed. Patient is ready for Optical Dispensing & Checkout.';
                 $_SESSION['flash_type'] = 'success';
                 logActivity("Marked appointment #$apptId as completed for patient: $ptName", "Appointments", $_SESSION['user_id'], 'staff');
             }
         } elseif ($action === 'no_show') {
-            $apptDateTimeStr = ($ptData['appointment_date'] ?? '') . ' ' . ($ptData['appointment_time'] ?? '');
-            $apptTimestamp = strtotime($apptDateTimeStr);
-            $graceTimestamp = $apptTimestamp ? ($apptTimestamp + (15 * 60)) : 0;
-
-            if ($ptData && ($ptData['status'] ?? '') === 'pending') {
-                $_SESSION['flash_msg'] = 'Cannot mark a Pending appointment as No-Show. Please confirm the booking first.';
-                $_SESSION['flash_type'] = 'warning';
-            } elseif ($apptTimestamp && time() < $graceTimestamp) {
-                $_SESSION['flash_msg'] = 'Marking a patient as No-Show is premature until the scheduled appointment time and 15-minute grace period have elapsed.';
+            if ($isWalkin) {
+                $_SESSION['flash_msg'] = 'Marking No-Show is disabled for walk-in patients as they are physically present in the clinic.';
                 $_SESSION['flash_type'] = 'warning';
             } else {
-                $db->prepare("UPDATE appointments SET status='no_show' WHERE id=?")->execute([$apptId]);
-                $_SESSION['flash_msg'] = 'Appointment marked as No-Show.';
-                $_SESSION['flash_type'] = 'warning';
-                logActivity("Marked appointment #$apptId as No-Show for patient: $ptName", "Appointments", $_SESSION['user_id'], 'staff');
+                $apptDateTimeStr = ($ptData['appointment_date'] ?? '') . ' ' . ($ptData['appointment_time'] ?? '');
+                $apptTimestamp = strtotime($apptDateTimeStr);
+                $graceTimestamp = $apptTimestamp ? ($apptTimestamp + (15 * 60)) : 0;
+
+                if ($ptData && ($ptData['status'] ?? '') === 'pending') {
+                    $_SESSION['flash_msg'] = 'Cannot mark a Pending appointment as No-Show. Please confirm the booking first.';
+                    $_SESSION['flash_type'] = 'warning';
+                } elseif ($apptTimestamp && time() < $graceTimestamp) {
+                    $_SESSION['flash_msg'] = 'Marking a patient as No-Show is premature until the scheduled appointment time and 15-minute grace period have elapsed.';
+                    $_SESSION['flash_type'] = 'warning';
+                } else {
+                    $db->prepare("UPDATE appointments SET status='no_show' WHERE id=?")->execute([$apptId]);
+                    $_SESSION['flash_msg'] = 'Appointment marked as No-Show.';
+                    $_SESSION['flash_type'] = 'warning';
+                    logActivity("Marked appointment #$apptId as No-Show for patient: $ptName", "Appointments", $_SESSION['user_id'], 'staff');
+                }
             }
         } elseif ($action === 'revert_confirmed') {
             if ($ptData && ($ptData['status'] ?? '') === 'no_show') {
@@ -229,7 +240,10 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <!-- View Switcher (Week / Month / Agenda) -->
-    <div class="cal-view-switcher">
+    <div class="cal-view-switcher d-flex align-items-center">
+      <button type="button" class="btn btn-warning btn-sm fw-bold shadow-sm me-2" id="btnCalWalkin" data-bs-toggle="modal" data-bs-target="#registerWalkinModal">
+        <i class="fas fa-user-plus me-1"></i> + Walk-in Patient
+      </button>
       <button type="button" class="cal-view-btn" data-view="week" id="viewBtnWeek">
         <i class="fas fa-calendar-week"></i> Week
       </button>
@@ -250,6 +264,9 @@ include __DIR__ . '/../includes/header.php';
       </button>
       <button type="button" class="cal-filter-pill" data-status="confirmed">
         <i class="fas fa-check-circle text-success"></i> Confirmed (<span id="countConfirmed">0</span>)
+      </button>
+      <button type="button" class="cal-filter-pill" data-status="in_progress">
+        <i class="fas fa-stethoscope text-primary"></i> In-Progress (<span id="countInProgress">0</span>)
       </button>
       <button type="button" class="cal-filter-pill" data-status="pending">
         <i class="fas fa-clock text-warning"></i> Pending (<span id="countPending">0</span>)
@@ -314,6 +331,25 @@ include __DIR__ . '/../includes/header.php';
 .cal-modal a.btn.is-disabled:hover {
   filter: grayscale(50%) !important;
 }
+
+/* Walk-in highlight styling */
+.cal-event-card.is-walkin,
+.cal-week-card.is-walkin {
+  border-left: 3px solid #f59e0b !important;
+}
+.cal-walkin-badge {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: inline-block;
+  line-height: 1.2;
+}
 </style>
 
 <!-- ============================================================ -->
@@ -333,6 +369,7 @@ include __DIR__ . '/../includes/header.php';
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
+          <span id="modalWalkinBadge"></span>
           <span id="modalStatusBadge"></span>
           <button type="button" class="btn-close cal-modal-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
@@ -392,7 +429,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
 
         <!-- Clinical Workflow Context Notice -->
-        <div id="modalWorkflowNotice" class="alert py-2 px-3 mb-3 d-flex align-items-center gap-2 small" style="display:none; border-radius:10px; font-size:0.82rem;">
+        <div id="modalWorkflowNotice" class="alert py-2 px-3 mb-3 d-none align-items-center gap-2 small" style="border-radius:10px; font-size:0.82rem;">
           <i class="fas fa-info-circle flex-shrink-0"></i>
           <span id="modalWorkflowNoticeText"></span>
         </div>
@@ -417,6 +454,14 @@ include __DIR__ . '/../includes/header.php';
       <div class="modal-footer d-flex justify-content-between align-items-center">
         <!-- Quick Status Update Forms -->
         <div class="d-flex gap-2" id="modalStatusButtons">
+          <form method="POST" id="formStartConsultationAppt" style="display:none;">
+            <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+            <input type="hidden" name="appt_id" id="postApptIdStartConsultation">
+            <input type="hidden" name="action" value="start_consultation">
+            <input type="hidden" name="current_view_date" id="postDateStartConsultation">
+            <button type="submit" id="btnSubmitStartConsultation" class="btn btn-primary btn-sm px-3"><i class="fas fa-stethoscope me-1"></i> Start Consultation</button>
+          </form>
+
           <form method="POST" id="formCompleteAppt" style="display:inline;">
             <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
             <input type="hidden" name="appt_id" id="postApptIdComplete">
@@ -480,6 +525,103 @@ include __DIR__ . '/../includes/header.php';
       <div class="modal-body p-4" id="dayModalBody">
         <!-- Injected dynamically -->
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- REGISTER WALK-IN PATIENT MODAL                               -->
+<!-- ============================================================ -->
+<div class="modal fade" id="registerWalkinModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content cal-modal">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-2">
+          <div style="width:38px;height:38px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#f59e0b;">
+            <i class="fas fa-walking"></i>
+          </div>
+          <div>
+            <h5 class="modal-title fw-bold cal-modal-title mb-0">Register Walk-in Patient</h5>
+            <small class="text-muted">Direct Check-in &bull; Scheduled for Today</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close cal-modal-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <form id="formRegisterWalkin" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+        <div class="modal-body p-4">
+          <div id="walkinAlert" class="alert alert-danger py-2 px-3 mb-3 d-none" style="font-size:0.85rem;"></div>
+
+          <div class="row g-3">
+            <div class="col-md-7">
+              <label class="form-label small fw-bold text-muted text-uppercase">Full Name <span class="text-danger">*</span></label>
+              <input type="text" name="full_name" id="walkinInputFullName" class="form-control" placeholder="e.g. Juan Dela Cruz" required maxlength="100">
+            </div>
+
+            <div class="col-md-5">
+              <label class="form-label small fw-bold text-muted text-uppercase">Mobile Number (09XXXXXXXXX) <span class="text-danger">*</span></label>
+              <input type="tel" name="phone" id="walkinInputPhone" class="form-control" placeholder="09XXXXXXXXX" required maxlength="11" inputmode="numeric">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-muted text-uppercase">Email (Optional)</label>
+              <input type="email" name="email" id="walkinInputEmail" class="form-control" placeholder="Leave blank if none">
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-bold text-muted text-uppercase">Gender</label>
+              <select name="gender" id="walkinInputGender" class="form-select">
+                <option value="">Select</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-bold text-muted text-uppercase">Birthdate</label>
+              <input type="date" name="birthdate" id="walkinInputBirthdate" class="form-control" max="<?= date('Y-m-d') ?>">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold text-muted text-uppercase">Address (Optional)</label>
+              <input type="text" name="address" id="walkinInputAddress" class="form-control" placeholder="Barangay, City / Municipality">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-muted text-uppercase">Consultation Purpose</label>
+              <select name="purpose" id="walkinInputPurpose" class="form-select">
+                <option value="consultation" selected>Comprehensive Eye Examination / Refraction</option>
+                <option value="eyeglass_claim">Eyeglass Claim / Fitting</option>
+                <option value="follow_up">Follow-up Check</option>
+                <option value="contact_lens_fitting">Contact Lens Assessment</option>
+                <option value="other">Other Optical Concerns</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label small fw-bold text-muted text-uppercase">Initial Queue Status</label>
+              <select name="initial_status" id="walkinInputInitialStatus" class="form-select">
+                <option value="confirmed" selected>Waiting in Clinic (Confirmed)</option>
+                <option value="in_progress">Direct to Doctor (Examining Now / In-Progress)</option>
+              </select>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold text-muted text-uppercase">Staff / Clinical Notes (Optional)</label>
+              <textarea name="notes" id="walkinInputNotes" class="form-control" rows="2" placeholder="e.g. Chief complaint, blurry vision, frame adjustment..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer d-flex justify-content-between">
+          <button type="button" class="btn btn-outline-secondary btn-sm px-4" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold" id="btnSubmitWalkin">
+            <i class="fas fa-check-circle me-1"></i> Register & Add to Queue
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -564,11 +706,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function getStatusBadgeHtml(status) {
     const map = {
-      'confirmed': '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-check-circle me-1"></i>Confirmed</span>',
-      'pending':   '<span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1"><i class="fas fa-clock me-1"></i>Pending</span>',
-      'completed': '<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="fas fa-check-double me-1"></i>Done</span>',
-      'cancelled': '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="fas fa-times-circle me-1"></i>Cancelled</span>',
-      'no_show':   '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="fas fa-user-slash me-1"></i>No-Show</span>'
+      'confirmed':   '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-check-circle me-1"></i>Confirmed</span>',
+      'in_progress': '<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1"><i class="fas fa-stethoscope me-1"></i>In-Progress</span>',
+      'pending':     '<span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1"><i class="fas fa-clock me-1"></i>Pending</span>',
+      'completed':   '<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1"><i class="fas fa-check-double me-1"></i>Done</span>',
+      'cancelled':   '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="fas fa-times-circle me-1"></i>Cancelled</span>',
+      'no_show':     '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1"><i class="fas fa-user-slash me-1"></i>No-Show</span>'
     };
     return map[status] || `<span class="badge bg-secondary">${status}</span>`;
   }
@@ -598,12 +741,15 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateCounts() {
     const total = rawAppointments.length;
     const confirmed = rawAppointments.filter(a => a.status === 'confirmed').length;
+    const inProgress = rawAppointments.filter(a => a.status === 'in_progress').length;
     const pending = rawAppointments.filter(a => a.status === 'pending').length;
     const completed = rawAppointments.filter(a => a.status === 'completed').length;
     const noShow = rawAppointments.filter(a => a.status === 'no_show').length;
 
     document.getElementById('countAll').textContent = total;
     document.getElementById('countConfirmed').textContent = confirmed;
+    const inProgEl = document.getElementById('countInProgress');
+    if (inProgEl) inProgEl.textContent = inProgress;
     document.getElementById('countPending').textContent = pending;
     document.getElementById('countCompleted').textContent = completed;
     document.getElementById('countNoShow').textContent = noShow;
@@ -707,14 +853,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const overflowCount = appts.length - maxVisible;
 
     visibleAppts.forEach(appt => {
+      const isWalkin = (appt.appointment_type === 'WALK_IN');
       const card = document.createElement('div');
-      card.className = `cal-event-card status-${appt.status}`;
+      card.className = `cal-event-card status-${appt.status}${isWalkin ? ' is-walkin' : ''}`;
       
       const timeStr = formatTime12(appt.appointment_time);
       const purposeStr = (appt.purpose || '').replace(/_/g, ' ');
 
       card.innerHTML = `
-        <span class="cal-event-time"><i class="far fa-clock" style="font-size:0.6rem;"></i> ${timeStr}</span>
+        <span class="cal-event-time">
+          <i class="far fa-clock" style="font-size:0.6rem;"></i> ${timeStr}
+          ${isWalkin ? '<span class="cal-walkin-badge ms-1">Walk-in</span>' : ''}
+        </span>
         <div class="cal-event-title">${escapeHtml(appt.patient_name)}</div>
       `;
 
@@ -803,11 +953,15 @@ document.addEventListener('DOMContentLoaded', function() {
         eventsList.innerHTML = `<div class="text-center text-muted small py-4" style="opacity:0.5;">No appts</div>`;
       } else {
         dayAppts.forEach(appt => {
+          const isWalkin = (appt.appointment_type === 'WALK_IN');
           const card = document.createElement('div');
-          card.className = `cal-week-card status-${appt.status}`;
+          card.className = `cal-week-card status-${appt.status}${isWalkin ? ' is-walkin' : ''}`;
           
           card.innerHTML = `
-            <div class="cal-week-card-time"><i class="far fa-clock me-1"></i>${formatTime12(appt.appointment_time)}</div>
+            <div class="cal-week-card-time d-flex justify-content-between align-items-center">
+              <span><i class="far fa-clock me-1"></i>${formatTime12(appt.appointment_time)}</span>
+              ${isWalkin ? '<span class="cal-walkin-badge">Walk-in</span>' : ''}
+            </div>
             <div class="cal-week-card-name">${escapeHtml(appt.patient_name)}</div>
             <div class="cal-week-card-purpose">${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</div>
             <div class="d-flex justify-content-between align-items-center mt-2">
@@ -878,6 +1032,7 @@ document.addEventListener('DOMContentLoaded', function() {
       itemsWrap.className = 'cal-agenda-items';
 
       appts.forEach(appt => {
+        const isWalkin = (appt.appointment_type === 'WALK_IN');
         const item = document.createElement('div');
         item.className = 'cal-agenda-item';
 
@@ -887,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <i class="far fa-clock me-1"></i>${formatTime12(appt.appointment_time)}
             </div>
             <div class="cal-agenda-patient-info">
-              <h6>${escapeHtml(appt.patient_name)}</h6>
+              <h6>${escapeHtml(appt.patient_name)}${isWalkin ? ' <span class="cal-walkin-badge ms-1">Walk-in</span>' : ''}</h6>
               <p>
                 <i class="fas fa-phone-alt me-1" style="font-size:0.68rem;"></i>${escapeHtml(appt.patient_phone || 'No phone')} &middot;
                 <span class="text-info">${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>
@@ -1013,6 +1168,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('modalStatusBadge').innerHTML = getStatusBadgeHtml(appt.status);
 
+    const isWalkin = (appt.appointment_type === 'WALK_IN');
+    const walkinBadge = document.getElementById('modalWalkinBadge');
+    if (walkinBadge) {
+      if (isWalkin) {
+        walkinBadge.innerHTML = '<span class="badge bg-warning text-dark px-2 py-1"><i class="fas fa-walking me-1"></i>Walk-in</span>';
+      } else {
+        walkinBadge.innerHTML = '';
+      }
+    }
+
     const apptDateObj = new Date(appt.appointment_date + 'T00:00:00');
     document.getElementById('modalDate').textContent = formatDisplayDate(apptDateObj);
     document.getElementById('modalTime').textContent = formatTime12(appt.appointment_time);
@@ -1055,8 +1220,8 @@ document.addEventListener('DOMContentLoaded', function() {
       modalBtnRx.setAttribute('aria-disabled', 'true');
       modalBtnRx.title = 'Writing and issuing prescriptions is locked until the patient is actively being seen (appointment confirmed).';
       modalBtnRx.innerHTML = '<i class="fas fa-lock me-1"></i> Write New Prescription';
-    } else if (appt.status === 'confirmed' || appt.status === 'completed') {
-      // Active once confirmed or completed
+    } else if (appt.status === 'confirmed' || appt.status === 'in_progress' || appt.status === 'completed') {
+      // Active once confirmed, in-progress, or completed
       modalBtnRx.classList.remove('is-disabled', 'disabled');
       modalBtnRx.dataset.disabled = 'false';
       modalBtnRx.href = `prescriptions.php?patient_id=${appt.patient_id}&appt_id=${appt.id}`;
@@ -1086,7 +1251,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Fill IDs into status forms
     const currDateIso = formatDateIso(currentDate);
-    ['Complete', 'Confirm', 'NoShow', 'Cancel', 'RevertConfirmed'].forEach(action => {
+    ['Complete', 'Confirm', 'NoShow', 'Cancel', 'RevertConfirmed', 'StartConsultation'].forEach(action => {
       const idEl = document.getElementById(`postApptId${action}`);
       const dateEl = document.getElementById(`postDate${action}`);
       if (idEl) idEl.value = appt.id;
@@ -1094,12 +1259,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Control Status Buttons
+    const formStartConsultation = document.getElementById('formStartConsultationAppt');
     const formComplete = document.getElementById('formCompleteAppt');
     const formConfirm = document.getElementById('formConfirmAppt');
     const formNoShow = document.getElementById('formNoShowAppt');
     const formCancel = document.getElementById('formCancelAppt');
     const formRevertConfirmed = document.getElementById('formRevertConfirmedAppt');
 
+    const btnSubmitStartConsultation = document.getElementById('btnSubmitStartConsultation');
     const btnSubmitComplete = document.getElementById('btnSubmitComplete');
     const btnSubmitConfirm = document.getElementById('btnSubmitConfirm');
     const btnSubmitNoShow = document.getElementById('btnSubmitNoShow');
@@ -1109,6 +1276,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const noticeBox = document.getElementById('modalWorkflowNotice');
     const noticeText = document.getElementById('modalWorkflowNoticeText');
 
+    const setNotice = (html, border, bg, color) => {
+      if (!noticeBox || !noticeText) return;
+      if (html) {
+        noticeBox.className = 'alert py-2 px-3 mb-3 d-flex align-items-center gap-2 small';
+        noticeBox.style.display = 'flex';
+        noticeBox.style.border = border;
+        noticeBox.style.background = bg;
+        noticeBox.style.color = color;
+        noticeText.innerHTML = html;
+      } else {
+        noticeBox.className = 'alert py-2 px-3 mb-3 d-none align-items-center gap-2 small';
+        noticeBox.style.display = 'none';
+        noticeText.innerHTML = '';
+      }
+    };
+    setNotice(null); // Reset notice banner to hidden on each modal open
+
+    if (formStartConsultation) formStartConsultation.style.display = 'none';
     if (formRevertConfirmed) formRevertConfirmed.style.display = 'none';
 
     if (appt.status === 'pending') {
@@ -1146,68 +1331,131 @@ document.addEventListener('DOMContentLoaded', function() {
       btnSubmitCancel.title = 'Cancel or reschedule this appointment';
 
       // Workflow notice banner
-      if (noticeBox && noticeText) {
-        noticeBox.style.display = 'flex';
-        noticeBox.className = 'alert alert-warning py-2 px-3 mb-3 d-flex align-items-center gap-2 small';
-        noticeBox.style.border = '1px solid rgba(245, 158, 11, 0.35)';
-        noticeBox.style.background = 'rgba(245, 158, 11, 0.08)';
-        noticeBox.style.color = '#d97706';
-        noticeText.innerHTML = '<strong>Pending Appointment:</strong> Confirming the booking is the primary valid action. <em>Mark as Completed</em>, <em>Write Prescription</em>, and <em>No-Show</em> are locked until consultation workflow progresses.';
-      }
+      setNotice(
+        '<strong>Pending Appointment:</strong> Confirming the booking is the primary valid action. <em>Mark as Completed</em>, <em>Write Prescription</em>, and <em>No-Show</em> are locked until consultation workflow progresses.',
+        '1px solid rgba(245, 158, 11, 0.35)',
+        'rgba(245, 158, 11, 0.08)',
+        '#d97706'
+      );
+
+    } else if (appt.status === 'in_progress') {
+      // ── IN-PROGRESS STATUS (ACTIVELY WITH DOCTOR) ───────────────
+      // 1. Mark as Completed: ACTIVE
+      formComplete.style.display = 'inline';
+      btnSubmitComplete.disabled = false;
+      btnSubmitComplete.classList.remove('disabled');
+      btnSubmitComplete.title = 'Mark consultation as completed. Patient is ready for Optical Dispensing & Checkout.';
+
+      // 2. Start Consultation & Confirm: HIDDEN
+      if (formStartConsultation) formStartConsultation.style.display = 'none';
+      formConfirm.style.display = 'none';
+
+      // 3. Mark No-Show: DISABLED (patient is currently inside consultation room)
+      formNoShow.style.display = 'inline';
+      btnSubmitNoShow.disabled = true;
+      btnSubmitNoShow.classList.add('disabled');
+      btnSubmitNoShow.title = 'Patient is actively being examined in the consultation room.';
+
+      // 4. Cancel: HIDDEN
+      formCancel.style.display = 'none';
+
+      // Workflow notice banner
+      setNotice(
+        '<strong>Consultation In-Progress:</strong> Patient is actively with Doctor. Prescriptions can be charted, and click <em>Mark as Completed</em> once examination concludes.',
+        '1px solid rgba(14, 165, 233, 0.35)',
+        'rgba(14, 165, 233, 0.1)',
+        '#0284c7'
+      );
 
     } else if (appt.status === 'confirmed') {
       // ── CONFIRMED STATUS ────────────────────────────────────────
-      // 1. Mark as Completed: ACTIVE ONLY AFTER APPOINTMENT TIME HAS ARRIVED
-      formComplete.style.display = 'inline';
-      if (isAppointmentTimeReached) {
+      if (isWalkin) {
+        // Walk-in patient physically in clinic
+        if (formStartConsultation) {
+          formStartConsultation.style.display = 'inline';
+          btnSubmitStartConsultation.disabled = false;
+          btnSubmitStartConsultation.classList.remove('disabled');
+          btnSubmitStartConsultation.title = 'Start examining this walk-in patient';
+        }
+
+        formComplete.style.display = 'inline';
         btnSubmitComplete.disabled = false;
         btnSubmitComplete.classList.remove('disabled');
-        btnSubmitComplete.title = 'Mark consultation as completed';
-      } else {
-        btnSubmitComplete.disabled = true;
-        btnSubmitComplete.classList.add('disabled');
-        btnSubmitComplete.title = `A consultation cannot be finished before it has actually taken place. Disabled until scheduled appointment time (${formatTime12(appt.appointment_time)}).`;
-      }
+        btnSubmitComplete.title = 'Mark walk-in consultation as completed';
 
-      // 2. Confirm: HIDDEN (already confirmed)
-      formConfirm.style.display = 'none';
+        formConfirm.style.display = 'none';
 
-      // 3. Mark No-Show: ACTIVE ONLY AFTER SCHEDULED TIME + 15 MIN GRACE PERIOD
-      formNoShow.style.display = 'inline';
-      if (isPastGrace) {
-        btnSubmitNoShow.disabled = false;
-        btnSubmitNoShow.classList.remove('disabled');
-        btnSubmitNoShow.title = 'Mark patient as No-Show';
-      } else {
+        // Walk-in patients are physically present; disable No-Show
+        formNoShow.style.display = 'inline';
         btnSubmitNoShow.disabled = true;
         btnSubmitNoShow.classList.add('disabled');
-        btnSubmitNoShow.title = `Marking a patient as a no-show prior to appointment time is premature. Available after ${unlockTimeStr} (15-min clinic grace period).`;
-      }
+        btnSubmitNoShow.title = 'Marking No-Show is disabled for walk-in patients as they are physically present in the clinic.';
 
-      // 4. Cancel: ACTIVE
-      formCancel.style.display = 'inline';
-      btnSubmitCancel.disabled = false;
-      btnSubmitCancel.classList.remove('disabled');
-      btnSubmitCancel.title = 'Cancel this appointment';
+        formCancel.style.display = 'inline';
+        btnSubmitCancel.disabled = false;
+        btnSubmitCancel.classList.remove('disabled');
+        btnSubmitCancel.title = 'Cancel this walk-in encounter';
 
-      // Workflow notice banner
-      if (noticeBox && noticeText) {
-        if (!isAppointmentTimeReached) {
-          noticeBox.style.display = 'flex';
-          noticeBox.className = 'alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2 small';
-          noticeBox.style.border = '1px solid rgba(14, 165, 233, 0.3)';
-          noticeBox.style.background = 'rgba(14, 165, 233, 0.08)';
-          noticeBox.style.color = '#0284c7';
-          noticeText.innerHTML = `<strong>Appointment Confirmed:</strong> Scheduled for <strong>${formatTime12(appt.appointment_time)}</strong>. <em>Mark as Completed</em> unlocks once the scheduled time arrives, and <em>No-Show</em> unlocks after <strong>${unlockTimeStr}</strong> (15-min grace period).`;
-        } else if (!isPastGrace) {
-          noticeBox.style.display = 'flex';
-          noticeBox.className = 'alert alert-success py-2 px-3 mb-3 d-flex align-items-center gap-2 small';
-          noticeBox.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-          noticeBox.style.background = 'rgba(16, 185, 129, 0.08)';
-          noticeBox.style.color = '#059669';
-          noticeText.innerHTML = `<strong>Consultation Ready:</strong> Scheduled appointment time has arrived. You can now conduct the consultation and mark it as completed. <em>No-Show</em> unlocks after <strong>${unlockTimeStr}</strong>.`;
+        setNotice(
+          '<strong>Walk-in Patient Waiting:</strong> Patient is present in the clinic. Click <em>Start Consultation</em> when beginning examination, or <em>Mark as Completed</em> when done.',
+          '1px solid rgba(245, 158, 11, 0.35)',
+          'rgba(245, 158, 11, 0.08)',
+          '#d97706'
+        );
+      } else {
+        // Scheduled / Online patient
+        if (isAppointmentTimeReached) {
+          if (formStartConsultation) {
+            formStartConsultation.style.display = 'inline';
+            btnSubmitStartConsultation.disabled = false;
+            btnSubmitStartConsultation.classList.remove('disabled');
+          }
+          formComplete.style.display = 'inline';
+          btnSubmitComplete.disabled = false;
+          btnSubmitComplete.classList.remove('disabled');
+          btnSubmitComplete.title = 'Mark consultation as completed';
         } else {
-          noticeBox.style.display = 'none';
+          if (formStartConsultation) formStartConsultation.style.display = 'none';
+          formComplete.style.display = 'inline';
+          btnSubmitComplete.disabled = true;
+          btnSubmitComplete.classList.add('disabled');
+          btnSubmitComplete.title = `A consultation cannot be finished before it has actually taken place. Disabled until scheduled appointment time (${formatTime12(appt.appointment_time)}).`;
+        }
+
+        formConfirm.style.display = 'none';
+
+        formNoShow.style.display = 'inline';
+        if (isPastGrace) {
+          btnSubmitNoShow.disabled = false;
+          btnSubmitNoShow.classList.remove('disabled');
+          btnSubmitNoShow.title = 'Mark patient as No-Show';
+        } else {
+          btnSubmitNoShow.disabled = true;
+          btnSubmitNoShow.classList.add('disabled');
+          btnSubmitNoShow.title = `Marking a patient as a no-show prior to appointment time is premature. Available after ${unlockTimeStr} (15-min clinic grace period).`;
+        }
+
+        formCancel.style.display = 'inline';
+        btnSubmitCancel.disabled = false;
+        btnSubmitCancel.classList.remove('disabled');
+        btnSubmitCancel.title = 'Cancel this appointment';
+
+        if (!isAppointmentTimeReached) {
+          setNotice(
+            `<strong>Appointment Confirmed:</strong> Scheduled for <strong>${formatTime12(appt.appointment_time)}</strong>. <em>Mark as Completed</em> unlocks once the scheduled time arrives, and <em>No-Show</em> unlocks after <strong>${unlockTimeStr}</strong> (15-min grace period).`,
+            '1px solid rgba(14, 165, 233, 0.3)',
+            'rgba(14, 165, 233, 0.08)',
+            '#0284c7'
+          );
+        } else if (!isPastGrace) {
+          setNotice(
+            `<strong>Consultation Ready:</strong> Scheduled appointment time has arrived. You can now conduct the consultation and mark it as completed. <em>No-Show</em> unlocks after <strong>${unlockTimeStr}</strong>.`,
+            '1px solid rgba(16, 185, 129, 0.3)',
+            'rgba(16, 185, 129, 0.08)',
+            '#059669'
+          );
+        } else {
+          setNotice(null);
         }
       }
 
@@ -1233,15 +1481,13 @@ document.addEventListener('DOMContentLoaded', function() {
       formCancel.style.display = 'none';
 
       // Workflow notice banner
-      if (noticeBox && noticeText) {
-        noticeBox.style.display = 'flex';
-        noticeBox.className = 'alert alert-secondary py-2 px-3 mb-3 d-flex align-items-center gap-2 small';
-        noticeBox.style.border = '1px solid rgba(139, 92, 246, 0.4)';
-        noticeBox.style.background = 'rgba(139, 92, 246, 0.1)';
-        noticeBox.style.color = '#c084fc';
-        const isAuto = (appt.notes && appt.notes.includes('[AUTO_NOSHOW]'));
-        noticeText.innerHTML = `<strong>Appointment Marked as No-Show${isAuto ? ' (by System Automation)' : ''}:</strong> If the patient attended or clinical documentation was delayed, you may <em>Revert to Confirmed</em> or directly <em>Mark as Completed</em>.`;
-      }
+      const isAuto = (appt.notes && appt.notes.includes('[AUTO_NOSHOW]'));
+      setNotice(
+        `<strong>Appointment Marked as No-Show${isAuto ? ' (by System Automation)' : ''}:</strong> If the patient attended or clinical documentation was delayed, you may <em>Revert to Confirmed</em> or directly <em>Mark as Completed</em>.`,
+        '1px solid rgba(139, 92, 246, 0.4)',
+        'rgba(139, 92, 246, 0.1)',
+        '#c084fc'
+      );
 
     } else {
       // ── COMPLETED, CANCELLED ────────────────────────────────────
@@ -1251,7 +1497,7 @@ document.addEventListener('DOMContentLoaded', function() {
       formCancel.style.display = 'none';
       if (formRevertConfirmed) formRevertConfirmed.style.display = 'none';
 
-      if (noticeBox) noticeBox.style.display = 'none';
+      setNotice(null);
     }
 
     appointmentModal.show();
@@ -1317,6 +1563,99 @@ document.addEventListener('DOMContentLoaded', function() {
 
     dayQueueModal.show();
   }
+
+  // ── Register Walk-in Form Submission Handler ──────────────────
+  const formRegisterWalkin = document.getElementById('formRegisterWalkin');
+  if (formRegisterWalkin) {
+    const walkinAlert = document.getElementById('walkinAlert');
+    const btnSubmitWalkin = document.getElementById('btnSubmitWalkin');
+
+    formRegisterWalkin.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (walkinAlert) {
+        walkinAlert.textContent = '';
+        walkinAlert.classList.add('d-none');
+      }
+
+      btnSubmitWalkin.disabled = true;
+      btnSubmitWalkin.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Registering...';
+
+      const formData = new FormData(this);
+
+      fetch('../api/register_walkin.php', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        btnSubmitWalkin.disabled = false;
+        btnSubmitWalkin.innerHTML = '<i class="fas fa-check-circle me-1"></i> Register & Add to Queue';
+
+        if (!data.success) {
+          if (walkinAlert) {
+            walkinAlert.textContent = data.error || 'Failed to register walk-in patient.';
+            walkinAlert.classList.remove('d-none');
+          }
+          return;
+        }
+
+        // Successfully registered!
+        // 1. Add new appointment to local calendar cache
+        if (data.appointment) {
+          rawAppointments.push(data.appointment);
+          render();
+        }
+
+        // 2. Hide register modal & reset form
+        const registerModalEl = document.getElementById('registerWalkinModal');
+        const modalInstance = bootstrap.Modal.getInstance(registerModalEl);
+        if (modalInstance) modalInstance.hide();
+        formRegisterWalkin.reset();
+
+        // 3. If direct to doctor, open consultation modal immediately
+        if (data.appointment && data.appointment.status === 'in_progress') {
+          setTimeout(() => {
+            openAppointmentModal(data.appointment);
+          }, 350);
+        }
+      })
+      .catch(err => {
+        btnSubmitWalkin.disabled = false;
+        btnSubmitWalkin.innerHTML = '<i class="fas fa-check-circle me-1"></i> Register & Add to Queue';
+        if (walkinAlert) {
+          walkinAlert.textContent = 'Network or server error. Please try again.';
+          walkinAlert.classList.remove('d-none');
+        }
+      });
+    });
+  }
+
+  // ── Background Poller (every 12 seconds) ──────────────────────
+  setInterval(function() {
+    fetch('../api/get_calendar_events.php')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && Array.isArray(data.raw)) {
+          let changed = (data.raw.length !== rawAppointments.length);
+          if (!changed) {
+            for (let i = 0; i < data.raw.length; i++) {
+              const fresh = data.raw[i];
+              const existing = rawAppointments.find(a => a.id === fresh.id);
+              if (!existing || existing.status !== fresh.status || existing.notes !== fresh.notes) {
+                changed = true;
+                break;
+              }
+            }
+          }
+          if (changed) {
+            rawAppointments.length = 0;
+            data.raw.forEach(a => rawAppointments.push(a));
+            render();
+          }
+        }
+      })
+      .catch(() => {});
+  }, 12000);
 
   // Initial render
   render();

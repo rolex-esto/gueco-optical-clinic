@@ -140,6 +140,69 @@ function ensurePatientSchema(?PDO $db = null): void {
     } catch (Exception $e) {}
 }
 
+function ensureCertificateSchema(?PDO $db = null): void {
+    static $checked = false;
+    if ($checked) return;
+    try {
+        if (!$db) {
+            $db = getDB();
+        }
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS `examination_certificates` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `certificate_no` VARCHAR(50) NOT NULL UNIQUE,
+              `patient_id` INT NOT NULL,
+              `doctor_id` INT NOT NULL,
+              `appointment_id` INT NULL,
+              `certificate_date` DATE NOT NULL,
+              `patient_name` VARCHAR(255) NOT NULL,
+              `patient_age` INT NULL,
+              `patient_address` VARCHAR(255) NULL,
+              `branch` VARCHAR(255) NOT NULL DEFAULT 'Poblacion, Capas, Tarlac | Cel No.: 0923-425-7857',
+              `reason_for_exam` TEXT NOT NULL,
+              `requested_by` VARCHAR(255) NOT NULL,
+              `purpose` VARCHAR(255) NOT NULL,
+              `doctor_name` VARCHAR(150) NOT NULL DEFAULT 'MARIA LUZ S. GUECO, O.D.',
+              `doctor_title` VARCHAR(100) NOT NULL DEFAULT 'OPTOMETRIST',
+              `doctor_license_no` VARCHAR(100) NOT NULL DEFAULT 'LIC. NO. 4385',
+              `include_signature` TINYINT(1) NOT NULL DEFAULT 1,
+              `remarks` TEXT NULL,
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              INDEX `idx_cert_patient` (`patient_id`),
+              INDEX `idx_cert_doctor` (`doctor_id`),
+              INDEX `idx_cert_appointment` (`appointment_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+        $checked = true;
+    } catch (Exception $e) {
+        error_log("Failed to ensure examination_certificates table: " . $e->getMessage());
+    }
+}
+
+function generateCertificateNumber(?PDO $db = null): string {
+    if (!$db) $db = getDB();
+    ensureCertificateSchema($db);
+    $datePrefix = date('Ymd');
+    $stmt = $db->query("SELECT MAX(id) as max_id FROM examination_certificates");
+    $maxId = (int)($stmt->fetch()['max_id'] ?? 0);
+    $nextNum = str_pad($maxId + 1, 4, '0', STR_PAD_LEFT);
+    return "COE-{$datePrefix}-{$nextNum}";
+}
+
+function calculateAge(?string $birthdate): ?int {
+    if (empty($birthdate) || $birthdate === '0000-00-00') {
+        return null;
+    }
+    try {
+        $bdate = new DateTime($birthdate);
+        $today = new DateTime('today');
+        return $bdate->diff($today)->y;
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
 function requirePatientLogin(): void {
     startSession();
     $base = getAppBaseUrl();

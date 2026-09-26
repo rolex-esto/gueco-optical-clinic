@@ -49,13 +49,17 @@ $patients = $db->prepare("
 $patients->execute($params); $patients = $patients->fetchAll() ?: [];
 
 // View single patient
-$viewPatient = null; $patientRx = []; $patientAppts = [];
+$viewPatient = null; $patientRx = []; $patientAppts = []; $patientCerts = [];
 if (isset($_GET['view'])) {
     $vid = (int)$_GET['view'];
     $viewPatient = $db->prepare("SELECT * FROM patients WHERE id=?"); $viewPatient->execute([$vid]); $viewPatient = $viewPatient->fetch();
     if ($viewPatient) {
         $patientRx = $db->prepare("SELECT rx.*, u.full_name as doctor_name FROM prescriptions rx JOIN users u ON u.id=rx.doctor_id WHERE rx.patient_id=? ORDER BY rx.created_at DESC"); $patientRx->execute([$vid]); $patientRx = $patientRx->fetchAll();
         $patientAppts = $db->prepare("SELECT * FROM appointments WHERE patient_id=? ORDER BY appointment_date DESC LIMIT 10"); $patientAppts->execute([$vid]); $patientAppts = $patientAppts->fetchAll();
+        ensureCertificateSchema($db);
+        $patientCerts = $db->prepare("SELECT c.*, u.full_name as issuer_name FROM examination_certificates c LEFT JOIN users u ON u.id=c.doctor_id WHERE c.patient_id=? ORDER BY c.certificate_date DESC, c.id DESC");
+        $patientCerts->execute([$vid]);
+        $patientCerts = $patientCerts->fetchAll();
     }
 }
 
@@ -101,9 +105,19 @@ include __DIR__ . '/../includes/header.php';
           </div>
         </div>
 
-        <a href="prescriptions.php?patient_id=<?= $viewPatient['id'] ?>" class="btn btn-primary w-100 mt-3">
-          <i class="fas fa-plus"></i> Write Prescription
-        </a>
+        <div class="d-flex flex-column gap-2 mt-3">
+          <a href="prescriptions.php?patient_id=<?= $viewPatient['id'] ?>" class="btn btn-primary w-100">
+            <i class="fas fa-plus me-1"></i> Write Prescription
+          </a>
+          <button type="button" class="btn btn-outline-info w-100 btn-open-cert-modal"
+                  data-patient-id="<?= $viewPatient['id'] ?>"
+                  data-patient-name="<?= htmlspecialchars($vpName) ?>"
+                  data-patient-birthdate="<?= htmlspecialchars($viewPatient['birthdate'] ?? '') ?>"
+                  data-patient-age="<?= calculateAge($viewPatient['birthdate']) ?? '' ?>"
+                  data-patient-address="<?= htmlspecialchars($viewPatient['address'] ?? '') ?>">
+            <i class="fas fa-file-contract me-1"></i> Issue Certificate
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -134,7 +148,7 @@ include __DIR__ . '/../includes/header.php';
       </div>
       <?php endif; ?>
     </div>
-    <div class="card">
+    <div class="card" style="margin-bottom:20px;">
       <div class="card-header"><h6><i class="fas fa-calendar me-2" style="color:var(--clr-info)"></i>Visit History</h6></div>
       <?php if (empty($patientAppts)): ?>
       <div class="empty-state" style="padding:30px"><div class="empty-icon"><i class="fas fa-calendar"></i></div><h6>No visits recorded</h6></div>
@@ -149,6 +163,93 @@ include __DIR__ . '/../includes/header.php';
             <td style="font-size:.8rem"><?= formatTime($appt['appointment_time']) ?></td>
             <td style="font-size:.8rem"><?= ucwords(str_replace('_',' ',$appt['purpose'])) ?></td>
             <td><?= statusBadge($appt['status']) ?></td>
+          </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php endif; ?>
+    </div>
+
+    <!-- Certificates & Clearances Section -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6><i class="fas fa-file-contract me-2" style="color:#0ea5e9"></i>Certificates & Clearances (<?= count($patientCerts) ?>)</h6>
+        <button type="button" class="btn btn-sm btn-info text-white btn-open-cert-modal"
+                data-patient-id="<?= $viewPatient['id'] ?>"
+                data-patient-name="<?= htmlspecialchars($vpName) ?>"
+                data-patient-birthdate="<?= htmlspecialchars($viewPatient['birthdate'] ?? '') ?>"
+                data-patient-age="<?= calculateAge($viewPatient['birthdate']) ?? '' ?>"
+                data-patient-address="<?= htmlspecialchars($viewPatient['address'] ?? '') ?>">
+          <i class="fas fa-plus me-1"></i> Issue Certificate
+        </button>
+      </div>
+      <?php if (empty($patientCerts)): ?>
+      <div class="empty-state" style="padding:30px">
+        <div class="empty-icon"><i class="fas fa-file-contract"></i></div>
+        <h6>No certificates issued yet</h6>
+        <p class="text-muted small">Generate an official Certificate of Examination for employment, driver's license, or school requirements.</p>
+        <button type="button" class="btn btn-sm btn-outline-info mt-2 btn-open-cert-modal"
+                data-patient-id="<?= $viewPatient['id'] ?>"
+                data-patient-name="<?= htmlspecialchars($vpName) ?>"
+                data-patient-birthdate="<?= htmlspecialchars($viewPatient['birthdate'] ?? '') ?>"
+                data-patient-age="<?= calculateAge($viewPatient['birthdate']) ?? '' ?>"
+                data-patient-address="<?= htmlspecialchars($viewPatient['address'] ?? '') ?>">
+          <i class="fas fa-file-medical me-1"></i> Issue First Certificate
+        </button>
+      </div>
+      <?php else: ?>
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th>Certificate No</th>
+              <th>Date</th>
+              <th>Reason for Exam</th>
+              <th>Purpose</th>
+              <th>Doctor</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          <?php foreach ($patientCerts as $cert): ?>
+          <tr>
+            <td>
+              <span class="badge bg-light text-dark border fw-bold" style="font-size:0.75rem;">
+                <?= htmlspecialchars($cert['certificate_no']) ?>
+              </span>
+            </td>
+            <td style="font-size:.83rem;font-weight:600"><?= formatDate($cert['certificate_date']) ?></td>
+            <td style="font-size:.78rem"><?= htmlspecialchars($cert['reason_for_exam']) ?></td>
+            <td style="font-size:.78rem">
+              <span class="badge bg-info text-white" style="font-size:0.72rem;">
+                <?= htmlspecialchars($cert['purpose']) ?>
+              </span>
+            </td>
+            <td style="font-size:.78rem;color:var(--text-muted)"><?= htmlspecialchars($cert['doctor_name']) ?></td>
+            <td class="text-end">
+              <div class="btn-group btn-group-sm">
+                <a href="print_certificate.php?id=<?= $cert['id'] ?>" target="_blank" class="btn btn-outline-primary btn-sm" title="Print Certificate">
+                  <i class="fas fa-print me-1"></i> Print
+                </a>
+                <button type="button" class="btn btn-outline-secondary btn-sm btn-reissue-cert"
+                        data-patient-id="<?= $viewPatient['id'] ?>"
+                        data-patient-name="<?= htmlspecialchars($cert['patient_name']) ?>"
+                        data-patient-age="<?= htmlspecialchars($cert['patient_age'] ?? '') ?>"
+                        data-patient-address="<?= htmlspecialchars($cert['patient_address'] ?? '') ?>"
+                        data-branch="<?= htmlspecialchars($cert['branch'] ?? '') ?>"
+                        data-reason="<?= htmlspecialchars($cert['reason_for_exam']) ?>"
+                        data-requested-by="<?= htmlspecialchars($cert['requested_by']) ?>"
+                        data-purpose="<?= htmlspecialchars($cert['purpose']) ?>"
+                        data-doctor-name="<?= htmlspecialchars($cert['doctor_name']) ?>"
+                        data-doctor-title="<?= htmlspecialchars($cert['doctor_title']) ?>"
+                        data-doctor-lic="<?= htmlspecialchars($cert['doctor_license_no']) ?>"
+                        data-include-sig="<?= $cert['include_signature'] ?>"
+                        title="Re-issue / Duplicate with updated date">
+                  <i class="fas fa-copy me-1"></i> Re-issue
+                </button>
+              </div>
+            </td>
           </tr>
           <?php endforeach; ?>
           </tbody>
@@ -498,7 +599,131 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
   });
+
+  // ── Certificate of Examination Logic ─────────────────────────
+  const issueCertModalEl = document.getElementById('issueCertificateModal');
+  let issueCertModalInstance = null;
+  if (issueCertModalEl) {
+    issueCertModalInstance = new bootstrap.Modal(issueCertModalEl);
+  }
+
+  document.querySelectorAll('.btn-open-cert-modal').forEach(btn => {
+    btn.addEventListener('click', function() {
+      if (!issueCertModalInstance) return;
+      const form = document.getElementById('formIssueCertificate');
+      if (form) form.reset();
+      const alertBox = document.getElementById('certAlert');
+      if (alertBox) alertBox.classList.add('d-none');
+
+      document.getElementById('certPatientId').value = this.dataset.patientId || '';
+      document.getElementById('certApptId').value = '';
+      document.getElementById('certDate').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('certPatientName').value = this.dataset.patientName || '';
+      document.getElementById('certPatientAge').value = this.dataset.patientAge || '';
+      document.getElementById('certPatientAddress').value = this.dataset.patientAddress || '';
+      document.getElementById('certReasonForExam').value = 'Comprehensive Eye Examination & Refraction';
+      document.getElementById('certRequestedBy').value = this.dataset.patientName || '';
+      document.getElementById('certPurpose').value = 'Employment / Pre-Employment';
+      document.getElementById('certDoctorName').value = 'MARIA LUZ S. GUECO, O.D.';
+      document.getElementById('certDoctorTitle').value = 'OPTOMETRIST';
+      document.getElementById('certDoctorLicenseNo').value = 'LIC. NO. 4385';
+
+      issueCertModalInstance.show();
+    });
+  });
+
+  document.querySelectorAll('.btn-reissue-cert').forEach(btn => {
+    btn.addEventListener('click', function() {
+      if (!issueCertModalInstance) return;
+      const form = document.getElementById('formIssueCertificate');
+      if (form) form.reset();
+      const alertBox = document.getElementById('certAlert');
+      if (alertBox) alertBox.classList.add('d-none');
+
+      document.getElementById('certPatientId').value = this.dataset.patientId || '';
+      document.getElementById('certApptId').value = '';
+      document.getElementById('certDate').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('certPatientName').value = this.dataset.patientName || '';
+      document.getElementById('certPatientAge').value = this.dataset.patientAge || '';
+      document.getElementById('certPatientAddress').value = this.dataset.patientAddress || '';
+      if (this.dataset.branch) document.getElementById('certBranch').value = this.dataset.branch;
+      document.getElementById('certReasonForExam').value = this.dataset.reason || 'Comprehensive Eye Examination & Refraction';
+      document.getElementById('certRequestedBy').value = this.dataset.requestedBy || this.dataset.patientName || '';
+      document.getElementById('certPurpose').value = this.dataset.purpose || 'Employment / Pre-Employment';
+      document.getElementById('certDoctorName').value = this.dataset.doctorName || 'MARIA LUZ S. GUECO, O.D.';
+      document.getElementById('certDoctorTitle').value = this.dataset.doctorTitle || 'OPTOMETRIST';
+      document.getElementById('certDoctorLicenseNo').value = this.dataset.doctorLic || 'LIC. NO. 4385';
+
+      issueCertModalInstance.show();
+    });
+  });
+
+  const btnCertUsePatientName = document.getElementById('btnCertUsePatientName');
+  if (btnCertUsePatientName) {
+    btnCertUsePatientName.addEventListener('click', function() {
+      const ptName = document.getElementById('certPatientName').value;
+      if (ptName) {
+        document.getElementById('certRequestedBy').value = ptName;
+      }
+    });
+  }
+
+  const formIssueCertificate = document.getElementById('formIssueCertificate');
+  if (formIssueCertificate) {
+    formIssueCertificate.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const certAlert = document.getElementById('certAlert');
+      if (certAlert) certAlert.classList.add('d-none');
+
+      const btnSubmit = document.getElementById('btnSubmitIssueCert');
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Issuing Certificate...';
+
+      const formData = new FormData(formIssueCertificate);
+      fetch('../api/issue_certificate.php', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<i class="fas fa-print me-1"></i> Issue & Print Certificate';
+
+        if (!data.success) {
+          if (certAlert) {
+            certAlert.textContent = data.error || 'Failed to issue certificate.';
+            certAlert.classList.remove('d-none');
+          }
+          return;
+        }
+
+        if (issueCertModalInstance) issueCertModalInstance.hide();
+        formIssueCertificate.reset();
+
+        window.open(data.print_url, '_blank');
+
+        Swal.fire({
+          title: 'Certificate Issued!',
+          text: `Certificate ${data.certificate_no} has been recorded and print preview opened.`,
+          icon: 'success',
+          confirmButtonColor: 'var(--clr-primary)',
+          timer: 2000
+        }).then(() => {
+          window.location.reload();
+        });
+      })
+      .catch(err => {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<i class="fas fa-print me-1"></i> Issue & Print Certificate';
+        if (certAlert) {
+          certAlert.textContent = 'Network or server error while generating certificate.';
+          certAlert.classList.remove('d-none');
+        }
+      });
+    });
+  }
 });
 </script>
 
+<?php include __DIR__ . '/../includes/modal_issue_certificate.php'; ?>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

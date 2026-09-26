@@ -18,6 +18,8 @@ try {
             p.phone,
             p.email as patient_email,
             p.gender as patient_gender,
+            p.birthdate as patient_birthdate,
+            p.address as patient_address,
             a.appointment_date, 
             a.appointment_time, 
             a.appointment_type,

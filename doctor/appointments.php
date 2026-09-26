@@ -112,6 +112,7 @@ $apptsStmt = $db->query("
            p.email as patient_email, 
            p.gender as patient_gender,
            p.birthdate as patient_birthdate,
+           p.address as patient_address,
            (SELECT COUNT(*) FROM prescriptions rx WHERE rx.patient_id = a.patient_id) as rx_count,
            (SELECT COUNT(*) FROM appointments a2 WHERE a2.patient_id = a.patient_id AND a2.status = 'completed') as completed_visits,
            COALESCE(
@@ -444,6 +445,9 @@ include __DIR__ . '/../includes/header.php';
             <a href="#" id="modalBtnRx" class="btn btn-secondary btn-sm flex-fill py-2" title="Write New Prescription">
               <i class="fas fa-glasses me-1"></i> Write New Prescription
             </a>
+            <button type="button" id="modalBtnCert" class="btn btn-outline-info btn-sm flex-fill py-2" title="Issue Certificate of Examination">
+              <i class="fas fa-file-contract me-1"></i> Issue Certificate of Examination
+            </button>
             <a href="#" id="modalBtnReceipt" class="btn btn-outline-success btn-sm flex-fill py-2" style="display:none;" target="_blank">
               <i class="fas fa-file-invoice me-1"></i> View Receipt
             </a>
@@ -625,6 +629,8 @@ include __DIR__ . '/../includes/header.php';
     </div>
   </div>
 </div>
+
+<?php include __DIR__ . '/../includes/modal_issue_certificate.php'; ?>
 
 <!-- ============================================================ -->
 <!-- CALENDAR JAVASCRIPT LOGIC ENGINE                             -->
@@ -1238,6 +1244,42 @@ document.addEventListener('DOMContentLoaded', function() {
       modalBtnRx.innerHTML = '<i class="fas fa-ban me-1"></i> Write New Prescription';
     }
 
+    // 3. Issue Certificate of Examination
+    const modalBtnCert = document.getElementById('modalBtnCert');
+    if (modalBtnCert) {
+      if (appt.status === 'in_progress' || appt.status === 'completed') {
+        modalBtnCert.disabled = false;
+        modalBtnCert.classList.remove('is-disabled', 'disabled');
+        modalBtnCert.removeAttribute('aria-disabled');
+        modalBtnCert.title = 'Issue formal Certificate of Examination for this consultation';
+        modalBtnCert.innerHTML = '<i class="fas fa-file-contract me-1"></i> Issue Certificate of Examination';
+        modalBtnCert.onclick = function() {
+          openCertificateModal({
+            patient_id: appt.patient_id,
+            appointment_id: appt.id,
+            patient_name: appt.patient_name,
+            patient_birthdate: appt.patient_birthdate,
+            patient_address: appt.patient_address,
+            purpose: appt.purpose
+          });
+        };
+      } else if (appt.status === 'pending' || appt.status === 'confirmed') {
+        modalBtnCert.disabled = true;
+        modalBtnCert.classList.add('is-disabled', 'disabled');
+        modalBtnCert.setAttribute('aria-disabled', 'true');
+        modalBtnCert.title = 'Certificate of Examination can only be issued once consultation is In-Progress or Completed.';
+        modalBtnCert.innerHTML = '<i class="fas fa-lock me-1"></i> Issue Certificate of Examination';
+        modalBtnCert.onclick = null;
+      } else {
+        modalBtnCert.disabled = true;
+        modalBtnCert.classList.add('is-disabled', 'disabled');
+        modalBtnCert.setAttribute('aria-disabled', 'true');
+        modalBtnCert.title = `Cannot issue certificate for ${appt.status.replace(/_/g, ' ')} appointments.`;
+        modalBtnCert.innerHTML = '<i class="fas fa-ban me-1"></i> Issue Certificate of Examination';
+        modalBtnCert.onclick = null;
+      }
+    }
+
     const btnReceipt = document.getElementById('modalBtnReceipt');
     if (btnReceipt) {
       if (appt.sale_id) {
@@ -1625,6 +1667,121 @@ document.addEventListener('DOMContentLoaded', function() {
         if (walkinAlert) {
           walkinAlert.textContent = 'Network or server error. Please try again.';
           walkinAlert.classList.remove('d-none');
+        }
+      });
+    });
+  }
+
+  // ── Certificate of Examination Logic ─────────────────────────
+  const issueCertModalEl = document.getElementById('issueCertificateModal');
+  let issueCertModalInstance = null;
+  if (issueCertModalEl) {
+    issueCertModalInstance = new bootstrap.Modal(issueCertModalEl);
+  }
+
+  window.openCertificateModal = function(data) {
+    if (!issueCertModalEl) return;
+    const form = document.getElementById('formIssueCertificate');
+    if (form) form.reset();
+
+    const alertBox = document.getElementById('certAlert');
+    if (alertBox) alertBox.classList.add('d-none');
+
+    document.getElementById('certPatientId').value = data.patient_id || '';
+    document.getElementById('certApptId').value = data.appointment_id || '';
+    document.getElementById('certDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('certPatientName').value = data.patient_name || '';
+
+    let age = '';
+    if (data.patient_birthdate && data.patient_birthdate !== '0000-00-00') {
+      const bdate = new Date(data.patient_birthdate);
+      if (!isNaN(bdate.getTime())) {
+        const diff = Date.now() - bdate.getTime();
+        age = Math.abs(new Date(diff).getUTCFullYear() - 1970);
+      }
+    }
+    document.getElementById('certPatientAge').value = (age !== '' && !isNaN(age)) ? age : (data.patient_age || '');
+    document.getElementById('certPatientAddress').value = data.patient_address || '';
+
+    let defaultReason = 'Comprehensive Eye Examination & Refraction';
+    const p = (data.purpose || '').toLowerCase();
+    if (p.includes('consult')) defaultReason = 'Comprehensive Eye Examination & Refraction';
+    else if (p.includes('claim')) defaultReason = 'Eyeglass Prescription Evaluation & Fitting';
+    else if (p.includes('lens')) defaultReason = 'Contact Lens Assessment & Fitting';
+    else if (p.includes('follow')) defaultReason = 'Follow-up Visual Assessment';
+    document.getElementById('certReasonForExam').value = defaultReason;
+
+    document.getElementById('certRequestedBy').value = data.patient_name || '';
+    document.getElementById('certPurpose').value = 'Employment / Pre-Employment';
+
+    document.getElementById('certDoctorName').value = 'MARIA LUZ S. GUECO, O.D.';
+    document.getElementById('certDoctorTitle').value = 'OPTOMETRIST';
+    document.getElementById('certDoctorLicenseNo').value = 'LIC. NO. 4385';
+
+    if (appointmentModal) appointmentModal.hide();
+    setTimeout(() => {
+      if (issueCertModalInstance) issueCertModalInstance.show();
+    }, 250);
+  };
+
+  const btnCertUsePatientName = document.getElementById('btnCertUsePatientName');
+  if (btnCertUsePatientName) {
+    btnCertUsePatientName.addEventListener('click', function() {
+      const ptName = document.getElementById('certPatientName').value;
+      if (ptName) {
+        document.getElementById('certRequestedBy').value = ptName;
+      }
+    });
+  }
+
+  const formIssueCertificate = document.getElementById('formIssueCertificate');
+  if (formIssueCertificate) {
+    formIssueCertificate.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const certAlert = document.getElementById('certAlert');
+      if (certAlert) certAlert.classList.add('d-none');
+
+      const btnSubmit = document.getElementById('btnSubmitIssueCert');
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Issuing Certificate...';
+
+      const formData = new FormData(formIssueCertificate);
+      fetch('../api/issue_certificate.php', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<i class="fas fa-print me-1"></i> Issue & Print Certificate';
+
+        if (!data.success) {
+          if (certAlert) {
+            certAlert.textContent = data.error || 'Failed to issue certificate.';
+            certAlert.classList.remove('d-none');
+          }
+          return;
+        }
+
+        if (issueCertModalInstance) issueCertModalInstance.hide();
+        formIssueCertificate.reset();
+
+        window.open(data.print_url, '_blank');
+
+        Swal.fire({
+          title: 'Certificate Issued!',
+          text: `Certificate ${data.certificate_no} has been recorded and print preview opened.`,
+          icon: 'success',
+          confirmButtonColor: 'var(--clr-primary)',
+          timer: 3000
+        });
+      })
+      .catch(err => {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = '<i class="fas fa-print me-1"></i> Issue & Print Certificate';
+        if (certAlert) {
+          certAlert.textContent = 'Network or server error while generating certificate.';
+          certAlert.classList.remove('d-none');
         }
       });
     });

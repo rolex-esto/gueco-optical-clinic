@@ -150,11 +150,11 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- MODERN POP-UP MODAL: PATIENT TRANSACTION HISTORY & RECEIPTS -->
 <div class="modal fade" id="patientHistoryModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width: 960px; margin: 1.75rem auto;">
-    <div class="modal-content shadow-lg border-0" style="border-radius: 16px; overflow: hidden; background: var(--bg-card); max-height: 90vh; display: flex; flex-direction: column;">
+  <div class="modal-dialog modal-xl my-3 my-md-4" style="max-width: 960px;">
+    <div class="modal-content shadow-lg border-0" style="border-radius: 18px; overflow: hidden; background: var(--bg-card);">
       
-      <!-- Modal Header (Sticky / Non-collapsing) -->
-      <div class="modal-header py-3 px-4" style="background: linear-gradient(135deg, var(--clr-primary), var(--clr-secondary)); color: #fff; border: none; flex-shrink: 0;">
+      <!-- Modal Header (Sticky top) -->
+      <div class="modal-header py-3 px-4 position-sticky top-0" style="background: linear-gradient(135deg, var(--clr-primary), var(--clr-secondary)); color: #fff; border: none; z-index: 1020;">
         <div class="d-flex align-items-center gap-3">
           <div id="phAvatar" style="width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.2rem; color: #fff; border: 2px solid rgba(255,255,255,0.4); flex-shrink: 0;">P</div>
           <div>
@@ -165,8 +165,8 @@ include __DIR__ . '/../includes/header.php';
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       
-      <!-- Modal Body (Full Content & Scrollable) -->
-      <div class="modal-body p-3 p-md-4" style="background: var(--bg-body); overflow-y: auto; flex: 1 1 auto; min-height: 300px;">
+      <!-- Modal Body (Full Content) -->
+      <div class="modal-body p-3 p-md-4" style="background: var(--bg-body);">
         
         <!-- Patient Profile Overview Card -->
         <div class="card border shadow-sm mb-4" style="border-radius: 14px; background: var(--bg-card); border-color: var(--border-color) !important;">

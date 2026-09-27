@@ -26,8 +26,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $apptDate = $_POST['appointment_date'] ?? '';
         $apptTime = $_POST['appointment_time'] ?? '';
         $purpose  = $_POST['purpose'] ?? '';
-        $service  = sanitize($_POST['service'] ?? '');
-        $rawNotes = sanitize($_POST['notes'] ?? '');
+        $service  = html_entity_decode(strip_tags(trim($_POST['service'] ?? '')), ENT_QUOTES, 'UTF-8');
+        $rawNotes = html_entity_decode(strip_tags(trim($_POST['notes'] ?? '')), ENT_QUOTES, 'UTF-8');
 
         // Compose notes to cleanly preserve the selected optical service
         $notes = '';

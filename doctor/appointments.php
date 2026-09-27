@@ -786,6 +786,27 @@ document.addEventListener('DOMContentLoaded', function() {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  function parseApptNotes(rawNotes) {
+    if (!rawNotes || typeof rawNotes !== 'string') {
+      return { service: '', userNotes: '', hasUserNotes: false };
+    }
+    let txt = rawNotes.trim();
+    txt = txt.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'");
+
+    let service = '';
+    let userNotes = txt;
+    const match = txt.match(/^Service:\s*([^\r\n]+)/m);
+    if (match) {
+      service = match[1].trim();
+      userNotes = txt.replace(/^Service:\s*[^\r\n]+/m, '').trim();
+    }
+    return {
+      service: service,
+      userNotes: userNotes,
+      hasUserNotes: userNotes.length > 0
+    };
+  }
+
   function getStatusBadgeHtml(status) {
     const map = {
       'confirmed':   '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-check-circle me-1"></i>Confirmed</span>',
@@ -1304,7 +1325,18 @@ document.addEventListener('DOMContentLoaded', function() {
         </td>
         <td class="fw-bold text-primary">${formatTime12(appt.appointment_time)}</td>
         <td>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</td>
-        <td class="text-muted small">${escapeHtml(appt.notes || '—')}</td>
+        <td class="text-muted small">
+          ${(() => {
+            const pNotes = parseApptNotes(appt.notes);
+            if (pNotes.hasUserNotes) {
+              return escapeHtml(pNotes.userNotes);
+            }
+            if (pNotes.service) {
+              return `<span class="badge bg-light text-secondary border fw-normal"><i class="fas fa-tag me-1 text-primary"></i>${escapeHtml(pNotes.service)}</span>`;
+            }
+            return '<span class="text-muted opacity-50">—</span>';
+          })()}
+        </td>
         <td>${getStatusBadgeHtml(appt.status)}</td>
         <td>
           <div class="d-flex gap-1">
@@ -1445,7 +1477,20 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('modalGenderAge').textContent = (appt.patient_gender ? (appt.patient_gender.charAt(0).toUpperCase() + appt.patient_gender.slice(1)) : '—');
     document.getElementById('modalRxCount').textContent = `${appt.rx_count || 0} Prescription(s) / ${appt.completed_visits || 0} Visits`;
 
-    document.getElementById('modalNotes').textContent = appt.notes && appt.notes.trim() !== '' ? appt.notes : 'No special notes entered for this appointment.';
+    const pNotes = parseApptNotes(appt.notes);
+    let modalNotesHtml = '';
+    if (pNotes.service) {
+      modalNotesHtml += `<div class="mb-2 pb-2 border-bottom d-flex align-items-center gap-2">
+        <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1"><i class="fas fa-tag me-1"></i> ${escapeHtml(pNotes.service)}</span>
+        <small class="text-muted">Selected Service Option</small>
+      </div>`;
+    }
+    if (pNotes.hasUserNotes) {
+      modalNotesHtml += `<div>${escapeHtml(pNotes.userNotes)}</div>`;
+    } else {
+      modalNotesHtml += `<span class="text-muted fst-italic"><i class="fas fa-info-circle me-1"></i> No special notes entered for this appointment.</span>`;
+    }
+    document.getElementById('modalNotes').innerHTML = modalNotesHtml;
 
     // ── Clinical Workflow & Timing Logic ─────────────────────────
     // Calculate appointment scheduled datetime & 15-minute clinic grace period

@@ -1247,6 +1247,8 @@ document.addEventListener('DOMContentLoaded', function() {
           ${formatDisplayDate(apptDateObj)}
           ${isUnfinishedPast ? '<span class="cal-past-due-badge ms-1"><i class="fas fa-exclamation-circle"></i> Past Due</span>' : ''}
         </td>
+        <td class="fw-bold text-primary">${formatTime12(appt.appointment_time)}</td>
+        <td>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</td>
         <td class="text-muted small">
           ${(() => {
             const pNotes = parseApptNotes(appt.notes);

@@ -2205,7 +2205,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // ── Background Poller (every 12 seconds) ──────────────────────
   setInterval(function() {
-    fetch('../api/get_calendar_events.php')
+    fetch('../api/get_calendar_events.php?doctor_view=1')
       .then(res => res.json())
       .then(data => {
         if (data && data.success && Array.isArray(data.raw)) {

@@ -171,16 +171,22 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
             <?php
             try {
               $db = getDB();
-              $stmtCount = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE status = 'pending' AND appointment_date >= CURDATE()");
+              $currentUserRole = $user['role'] ?? ($_SESSION['role'] ?? '');
+              $purposeWhere = ($currentUserRole === 'doctor') ? " AND purpose != 'eyeglass_claim'" : "";
+              $purposeWhereJoin = ($currentUserRole === 'doctor') ? " AND a.purpose != 'eyeglass_claim'" : "";
+              $headerApptsLink = BASE_URL . ($currentUserRole === 'doctor' ? 'doctor' : ($currentUserRole === 'saleslady' ? 'saleslady' : 'admin')) . '/appointments.php';
+              
+              $stmtCount = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE status = 'pending' AND appointment_date >= CURDATE()" . $purposeWhere);
               $stmtCount->execute();
               $notifCount = $stmtCount->fetch()['c'];
               
-              $stmtRecent = $db->prepare("SELECT p.full_name as patient_name, a.appointment_date, a.appointment_time FROM appointments a JOIN patients p ON a.patient_id = p.id WHERE a.status = 'pending' AND a.appointment_date >= CURDATE() ORDER BY a.created_at DESC LIMIT 5");
+              $stmtRecent = $db->prepare("SELECT p.full_name as patient_name, a.appointment_date, a.appointment_time FROM appointments a JOIN patients p ON a.patient_id = p.id WHERE a.status = 'pending' AND a.appointment_date >= CURDATE()" . $purposeWhereJoin . " ORDER BY a.created_at DESC LIMIT 5");
               $stmtRecent->execute();
               $recentAppts = $stmtRecent->fetchAll();
             } catch(Exception $e) { 
               $notifCount = 0; 
               $recentAppts = []; 
+              $headerApptsLink = BASE_URL . 'admin/appointments.php';
             }
             ?>
             <?php if ($notifCount > 0): ?>
@@ -194,7 +200,7 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
             <?php else: ?>
               <?php foreach($recentAppts as $appt): ?>
                 <li>
-                  <a class="dropdown-item py-2" href="<?= BASE_URL ?>admin/appointments.php">
+                  <a class="dropdown-item py-2" href="<?= $headerApptsLink ?>">
                     <div class="fw-bold text-truncate" style="max-width: 260px;">
                       <?= sanitize($appt['patient_name']) ?>
                     </div>
@@ -207,7 +213,7 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
               <?php endforeach; ?>
             <?php endif; ?>
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item text-center fw-bold" style="color:var(--clr-bronze)" href="<?= BASE_URL ?>admin/appointments.php">View All Appointments</a></li>
+            <li><a class="dropdown-item text-center fw-bold" style="color:var(--clr-bronze)" href="<?= $headerApptsLink ?>">View All Appointments</a></li>
           </ul>
         </div>
 

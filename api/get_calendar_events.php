@@ -10,6 +10,7 @@ try {
     
     $start = $_GET['start'] ?? null;
     $end = $_GET['end'] ?? null;
+    $userRole = $_SESSION['role'] ?? ($_GET['role'] ?? '');
 
     $query = "
         SELECT 
@@ -33,11 +34,22 @@ try {
         JOIN patients p ON p.id = a.patient_id
     ";
     
+    $where = [];
     $params = [];
+
+    // Exclude retail eyeglass claims from Doctor calendar
+    if ($userRole === 'doctor' || !empty($_GET['doctor_view'])) {
+        $where[] = "a.purpose != 'eyeglass_claim'";
+    }
+
     if ($start && $end) {
-        $query .= " WHERE a.appointment_date >= ? AND a.appointment_date <= ?";
+        $where[] = "a.appointment_date >= ? AND a.appointment_date <= ?";
         $params[] = substr($start, 0, 10);
         $params[] = substr($end, 0, 10);
+    }
+
+    if (!empty($where)) {
+        $query .= " WHERE " . implode(" AND ", $where);
     }
     
     $query .= " ORDER BY a.appointment_date ASC, a.appointment_time ASC";

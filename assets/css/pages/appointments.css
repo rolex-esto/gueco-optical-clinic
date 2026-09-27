@@ -207,23 +207,42 @@
   font-family: 'Poppins', sans-serif;
 }
 
-/* Header & Title */
+/* Header Toolbar Layout & Title */
+.fc .fc-header-toolbar {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin-bottom: 20px !important;
+}
+
+.fc .fc-toolbar-chunk {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
 .fc-toolbar-title {
   color: var(--text-primary) !important;
   font-weight: 700 !important;
   letter-spacing: -0.5px;
-  font-size: 1.5rem !important;
+  font-size: 1.4rem !important;
 }
 
 /* Modern Pill Buttons */
 .fc .fc-button {
   border-radius: 20px !important; /* Pill shape */
   text-transform: capitalize;
-  font-weight: 500;
-  padding: 0.4em 1.2em;
+  font-weight: 600;
+  padding: 0.45em 1.1em;
+  font-size: 0.85rem;
   transition: all 0.2s ease;
   box-shadow: none !important;
+  cursor: pointer;
 }
+
 .fc .fc-button-group > .fc-button {
   border-radius: 0 !important;
 }
@@ -236,6 +255,47 @@
   border-bottom-right-radius: 20px !important;
 }
 
+.fc .fc-button:hover:not(.fc-button-active) {
+  background: var(--bg-hover) !important;
+  border-color: var(--clr-primary) !important;
+  color: var(--clr-primary) !important;
+}
+
+.fc .fc-button.fc-button-active {
+  background: linear-gradient(135deg, var(--clr-primary), #1d4ed8) !important;
+  border-color: var(--clr-primary) !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+}
+
+/* Responsive Header Toolbar for Mobile & Tablets */
+@media (max-width: 768px) {
+  .fc .fc-header-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .fc .fc-toolbar-chunk {
+    justify-content: center !important;
+    width: 100% !important;
+  }
+  .fc-toolbar-title {
+    font-size: 1.2rem !important;
+    text-align: center !important;
+  }
+  .fc .fc-button-group {
+    display: flex !important;
+    width: 100% !important;
+  }
+  .fc .fc-button-group > .fc-button {
+    flex: 1 !important;
+    text-align: center !important;
+    padding: 0.5em 0.8em !important;
+    font-size: 0.82rem !important;
+  }
+}
+
 /* Column Headers (Days) */
 .fc-col-header-cell {
   background: var(--bg-hover);
@@ -246,7 +306,7 @@
   color: var(--text-muted) !important;
   text-transform: uppercase;
   font-size: 0.75rem;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.2px;
   font-weight: 600;
   text-decoration: none !important;
 }
@@ -281,8 +341,18 @@
 .fc-list-day-text,
 .fc-list-day-side-text {
   color: var(--text-secondary) !important;
-  font-size: 0.8rem;
-  text-decoration: none;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  text-decoration: none !important;
+}
+
+.fc .fc-timegrid-slot {
+  height: 2.2rem !important; /* comfortable slot height */
+}
+
+.fc .fc-timegrid-col.fc-day-today {
+  background-color: rgba(37, 99, 235, 0.04) !important;
 }
 
 /* Modern Event Card Wrapper */
@@ -325,6 +395,47 @@
   align-items: center;
   gap: 2px;
   margin-bottom: 2px;
+}
+
+/* Compact layout for TimeGrid view cards */
+.custom-event-card--timegrid {
+  padding: 2px 6px;
+  justify-content: center;
+}
+
+.custom-event-timegrid-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.custom-event-time {
+  color: var(--clr-primary);
+  font-weight: 700;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.custom-event-name {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+.custom-event-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 /* Remove default blue outline on focus */

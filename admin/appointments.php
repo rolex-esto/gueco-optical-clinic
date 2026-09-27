@@ -6,6 +6,7 @@ requireRole('admin');
 $pageTitle  = 'Appointments';
 $breadcrumb = ['Admin', 'Appointments'];
 $db = getDB();
+ensureAppointmentsSchema($db);
 $today = date('Y-m-d');
 
 // Handle status update
@@ -582,7 +583,13 @@ document.addEventListener('DOMContentLoaded', function() {
     listView.style.display = 'none';
     calendarView.style.display = 'block';
     if (filterCard) filterCard.style.display = 'none';
-    setTimeout(() => { initCalendar(); }, 100);
+    setTimeout(() => {
+      if (!calendar) {
+        initCalendar();
+      } else {
+        calendar.updateSize();
+      }
+    }, 50);
   } else {
     btnListView.classList.add('active');
     btnCalView.classList.remove('active');
@@ -649,31 +656,74 @@ document.addEventListener('DOMContentLoaded', function() {
         center: 'title',
         right: 'dayGridMonth,timeGridWeek,timeGridDay'
       },
+      buttonText: {
+        today: 'Today',
+        month: 'Month',
+        week: 'Week',
+        day: 'Day'
+      },
+      // Restrict time slots to clinic operating hours: 8:00 AM to 5:00 PM
+      slotMinTime: '08:00:00',
+      slotMaxTime: '17:00:00',
+      scrollTime: '08:00:00',
+      slotDuration: '00:30:00',
+      allDaySlot: false,
+      nowIndicator: true,
+      slotLabelFormat: {
+        hour: 'numeric',
+        minute: '2-digit',
+        omitZeroMinute: false,
+        meridiem: 'short'
+      },
       eventDisplay: 'block', // Force all events to be colored blocks (pills)
-      events: '../api/get_calendar_events.php',
+      events: function(fetchInfo, successCallback, failureCallback) {
+        const url = `../api/get_calendar_events.php?start=${encodeURIComponent(fetchInfo.startStr)}&end=${encodeURIComponent(fetchInfo.endStr)}`;
+        fetch(url)
+          .then(res => {
+            if (!res.ok) throw new Error('HTTP error ' + res.status);
+            return res.json();
+          })
+          .then(data => {
+            const items = (data && Array.isArray(data.events)) ? data.events : (Array.isArray(data) ? data : []);
+            successCallback(items);
+          })
+          .catch(err => {
+            console.error('Error fetching calendar events:', err);
+            failureCallback(err);
+          });
+      },
       
-      // Custom HTML Rendering for Events
+      // Custom HTML Rendering for Events (adapts to Month vs Week/Day views)
       eventContent: function(arg) {
-        const props = arg.event.extendedProps;
-        // In some views (like month), time might not be fully formatted by FullCalendar if all-day, 
-        // but we already have our formatted time from the API!
+        const props = arg.event.extendedProps || {};
         const timeStr = props.time_formatted || '';
-        const name = props.patient_name;
+        const name = props.patient_name || arg.event.title || 'Appointment';
         const statusRaw = props.status || '';
-        const statusStr = statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1).replace('_', ' ');
-        
-        // FullCalendar sets this to our #HEX color from the DB
-        const color = arg.event.backgroundColor;
+        const statusStr = statusRaw ? (statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1).replace('_', ' ')) : '';
+        const color = arg.event.backgroundColor || '#2563EB';
 
+        // Compact layout for TimeGrid (Week and Day views)
+        if (arg.view && arg.view.type && arg.view.type.startsWith('timeGrid')) {
+          let html = `
+            <div class="custom-event-card custom-event-card--timegrid" style="border-left-color: ${color}; border-left-width: 4px; border-left-style: solid;">
+              <div class="custom-event-timegrid-inner">
+                <span class="custom-event-time"><i class="far fa-clock"></i> ${timeStr}</span>
+                <span class="custom-event-name">${name}</span>
+                ${statusStr ? `<span class="custom-event-badge" style="background-color: ${color}20; color: ${color};">${statusStr}</span>` : ''}
+              </div>
+            </div>
+          `;
+          return { html: html };
+        }
+
+        // Full block card for Month view
         let html = `
           <div class="custom-event-card" style="border-left-color: ${color}; border-left-width: 4px; border-left-style: solid;">
             <div class="custom-event-top">
                 <div class="appt-745460">
                     <i class="far fa-clock"></i> ${timeStr}
                 </div>
-                <div style="background-color: ${color}20; color: ${color}; font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 10px; line-height: 1;">
-                    ${statusStr}
-                </div>
+                ${statusStr ? `<div style="background-color: ${color}20; color: ${color}; font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 10px; line-height: 1;">${statusStr}</div>` : ''}
             </div>
             <div class="appt-2760e6">
                 ${name}
@@ -741,6 +791,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!calendar) {
       initCalendar();
     } else {
+      calendar.updateSize();
       calendar.render(); // Ensure it resizes correctly when unhidden
     }
   });

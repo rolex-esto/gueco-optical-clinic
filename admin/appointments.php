@@ -196,18 +196,9 @@ include __DIR__ . '/../includes/header.php';
       'no_show'   => ['type' => 'no_show',   'color' => '#8B5CF6', 'rgb' => '139, 92, 246',  'icon' => 'user-slash',   'label' => 'No Show']
   ];
 
-  $baseCardParams = [];
-  if (!empty($filterDate)) $baseCardParams['date'] = $filterDate;
-  elseif (!empty($filterMonth)) $baseCardParams['month'] = $filterMonth;
-  if (!empty($search)) $baseCardParams['search'] = $search;
-
   foreach ($statCfg as $s => $cfg): 
-    $isActive = ($filterStatus === $s);
-    $cardParams = $baseCardParams;
-    if (!$isActive) {
-        $cardParams['status'] = $s;
-    }
-    $url = 'appointments.php' . (!empty($cardParams) ? '?' . http_build_query($cardParams) : '');
+    $isActive = ($filterStatus === $s && empty($filterDate) && empty($filterMonth) && empty($search));
+    $url = $isActive ? 'appointments.php?all=1' : ('appointments.php?status=' . urlencode($s));
   ?>
   <a href="<?= $url ?>" class="appt-stat-link <?= $isActive ? 'is-active' : '' ?>" title="<?= $isActive ? 'Clear status filter' : 'Filter by ' . $cfg['label'] ?>">
     <div class="appt-stat-card appt-stat-card--<?= $cfg['type'] ?> <?= $isActive ? 'active' : '' ?>" style="--stat-color: <?= $cfg['color'] ?>; --stat-rgb: <?= $cfg['rgb'] ?>;">
@@ -332,10 +323,11 @@ include __DIR__ . '/../includes/header.php';
       <tbody>
         <?php if (empty($appts)): ?>
         <tr><td colspan="9">
-          <div class="empty-state">
-            <div class="empty-icon"><i class="fas fa-calendar"></i></div>
+          <div class="empty-state text-center py-4">
+            <div class="empty-icon mb-2"><i class="fas fa-calendar fa-2x text-muted"></i></div>
             <h6>No appointments found</h6>
-            <p>Try adjusting the filters above</p>
+            <p class="text-muted small mb-3">No records match the current filter criteria.</p>
+            <a href="appointments.php?all=1" class="btn btn-sm btn-primary"><i class="fas fa-list me-1"></i> View All Appointments</a>
           </div>
         </td></tr>
         <?php else: ?>

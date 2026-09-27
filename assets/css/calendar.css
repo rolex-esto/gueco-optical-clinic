@@ -1226,8 +1226,7 @@ html:not([data-theme="dark"]) .flatpickr-months .flatpickr-month,
   padding: 0 !important;
   transform: none !important;
 }
-.flatpickr-current-month select.flatpickr-monthDropdown-months,
-.flatpickr-current-month select.flatpickr-year-dropdown {
+.flatpickr-current-month select.flatpickr-monthDropdown-months {
   font-weight: 700 !important;
   font-family: 'Plus Jakarta Sans', 'Poppins', sans-serif !important;
   cursor: pointer !important;
@@ -1239,9 +1238,6 @@ html:not([data-theme="dark"]) .flatpickr-months .flatpickr-month,
   height: 34px !important;
   line-height: 22px !important;
   vertical-align: middle !important;
-}
-
-.flatpickr-current-month select.flatpickr-monthDropdown-months {
   padding: 4px 10px !important;
   min-width: 110px !important;
   background: rgba(255, 255, 255, 0.08) !important;
@@ -1256,54 +1252,114 @@ html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-monthDro
   border: 1px solid #cbd5e1 !important;
 }
 
-.flatpickr-current-month select.flatpickr-year-dropdown {
-  padding: 4px 26px 4px 10px !important;
-  min-width: 95px !important;
-  -webkit-appearance: none !important;
-  -moz-appearance: none !important;
-  appearance: none !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
-  background-repeat: no-repeat !important;
-  background-position: right 8px center !important;
-  background-color: rgba(255, 255, 255, 0.08) !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-}
-
-html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dropdown,
-[data-theme="light"] .flatpickr-current-month select.flatpickr-year-dropdown {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
-  background-color: #f1f5f9 !important;
-  color: #0f172a !important;
-  border: 1px solid #cbd5e1 !important;
-}
-
-.flatpickr-current-month select.flatpickr-year-dropdown optgroup {
-  font-weight: 800 !important;
-  color: #38bdf8 !important;
-  background: #142036 !important;
-  font-size: 0.8rem !important;
-  padding: 4px 2px !important;
-}
-
-html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dropdown optgroup,
-[data-theme="light"] .flatpickr-current-month select.flatpickr-year-dropdown optgroup {
-  color: #0284c7 !important;
-  background: #f1f5f9 !important;
-}
-
-.flatpickr-current-month select.flatpickr-monthDropdown-months option,
-.flatpickr-current-month select.flatpickr-year-dropdown option {
+.flatpickr-current-month select.flatpickr-monthDropdown-months option {
   background: #142036 !important;
   color: #ffffff !important;
 }
 html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-monthDropdown-months option,
-html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dropdown option,
-[data-theme="light"] .flatpickr-current-month select.flatpickr-monthDropdown-months option,
-[data-theme="light"] .flatpickr-current-month select.flatpickr-year-dropdown option {
+[data-theme="light"] .flatpickr-current-month select.flatpickr-monthDropdown-months option {
   background: #ffffff !important;
   color: #0f172a !important;
 }
+
+/* ── Custom Year Dropdown (Drops down, compact & scrollable) ── */
+.flatpickr-year-custom-wrap {
+  position: relative !important;
+  display: inline-block !important;
+}
+
+.flatpickr-year-custom-btn {
+  font-weight: 700 !important;
+  font-family: 'Plus Jakarta Sans', 'Poppins', sans-serif !important;
+  cursor: pointer !important;
+  border-radius: 8px !important;
+  font-size: 0.88rem !important;
+  outline: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 34px !important;
+  padding: 4px 10px !important;
+  min-width: 82px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  transition: all .15s ease !important;
+}
+
+html:not([data-theme="dark"]) .flatpickr-year-custom-btn,
+[data-theme="light"] .flatpickr-year-custom-btn {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.flatpickr-year-custom-btn:hover {
+  border-color: #0284c7 !important;
+}
+
+.flatpickr-year-custom-menu {
+  position: absolute !important;
+  top: calc(100% + 4px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 95px !important;
+  max-height: 180px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background: #142036 !important;
+  border: 1.5px solid rgba(56, 189, 248, 0.3) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
+  z-index: 100005 !important;
+  padding: 4px !important;
+}
+
+html:not([data-theme="dark"]) .flatpickr-year-custom-menu,
+[data-theme="light"] .flatpickr-year-custom-menu {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15) !important;
+}
+
+.flatpickr-year-custom-menu::-webkit-scrollbar {
+  width: 5px !important;
+}
+.flatpickr-year-custom-menu::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 10px !important;
+}
+[data-theme="dark"] .flatpickr-year-custom-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.flatpickr-year-custom-item {
+  padding: 5px 8px !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  cursor: pointer !important;
+  border-radius: 6px !important;
+  color: #f1f5f9 !important;
+  transition: all .1s ease !important;
+}
+
+html:not([data-theme="dark"]) .flatpickr-year-custom-item,
+[data-theme="light"] .flatpickr-year-custom-item {
+  color: #0f172a !important;
+}
+
+.flatpickr-year-custom-item:hover {
+  background: rgba(14, 165, 233, 0.18) !important;
+  color: #0284c7 !important;
+}
+
+.flatpickr-year-custom-item.active {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+}
+
 /* Hide the redundant default year number input completely */
 .flatpickr-current-month .numInputWrapper,
 .flatpickr-current-month input.cur-year {

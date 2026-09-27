@@ -1665,56 +1665,69 @@ document.addEventListener('DOMContentLoaded', function() {
         placeholder: 'Select birthdate (Month / Day / Year)',
         onReady: function(selectedDates, dateStr, fp) {
           const monthElem = fp.calendarContainer.querySelector('.flatpickr-current-month');
-          if (monthElem && !monthElem.querySelector('.flatpickr-year-dropdown')) {
-            const yearSelect = document.createElement('select');
-            yearSelect.className = 'flatpickr-year-dropdown';
+          if (monthElem && !monthElem.querySelector('.flatpickr-year-custom-wrap')) {
+            const wrap = document.createElement('div');
+            wrap.className = 'flatpickr-year-custom-wrap';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'flatpickr-year-custom-btn';
+            btn.innerHTML = `${fp.currentYear} <i class="fas fa-chevron-down" style="font-size:0.7rem;margin-left:4px;"></i>`;
+
+            const menu = document.createElement('div');
+            menu.className = 'flatpickr-year-custom-menu d-none';
+
             const curYear = new Date().getFullYear();
+            for (let y = curYear; y >= 1900; y--) {
+              const item = document.createElement('div');
+              item.className = 'flatpickr-year-custom-item' + (y === fp.currentYear ? ' active' : '');
+              item.dataset.year = y;
+              item.textContent = y;
+              item.addEventListener('click', function(ev) {
+                ev.stopPropagation();
+                const chosen = parseInt(this.dataset.year, 10);
+                fp.jumpToDate(new Date(chosen, fp.currentMonth, 1));
+                btn.innerHTML = `${chosen} <i class="fas fa-chevron-down" style="font-size:0.7rem;margin-left:4px;"></i>`;
+                menu.classList.add('d-none');
+              });
+              menu.appendChild(item);
+            }
 
-            const decades = [
-              { label: '2020s', from: curYear, to: 2020 },
-              { label: '2010s', from: 2019, to: 2010 },
-              { label: '2000s', from: 2009, to: 2000 },
-              { label: '1990s', from: 1999, to: 1990 },
-              { label: '1980s', from: 1989, to: 1980 },
-              { label: '1970s', from: 1979, to: 1970 },
-              { label: '1960s', from: 1969, to: 1960 },
-              { label: '1950s & Earlier', from: 1959, to: 1900 }
-            ];
-
-            decades.forEach(dec => {
-              const grp = document.createElement('optgroup');
-              grp.label = dec.label;
-              for (let y = dec.from; y >= dec.to; y--) {
-                const opt = document.createElement('option');
-                opt.value = y;
-                opt.textContent = y;
-                if (y === fp.currentYear) opt.selected = true;
-                grp.appendChild(opt);
+            btn.addEventListener('click', function(ev) {
+              ev.stopPropagation();
+              const isClosed = menu.classList.contains('d-none');
+              menu.classList.toggle('d-none');
+              if (isClosed) {
+                const active = menu.querySelector('.flatpickr-year-custom-item.active');
+                if (active) active.scrollIntoView({ block: 'center' });
               }
-              yearSelect.appendChild(grp);
             });
 
-            yearSelect.addEventListener('change', function() {
-              const chosenYear = parseInt(this.value, 10);
-              fp.jumpToDate(new Date(chosenYear, fp.currentMonth, 1));
+            document.addEventListener('click', function(ev) {
+              if (!wrap.contains(ev.target)) {
+                menu.classList.add('d-none');
+              }
             });
-            monthElem.appendChild(yearSelect);
+
+            wrap.appendChild(btn);
+            wrap.appendChild(menu);
+            monthElem.appendChild(wrap);
 
             const numWrap = monthElem.querySelector('.numInputWrapper');
             if (numWrap) numWrap.remove();
           }
         },
         onMonthChange: function(selectedDates, dateStr, fp) {
-          const yearSelect = fp.calendarContainer.querySelector('.flatpickr-year-dropdown');
-          if (yearSelect && parseInt(yearSelect.value, 10) !== fp.currentYear) {
-            yearSelect.value = fp.currentYear;
-          }
+          const btn = fp.calendarContainer.querySelector('.flatpickr-year-custom-btn');
+          if (btn) btn.innerHTML = `${fp.currentYear} <i class="fas fa-chevron-down" style="font-size:0.7rem;margin-left:4px;"></i>`;
+          const items = fp.calendarContainer.querySelectorAll('.flatpickr-year-custom-item');
+          items.forEach(el => el.classList.toggle('active', parseInt(el.dataset.year, 10) === fp.currentYear));
         },
         onYearChange: function(selectedDates, dateStr, fp) {
-          const yearSelect = fp.calendarContainer.querySelector('.flatpickr-year-dropdown');
-          if (yearSelect && parseInt(yearSelect.value, 10) !== fp.currentYear) {
-            yearSelect.value = fp.currentYear;
-          }
+          const btn = fp.calendarContainer.querySelector('.flatpickr-year-custom-btn');
+          if (btn) btn.innerHTML = `${fp.currentYear} <i class="fas fa-chevron-down" style="font-size:0.7rem;margin-left:4px;"></i>`;
+          const items = fp.calendarContainer.querySelectorAll('.flatpickr-year-custom-item');
+          items.forEach(el => el.classList.toggle('active', parseInt(el.dataset.year, 10) === fp.currentYear));
         },
         onChange: function(selectedDates, dateStr) {
           if (ageEl) ageEl.value = calculateAge(dateStr);

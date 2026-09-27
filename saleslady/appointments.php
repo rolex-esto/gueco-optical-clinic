@@ -10,32 +10,40 @@ $db = getDB();
 ensureAppointmentsSchema($db);
 $today = date('Y-m-d');
 
-// Handle status updates / notes
+// Handle status updates / notes / confirmation
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
     requireCsrfToken();
     $apptId = (int)($_POST['appt_id'] ?? 0);
     $action = $_POST['action'] ?? '';
 
     if ($apptId > 0) {
-        if ($action === 'update_notes') {
-            $notes = sanitize($_POST['notes'] ?? '');
-            $db->prepare("UPDATE appointments SET notes=? WHERE id=?")->execute([$notes, $apptId]);
-            $_SESSION['flash_msg'] = 'Appointment notes updated.';
-            $_SESSION['flash_type'] = 'info';
+        $ptStmt = $db->prepare("SELECT p.full_name, a.purpose, a.appointment_date FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE a.id=?");
+        $ptStmt->execute([$apptId]);
+        $ptRow = $ptStmt->fetch();
+        $ptName = $ptRow['full_name'] ?? ('Appointment #' . $apptId);
+        $isClaim = ($ptRow['purpose'] ?? '') === 'eyeglass_claim';
 
-            $ptStmt = $db->prepare("SELECT p.full_name FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE a.id=?");
-            $ptStmt->execute([$apptId]);
-            $ptName = $ptStmt->fetch()['full_name'] ?? ('Appointment #' . $apptId);
-            logActivity("Updated notes for appointment #$apptId ($ptName)", "Appointments", $_SESSION['user_id'], 'staff');
+        if ($action === 'confirm') {
+            $db->prepare("UPDATE appointments SET status='confirmed', verified_by=? WHERE id=?")->execute([$_SESSION['user_id'], $apptId]);
+            $_SESSION['flash_msg'] = $isClaim ? 'Eyeglass claim appointment accepted & confirmed.' : 'Appointment confirmed successfully.';
+            $_SESSION['flash_type'] = 'success';
+            logActivity("Confirmed " . ($isClaim ? 'Eyeglass Claim / Fitting' : 'appointment') . " #$apptId for patient: $ptName", "Appointments", $_SESSION['user_id'], 'staff');
         } elseif ($action === 'complete_claim') {
             $db->prepare("UPDATE appointments SET status='completed', verified_by=? WHERE id=?")->execute([$_SESSION['user_id'], $apptId]);
             $_SESSION['flash_msg'] = 'Eyeglass claim marked as completed & handed over to patient.';
             $_SESSION['flash_type'] = 'success';
-
-            $ptStmt = $db->prepare("SELECT p.full_name FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE a.id=?");
-            $ptStmt->execute([$apptId]);
-            $ptName = $ptStmt->fetch()['full_name'] ?? ('Appointment #' . $apptId);
             logActivity("Completed Eyeglass Claim / Fitting for appointment #$apptId ($ptName)", "Appointments", $_SESSION['user_id'], 'staff');
+        } elseif ($action === 'cancel') {
+            $db->prepare("UPDATE appointments SET status='cancelled' WHERE id=?")->execute([$apptId]);
+            $_SESSION['flash_msg'] = 'Appointment booking cancelled.';
+            $_SESSION['flash_type'] = 'danger';
+            logActivity("Cancelled appointment #$apptId for patient: $ptName", "Appointments", $_SESSION['user_id'], 'staff');
+        } elseif ($action === 'update_notes') {
+            $notes = sanitize($_POST['notes'] ?? '');
+            $db->prepare("UPDATE appointments SET notes=? WHERE id=?")->execute([$notes, $apptId]);
+            $_SESSION['flash_msg'] = 'Appointment notes updated.';
+            $_SESSION['flash_type'] = 'info';
+            logActivity("Updated notes for appointment #$apptId ($ptName)", "Appointments", $_SESSION['user_id'], 'staff');
         }
     }
     
@@ -409,46 +417,84 @@ include __DIR__ . '/../includes/header.php';
           </div>
         </div>
 
-        <!-- Eyeglass Claim Front Desk Notice -->
-        <div id="modalClaimNotice" class="alert alert-info d-flex align-items-center gap-2 mb-3 py-2 px-3" style="display:none;font-size:0.82rem;border-radius:10px;border:1.5px solid #0284c7;background:rgba(2,132,199,0.08);">
-          <i class="fas fa-glasses fa-lg text-info flex-shrink-0"></i>
-          <div>
-            <strong>Eyeglass Claim &amp; Fitting:</strong> Optical dispensing service managed directly by Saleslady. No doctor examination required.
+        <!-- Eyeglass Claim & Fitting Dedicated Front Desk Action Card -->
+        <div id="modalClaimActionBox" class="p-3 mb-3 d-none" style="background:rgba(2,132,199,0.06); border:1.5px solid rgba(2,132,199,0.25); border-radius:12px;">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <i class="fas fa-glasses text-info fa-lg"></i>
+              <strong class="small text-uppercase" style="letter-spacing:0.4px; color:#0284c7;">Eyeglass Claim &amp; Fitting Workflow</strong>
+            </div>
+            <span class="badge" id="modalClaimStatusBadge" style="font-size:0.75rem;">Claim Pending</span>
+          </div>
+          <p class="text-muted small mb-3" id="modalClaimNoticeText" style="line-height:1.45;">
+            Optical dispensing service managed directly by front-desk Saleslady. No doctor examination or optometrist confirmation required.
+          </p>
+          <div class="d-flex flex-wrap gap-2 align-items-center" id="modalClaimButtons">
+            <!-- Form: Confirm Eyeglass Claim Appointment -->
+            <form method="POST" id="formConfirmClaim" class="m-0" style="display:none;">
+              <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+              <input type="hidden" name="action" value="confirm">
+              <input type="hidden" name="appt_id" id="confirmClaimApptId" value="">
+              <input type="hidden" name="current_view_date" id="confirmClaimCurrentDate" value="">
+              <button type="submit" class="btn btn-info btn-sm text-white px-3 py-2 shadow-sm fw-bold text-nowrap" id="modalBtnConfirmClaim">
+                <i class="fas fa-check-circle me-1"></i> Accept &amp; Confirm Booking
+              </button>
+            </form>
+
+            <!-- Form: Mark Claim Completed & Handed Over -->
+            <form method="POST" id="formCompleteClaim" class="m-0" style="display:none;">
+              <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+              <input type="hidden" name="action" value="complete_claim">
+              <input type="hidden" name="appt_id" id="completeClaimApptId" value="">
+              <input type="hidden" name="current_view_date" id="completeClaimCurrentDate" value="">
+              <button type="submit" class="btn btn-success btn-sm px-3 py-2 shadow-sm fw-bold text-nowrap" id="modalBtnCompleteClaim">
+                <i class="fas fa-check-double me-1"></i> Mark as Claimed / Done
+              </button>
+            </form>
+
+            <!-- Form: Cancel Appointment -->
+            <form method="POST" id="formCancelClaim" class="m-0" style="display:none;" onsubmit="return confirm('Are you sure you want to cancel this booking?');">
+              <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+              <input type="hidden" name="action" value="cancel">
+              <input type="hidden" name="appt_id" id="cancelClaimApptId" value="">
+              <input type="hidden" name="current_view_date" id="cancelClaimCurrentDate" value="">
+              <button type="submit" class="btn btn-outline-danger btn-sm px-3 py-2 text-nowrap" id="modalBtnCancelClaim">
+                <i class="fas fa-times me-1"></i> Cancel Booking
+              </button>
+            </form>
           </div>
         </div>
 
         <!-- Dynamic Lock/Status Alert for Consultation Flow -->
-        <div id="modalConsultationLockAlert" class="alert alert-warning d-flex align-items-center gap-2 mb-3 py-2 px-3" style="display:none;font-size:0.82rem;border-radius:10px;border:1.5px solid #f59e0b;background:rgba(245,158,11,0.08);">
+        <div id="modalConsultationLockAlert" class="alert alert-warning py-2 px-3 mb-3 d-none align-items-center gap-2" style="font-size:0.82rem;border-radius:10px;border:1.5px solid #f59e0b;background:rgba(245,158,11,0.08);">
           <i class="fas fa-lock fa-lg text-warning flex-shrink-0"></i>
           <div>
             <strong>Awaiting Doctor Examination:</strong> POS checkout unlocks automatically once the Optometrist inputs the prescription and completes the medical consultation.
           </div>
         </div>
 
-        <!-- Saleslady & Cashier Shortcuts -->
+        <!-- Saleslady & Cashier Shortcuts (Clean 2-Column Grid) -->
         <div class="cal-modal-shortcuts p-3">
-          <h6 class="cal-modal-shortcuts-heading"><i class="fas fa-cash-register text-primary me-2"></i>Service & POS Shortcuts</h6>
-          <div class="d-flex flex-wrap gap-2">
-            <!-- Form for marking claim complete -->
-            <form method="POST" id="formCompleteClaim" style="display:none; flex:1;" class="m-0">
-              <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
-              <input type="hidden" name="action" value="complete_claim">
-              <input type="hidden" name="appt_id" id="completeClaimApptId" value="">
-              <button type="submit" class="btn btn-success btn-sm w-100 py-2 shadow-sm" id="modalBtnCompleteClaim">
-                <i class="fas fa-check-double me-1"></i> Mark as Claimed / Done
-              </button>
-            </form>
-            <a href="#" id="modalBtnPos" class="btn btn-primary btn-sm flex-fill py-2">
-              <i class="fas fa-shopping-cart me-1"></i> Proceed to POS Checkout
-            </a>
-            <a href="#" id="modalBtnPatient" class="btn btn-outline-primary btn-sm flex-fill py-2">
-              <i class="fas fa-user me-1"></i> View Patient Profile
-            </a>
+          <h6 class="cal-modal-shortcuts-heading mb-2"><i class="fas fa-cash-register text-primary me-2"></i>Service &amp; POS Shortcuts</h6>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <a href="#" id="modalBtnPos" class="btn btn-primary btn-sm w-100 py-2 text-nowrap shadow-sm text-center d-inline-flex align-items-center justify-content-center">
+                <i class="fas fa-shopping-cart me-1"></i> Proceed to POS Checkout
+              </a>
+            </div>
+            <div class="col-sm-6">
+              <a href="#" id="modalBtnPatient" class="btn btn-outline-primary btn-sm w-100 py-2 text-nowrap text-center d-inline-flex align-items-center justify-content-center">
+                <i class="fas fa-user me-1"></i> View Patient Profile
+              </a>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="modal-footer d-flex justify-content-end align-items-center">
+      <div class="modal-footer d-flex justify-content-between align-items-center">
+        <div class="text-muted small" id="modalFooterHint">
+          <!-- Subtle context helper -->
+        </div>
         <button type="button" class="btn btn-outline-secondary btn-sm px-4" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
@@ -1324,12 +1370,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('modalNotes').textContent = appt.notes && appt.notes.trim() !== '' ? appt.notes : 'No special notes entered for this appointment.';
 
-    // Saleslady Shortcuts & Lock Logic
+    // Saleslady Shortcuts & Claim Workflow Elements
     const btnPos = document.getElementById('modalBtnPos');
     const lockAlert = document.getElementById('modalConsultationLockAlert');
-    const claimNotice = document.getElementById('modalClaimNotice');
+    const claimActionBox = document.getElementById('modalClaimActionBox');
+    const claimStatusBadge = document.getElementById('modalClaimStatusBadge');
+    const claimNoticeText = document.getElementById('modalClaimNoticeText');
+    const formConfirmClaim = document.getElementById('formConfirmClaim');
+    const confirmClaimApptId = document.getElementById('confirmClaimApptId');
+    const confirmClaimCurrentDate = document.getElementById('confirmClaimCurrentDate');
     const formCompleteClaim = document.getElementById('formCompleteClaim');
     const completeClaimApptId = document.getElementById('completeClaimApptId');
+    const completeClaimCurrentDate = document.getElementById('completeClaimCurrentDate');
+    const formCancelClaim = document.getElementById('formCancelClaim');
+    const cancelClaimApptId = document.getElementById('cancelClaimApptId');
+    const cancelClaimCurrentDate = document.getElementById('cancelClaimCurrentDate');
 
     const purpose = (appt.purpose || 'consultation').toLowerCase();
     const isClaim = (purpose === 'eyeglass_claim');
@@ -1338,73 +1393,160 @@ document.addEventListener('DOMContentLoaded', function() {
     const isCancelledOrNoShow = appt.status === 'cancelled' || appt.status === 'no_show';
     const hasSale = !!appt.sale_id;
 
-    if (claimNotice) claimNotice.style.display = isClaim ? 'flex' : 'none';
+    // Eyeglass Claim Front Desk Actions Management
+    if (claimActionBox) {
+      if (isClaim) {
+        claimActionBox.classList.remove('d-none');
+        claimActionBox.classList.add('d-block');
 
-    // Show/hide Complete Claim button for Saleslady
-    if (isClaim && appt.status !== 'completed' && !isCancelledOrNoShow) {
-      if (formCompleteClaim) {
-        formCompleteClaim.style.display = 'block';
+        // Populate Form IDs and current dates
+        if (confirmClaimApptId) confirmClaimApptId.value = appt.id;
+        if (confirmClaimCurrentDate) confirmClaimCurrentDate.value = appt.appointment_date || '';
         if (completeClaimApptId) completeClaimApptId.value = appt.id;
+        if (completeClaimCurrentDate) completeClaimCurrentDate.value = appt.appointment_date || '';
+        if (cancelClaimApptId) cancelClaimApptId.value = appt.id;
+        if (cancelClaimCurrentDate) cancelClaimCurrentDate.value = appt.appointment_date || '';
+
+        if (appt.status === 'pending') {
+          claimStatusBadge.className = 'badge bg-warning text-dark px-2 py-1';
+          claimStatusBadge.innerHTML = '<i class="fas fa-clock me-1"></i> Waiting Confirmation';
+          claimNoticeText.innerHTML = 'This booking was scheduled for an eyeglass claim or fitting. No eye checkup or doctor confirmation is required. You can <strong>Accept &amp; Confirm</strong> this booking right now.';
+          if (formConfirmClaim) formConfirmClaim.style.display = 'inline-block';
+          if (formCompleteClaim) formCompleteClaim.style.display = 'inline-block';
+          if (formCancelClaim) formCancelClaim.style.display = 'inline-block';
+        } else if (appt.status === 'confirmed') {
+          claimStatusBadge.className = 'badge bg-info text-white px-2 py-1';
+          claimStatusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i> Ready for Fitting / Pickup';
+          claimNoticeText.innerHTML = 'Eyeglasses are ready for fitting and handover. Once the patient has received the glasses, click <strong>Mark as Claimed / Done</strong> below.';
+          if (formConfirmClaim) formConfirmClaim.style.display = 'none';
+          if (formCompleteClaim) formCompleteClaim.style.display = 'inline-block';
+          if (formCancelClaim) formCancelClaim.style.display = 'inline-block';
+        } else if (appt.status === 'completed') {
+          claimStatusBadge.className = 'badge bg-success text-white px-2 py-1';
+          claimStatusBadge.innerHTML = '<i class="fas fa-check-double me-1"></i> Claim Completed';
+          claimNoticeText.innerHTML = '<span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i> Eyeglasses have been handed over to the patient and claim is marked completed.</span>';
+          if (formConfirmClaim) formConfirmClaim.style.display = 'none';
+          if (formCompleteClaim) formCompleteClaim.style.display = 'none';
+          if (formCancelClaim) formCancelClaim.style.display = 'none';
+        } else {
+          claimStatusBadge.className = 'badge bg-secondary text-white px-2 py-1';
+          claimStatusBadge.innerHTML = appt.status === 'cancelled' ? 'Booking Cancelled' : 'No-Show Recorded';
+          claimNoticeText.innerHTML = `This eyeglass claim appointment was marked as ${appt.status === 'cancelled' ? 'cancelled' : 'no-show'}.`;
+          if (formConfirmClaim) formConfirmClaim.style.display = 'none';
+          if (formCompleteClaim) formCompleteClaim.style.display = 'none';
+          if (formCancelClaim) formCancelClaim.style.display = 'none';
+        }
+      } else {
+        claimActionBox.classList.remove('d-block');
+        claimActionBox.classList.add('d-none');
+        if (formConfirmClaim) formConfirmClaim.style.display = 'none';
+        if (formCompleteClaim) formCompleteClaim.style.display = 'none';
+        if (formCancelClaim) formCancelClaim.style.display = 'none';
       }
-    } else {
-      if (formCompleteClaim) formCompleteClaim.style.display = 'none';
     }
 
-    if (hasSale) {
-      if (lockAlert) lockAlert.style.display = 'none';
-      btnPos.href = `receipt.php?id=${appt.sale_id}`;
-      btnPos.target = '_blank';
-      btnPos.className = 'btn btn-success btn-sm flex-fill py-2 shadow-sm';
-      btnPos.style.pointerEvents = '';
-      btnPos.style.opacity = '1';
-      btnPos.innerHTML = `<i class="fas fa-file-invoice me-1"></i> View Receipt (${escapeHtml(appt.invoice_no || '#' + appt.sale_id)})`;
-    } else if (isCancelledOrNoShow) {
-      if (lockAlert) lockAlert.style.display = 'none';
-      btnPos.removeAttribute('href');
-      btnPos.target = '_self';
-      btnPos.className = 'btn btn-secondary btn-sm flex-fill py-2 disabled';
-      btnPos.style.pointerEvents = 'none';
-      btnPos.style.opacity = '0.65';
-      btnPos.innerHTML = `<i class="fas fa-ban me-1"></i> ${appt.status === 'cancelled' ? 'Appointment Cancelled' : 'No-Show Recorded'}`;
-    } else if (appt.status === 'in_progress') {
+    // POS & Consultation Lock Management
+    if (isClaim) {
+      // NEVER show doctor examination alert for eyeglass claims
       if (lockAlert) {
-        lockAlert.style.display = 'flex';
-        lockAlert.className = 'alert alert-info d-flex align-items-center gap-2 mb-3 py-2 px-3';
-        lockAlert.style.border = '1.5px solid #0ea5e9';
-        lockAlert.style.background = 'rgba(14, 165, 233, 0.08)';
-        lockAlert.innerHTML = '<i class="fas fa-stethoscope fa-lg text-info flex-shrink-0"></i><div><strong>With Doctor (Examining):</strong> Optometrist is currently seeing the patient. POS unlocks once consultation is marked completed.</div>';
+        lockAlert.classList.remove('d-flex');
+        lockAlert.classList.add('d-none');
+        lockAlert.style.display = 'none';
       }
-      btnPos.removeAttribute('href');
-      btnPos.target = '_self';
-      btnPos.className = 'btn btn-secondary btn-sm flex-fill py-2 disabled';
-      btnPos.style.pointerEvents = 'none';
-      btnPos.style.opacity = '0.85';
-      btnPos.innerHTML = `<i class="fas fa-stethoscope me-1"></i> In Consultation with Doctor`;
-    } else if (isConsultation && !isExamCompleted) {
-      // Consultation pending Doctor Examination -> LOCK POS BUTTON
-      if (lockAlert) {
-        lockAlert.style.display = 'flex';
-        lockAlert.className = 'alert alert-warning d-flex align-items-center gap-2 mb-3 py-2 px-3';
-        lockAlert.style.border = '1.5px solid #f59e0b';
-        lockAlert.style.background = 'rgba(245, 158, 11, 0.08)';
-        lockAlert.innerHTML = '<i class="fas fa-lock fa-lg text-warning flex-shrink-0"></i><div><strong>Awaiting Doctor Examination:</strong> POS checkout unlocks automatically once Optometrist inputs prescription and completes consultation.</div>';
+
+      if (hasSale) {
+        btnPos.href = `receipt.php?id=${appt.sale_id}`;
+        btnPos.target = '_blank';
+        btnPos.className = 'btn btn-success btn-sm w-100 py-2 text-nowrap shadow-sm text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = '';
+        btnPos.style.opacity = '1';
+        btnPos.innerHTML = `<i class="fas fa-file-invoice me-1"></i> View Receipt (${escapeHtml(appt.invoice_no || '#' + appt.sale_id)})`;
+      } else if (isCancelledOrNoShow) {
+        btnPos.removeAttribute('href');
+        btnPos.target = '_self';
+        btnPos.className = 'btn btn-secondary btn-sm w-100 py-2 text-nowrap disabled text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = 'none';
+        btnPos.style.opacity = '0.65';
+        btnPos.innerHTML = `<i class="fas fa-ban me-1"></i> ${appt.status === 'cancelled' ? 'Appointment Cancelled' : 'No-Show Recorded'}`;
+      } else {
+        btnPos.href = `pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}`;
+        btnPos.target = '_self';
+        btnPos.className = 'btn btn-primary btn-sm w-100 py-2 text-nowrap shadow-sm text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = '';
+        btnPos.style.opacity = '1';
+        btnPos.innerHTML = `<i class="fas fa-cash-register me-1"></i> Proceed to POS (Eyewear Billing)`;
       }
-      btnPos.removeAttribute('href');
-      btnPos.target = '_self';
-      btnPos.className = 'btn btn-secondary btn-sm flex-fill py-2 disabled';
-      btnPos.style.pointerEvents = 'none';
-      btnPos.style.opacity = '0.85';
-      btnPos.innerHTML = `<i class="fas fa-lock me-1"></i> POS Locked (Awaiting Doctor Exam)`;
     } else {
-      if (lockAlert) lockAlert.style.display = 'none';
-      btnPos.href = `pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}`;
-      btnPos.target = '_self';
-      btnPos.className = 'btn btn-primary btn-sm flex-fill py-2 shadow-sm';
-      btnPos.style.pointerEvents = '';
-      btnPos.style.opacity = '1';
-      btnPos.innerHTML = isClaim
-        ? `<i class="fas fa-shopping-cart me-1"></i> Proceed to POS (Eyewear Billing)`
-        : `<i class="fas fa-shopping-cart me-1"></i> Proceed to POS Checkout`;
+      // Clinical Consultations flow
+      if (hasSale) {
+        if (lockAlert) {
+          lockAlert.classList.remove('d-flex');
+          lockAlert.classList.add('d-none');
+          lockAlert.style.display = 'none';
+        }
+        btnPos.href = `receipt.php?id=${appt.sale_id}`;
+        btnPos.target = '_blank';
+        btnPos.className = 'btn btn-success btn-sm w-100 py-2 text-nowrap shadow-sm text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = '';
+        btnPos.style.opacity = '1';
+        btnPos.innerHTML = `<i class="fas fa-file-invoice me-1"></i> View Receipt (${escapeHtml(appt.invoice_no || '#' + appt.sale_id)})`;
+      } else if (isCancelledOrNoShow) {
+        if (lockAlert) {
+          lockAlert.classList.remove('d-flex');
+          lockAlert.classList.add('d-none');
+          lockAlert.style.display = 'none';
+        }
+        btnPos.removeAttribute('href');
+        btnPos.target = '_self';
+        btnPos.className = 'btn btn-secondary btn-sm w-100 py-2 text-nowrap disabled text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = 'none';
+        btnPos.style.opacity = '0.65';
+        btnPos.innerHTML = `<i class="fas fa-ban me-1"></i> ${appt.status === 'cancelled' ? 'Appointment Cancelled' : 'No-Show Recorded'}`;
+      } else if (appt.status === 'in_progress') {
+        if (lockAlert) {
+          lockAlert.className = 'alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2';
+          lockAlert.style.border = '1.5px solid #0ea5e9';
+          lockAlert.style.background = 'rgba(14, 165, 233, 0.08)';
+          lockAlert.innerHTML = '<i class="fas fa-stethoscope fa-lg text-info flex-shrink-0"></i><div><strong>With Doctor (Examining):</strong> Optometrist is currently seeing the patient. POS unlocks once consultation is marked completed.</div>';
+          lockAlert.classList.remove('d-none');
+          lockAlert.classList.add('d-flex');
+          lockAlert.style.display = 'flex';
+        }
+        btnPos.removeAttribute('href');
+        btnPos.target = '_self';
+        btnPos.className = 'btn btn-secondary btn-sm w-100 py-2 text-nowrap disabled text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = 'none';
+        btnPos.style.opacity = '0.85';
+        btnPos.innerHTML = `<i class="fas fa-stethoscope me-1"></i> In Consultation with Doctor`;
+      } else if (isConsultation && !isExamCompleted) {
+        if (lockAlert) {
+          lockAlert.className = 'alert alert-warning py-2 px-3 mb-3 d-flex align-items-center gap-2';
+          lockAlert.style.border = '1.5px solid #f59e0b';
+          lockAlert.style.background = 'rgba(245, 158, 11, 0.08)';
+          lockAlert.innerHTML = '<i class="fas fa-lock fa-lg text-warning flex-shrink-0"></i><div><strong>Awaiting Doctor Examination:</strong> POS checkout unlocks automatically once Optometrist inputs prescription and completes consultation.</div>';
+          lockAlert.classList.remove('d-none');
+          lockAlert.classList.add('d-flex');
+          lockAlert.style.display = 'flex';
+        }
+        btnPos.removeAttribute('href');
+        btnPos.target = '_self';
+        btnPos.className = 'btn btn-secondary btn-sm w-100 py-2 text-nowrap disabled text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = 'none';
+        btnPos.style.opacity = '0.85';
+        btnPos.innerHTML = `<i class="fas fa-lock me-1"></i> POS Locked (Awaiting Doctor Exam)`;
+      } else {
+        if (lockAlert) {
+          lockAlert.classList.remove('d-flex');
+          lockAlert.classList.add('d-none');
+          lockAlert.style.display = 'none';
+        }
+        btnPos.href = `pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}`;
+        btnPos.target = '_self';
+        btnPos.className = 'btn btn-primary btn-sm w-100 py-2 text-nowrap shadow-sm text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = '';
+        btnPos.style.opacity = '1';
+        btnPos.innerHTML = `<i class="fas fa-shopping-cart me-1"></i> Proceed to POS Checkout`;
+      }
     }
 
     document.getElementById('modalBtnPatient').href = `patients.php?view=${appt.patient_id}`;

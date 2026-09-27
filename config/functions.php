@@ -448,21 +448,21 @@ function validateWalkinPatientData(array $data): array {
         }
     }
 
-    // 4. SEX / GENDER VALIDATION
+    // 4. SEX / GENDER VALIDATION (REQUIRED)
     $gender = trim($data['gender'] ?? ($data['sex'] ?? ''));
-    if (!empty($gender)) {
-        if (!in_array($gender, ['male', 'female', 'other'], true)) {
-            $errors['gender'] = 'Invalid sex selected.';
-        } else {
-            $cleaned['gender'] = $gender;
-        }
+    if (empty($gender)) {
+        $errors['gender'] = 'Sex is required. Please select an option.';
+    } elseif (!in_array($gender, ['male', 'female', 'other'], true)) {
+        $errors['gender'] = 'Invalid sex selected.';
     } else {
-        $cleaned['gender'] = null;
+        $cleaned['gender'] = $gender;
     }
 
-    // 5. BIRTHDATE VALIDATION
+    // 5. BIRTHDATE VALIDATION (REQUIRED)
     $birthdate = trim($data['birthdate'] ?? '');
-    if (!empty($birthdate)) {
+    if (empty($birthdate)) {
+        $errors['birthdate'] = 'Birthdate is required.';
+    } else {
         $ts = strtotime($birthdate);
         $todayTs = strtotime(date('Y-m-d'));
         $minTs = strtotime('1900-01-01');
@@ -476,8 +476,6 @@ function validateWalkinPatientData(array $data): array {
         } else {
             $cleaned['birthdate'] = date('Y-m-d', $ts);
         }
-    } else {
-        $cleaned['birthdate'] = null;
     }
 
     // 6. ADDRESS VALIDATION (NOT OPTIONAL)

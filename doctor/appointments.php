@@ -586,9 +586,9 @@ include __DIR__ . '/../includes/header.php';
               <input type="email" name="email" id="walkinInputEmail" class="form-control" placeholder="Leave blank if none">
             </div>
 
-            <div class="col-md-5">
-              <label class="form-label small fw-bold text-muted text-uppercase">Sex</label>
-              <select name="gender" id="walkinInputGender" class="form-select">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold text-muted text-uppercase">Sex <span class="text-danger">*</span></label>
+              <select name="gender" id="walkinInputGender" class="form-select" required>
                 <option value="">Select Sex</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
@@ -596,9 +596,17 @@ include __DIR__ . '/../includes/header.php';
               </select>
             </div>
 
-            <div class="col-md-7">
-              <label class="form-label small fw-bold text-muted text-uppercase">Birthdate</label>
-              <input type="text" name="birthdate" id="walkinInputBirthdate" class="form-control modern-birthdate-picker" placeholder="Select birthdate (Month / Day / Year)">
+            <div class="col-md-5">
+              <label class="form-label small fw-bold text-muted text-uppercase">Birthdate <span class="text-danger">*</span></label>
+              <input type="text" name="birthdate" id="walkinInputBirthdate" class="form-control modern-birthdate-picker" placeholder="Select birthdate" required autocomplete="off">
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-bold text-muted text-uppercase">Age</label>
+              <div class="input-group">
+                <input type="text" id="walkinInputAge" class="form-control bg-light" placeholder="—" readonly style="font-weight:700; text-align:center;">
+                <span class="input-group-text small text-muted">yrs</span>
+              </div>
             </div>
 
             <div class="col-12">
@@ -1625,19 +1633,78 @@ document.addEventListener('DOMContentLoaded', function() {
     const walkinAlert = document.getElementById('walkinAlert');
     const btnSubmitWalkin = document.getElementById('btnSubmitWalkin');
 
-    // Flatpickr Modern Birthdate Picker
+    // Flatpickr Modern Birthdate Picker with Year Dropdown & Auto Age Calculation
     let walkinBirthPicker = null;
     const birthEl = document.getElementById('walkinInputBirthdate');
+    const ageEl = document.getElementById('walkinInputAge');
+    const genderEl = document.getElementById('walkinInputGender');
+
+    function calculateAge(dateStr) {
+      if (!dateStr) return '';
+      const birth = new Date(dateStr);
+      if (isNaN(birth.getTime())) return '';
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      return (age >= 0 && age <= 130) ? age : '';
+    }
+
     if (birthEl && typeof flatpickr !== 'undefined') {
       walkinBirthPicker = flatpickr(birthEl, {
         dateFormat: 'Y-m-d',
         altInput: true,
         altFormat: 'F j, Y',
         altInputClass: 'form-control modern-birthdate-picker',
+        minDate: '1900-01-01',
         maxDate: 'today',
         monthSelectorType: 'dropdown',
         disableMobile: true,
-        placeholder: 'Select birthdate (Month / Day / Year)'
+        placeholder: 'Select birthdate (Month / Day / Year)',
+        onReady: function(selectedDates, dateStr, fp) {
+          const monthElem = fp.calendarContainer.querySelector('.flatpickr-current-month');
+          if (monthElem && !monthElem.querySelector('.flatpickr-year-dropdown')) {
+            const yearSelect = document.createElement('select');
+            yearSelect.className = 'flatpickr-year-dropdown';
+            const curYear = new Date().getFullYear();
+            for (let y = curYear; y >= 1900; y--) {
+              const opt = document.createElement('option');
+              opt.value = y;
+              opt.textContent = y;
+              if (y === fp.currentYear) opt.selected = true;
+              yearSelect.appendChild(opt);
+            }
+            yearSelect.addEventListener('change', function() {
+              const chosenYear = parseInt(this.value, 10);
+              fp.jumpToDate(new Date(chosenYear, fp.currentMonth, 1));
+            });
+            monthElem.appendChild(yearSelect);
+
+            const numWrap = monthElem.querySelector('.numInputWrapper');
+            if (numWrap) numWrap.style.display = 'none';
+          }
+        },
+        onMonthChange: function(selectedDates, dateStr, fp) {
+          const yearSelect = fp.calendarContainer.querySelector('.flatpickr-year-dropdown');
+          if (yearSelect && parseInt(yearSelect.value, 10) !== fp.currentYear) {
+            yearSelect.value = fp.currentYear;
+          }
+        },
+        onYearChange: function(selectedDates, dateStr, fp) {
+          const yearSelect = fp.calendarContainer.querySelector('.flatpickr-year-dropdown');
+          if (yearSelect && parseInt(yearSelect.value, 10) !== fp.currentYear) {
+            yearSelect.value = fp.currentYear;
+          }
+        },
+        onChange: function(selectedDates, dateStr) {
+          if (ageEl) ageEl.value = calculateAge(dateStr);
+        }
+      });
+
+      birthEl.addEventListener('change', function() {
+        if (ageEl) ageEl.value = calculateAge(this.value);
       });
     }
 
@@ -1668,11 +1735,42 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     formRegisterWalkin.addEventListener('submit', function(e) {
-      e.preventDefault();
       if (walkinAlert) {
         walkinAlert.textContent = '';
         walkinAlert.classList.add('d-none');
       }
+
+      // Sex Validation (Required)
+      const sexVal = (genderEl ? genderEl.value : '').trim();
+      if (!sexVal) {
+        if (walkinAlert) {
+          walkinAlert.textContent = 'Sex is required. Please select Male, Female, or Other.';
+          walkinAlert.classList.remove('d-none');
+        }
+        if (genderEl) {
+          genderEl.classList.add('is-invalid');
+          genderEl.focus();
+        }
+        e.preventDefault();
+        return;
+      }
+
+      // Birthdate Validation (Required)
+      const bdateVal = (birthEl ? birthEl.value : '').trim();
+      if (!bdateVal) {
+        if (walkinAlert) {
+          walkinAlert.textContent = 'Birthdate is required. Please select patient birthdate.';
+          walkinAlert.classList.remove('d-none');
+        }
+        if (birthEl) {
+          birthEl.classList.add('is-invalid');
+          birthEl.focus();
+        }
+        e.preventDefault();
+        return;
+      }
+
+      e.preventDefault();
 
       btnSubmitWalkin.disabled = true;
       btnSubmitWalkin.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Registering...';
@@ -1709,6 +1807,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (modalInstance) modalInstance.hide();
         formRegisterWalkin.reset();
         if (walkinBirthPicker) walkinBirthPicker.clear();
+        if (ageEl) ageEl.value = '';
 
         // 3. If direct to doctor, open consultation modal immediately
         if (data.appointment && data.appointment.status === 'in_progress') {

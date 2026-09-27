@@ -63,6 +63,9 @@ if (isset($_GET['view'])) {
     }
 }
 
+$extraHead = '<link rel="stylesheet" href="' . BASE_URL . 'assets/css/calendar.css?v=' . time() . '">';
+$extraHead .= '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">';
+$extraHead .= '<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>';
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -328,20 +331,27 @@ include __DIR__ . '/../includes/header.php';
         </div>
 
         <div class="row">
-          <div class="col-md-6 mb-3">
-            <label class="form-label fw-bold small text-uppercase">Sex</label>
-            <select name="gender" id="walkinGender" class="form-select">
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-bold small text-uppercase">Sex <span class="text-danger">*</span></label>
+            <select name="gender" id="walkinGender" class="form-select" required>
               <option value="">Select Sex</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
               <option value="other">Other</option>
             </select>
+            <div class="invalid-feedback" id="feedbackGender">Please select a sex.</div>
           </div>
-          <div class="col-md-6 mb-3">
-            <label class="form-label fw-bold small text-uppercase">Birthdate</label>
-            <input type="date" name="birthdate" id="walkinBirthdate" class="form-control" min="1900-01-01" max="<?= date('Y-m-d') ?>">
-            <small class="text-muted d-block mt-1">Must be a past date.</small>
-            <div class="invalid-feedback" id="feedbackBirthdate">Birthdate cannot be in the future.</div>
+          <div class="col-md-5 mb-3">
+            <label class="form-label fw-bold small text-uppercase">Birthdate <span class="text-danger">*</span></label>
+            <input type="text" name="birthdate" id="walkinBirthdate" class="form-control modern-birthdate-picker" placeholder="Select birthdate" required autocomplete="off">
+            <div class="invalid-feedback" id="feedbackBirthdate">Birthdate is required.</div>
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="form-label fw-bold small text-uppercase">Age</label>
+            <div class="input-group">
+              <input type="text" id="walkinAge" class="form-control bg-light" placeholder="—" readonly style="font-weight:700; text-align:center;">
+              <span class="input-group-text small text-muted">yrs</span>
+            </div>
           </div>
         </div>
 
@@ -440,8 +450,81 @@ document.addEventListener('DOMContentLoaded', function() {
   const middleNameInput = document.getElementById('walkinMiddleName');
   const phoneInput = document.getElementById('walkinPhone');
   const emailInput = document.getElementById('walkinEmail');
+  const genderInput = document.getElementById('walkinGender');
   const bdateInput = document.getElementById('walkinBirthdate');
+  const ageInput = document.getElementById('walkinAge');
   const addrInput = document.getElementById('walkinAddress');
+
+  function calculateAge(dateStr) {
+    if (!dateStr) return '';
+    const birth = new Date(dateStr);
+    if (isNaN(birth.getTime())) return '';
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return (age >= 0 && age <= 130) ? age : '';
+  }
+
+  // Flatpickr Modern Birthdate Picker with Year Dropdown
+  let walkinBirthPicker = null;
+  if (bdateInput && typeof flatpickr !== 'undefined') {
+    walkinBirthPicker = flatpickr(bdateInput, {
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'F j, Y',
+      altInputClass: 'form-control modern-birthdate-picker',
+      minDate: '1900-01-01',
+      maxDate: 'today',
+      monthSelectorType: 'dropdown',
+      disableMobile: true,
+      placeholder: 'Select birthdate',
+      onReady: function(selectedDates, dateStr, fp) {
+        const monthElem = fp.calendarContainer.querySelector('.flatpickr-current-month');
+        if (monthElem && !monthElem.querySelector('.flatpickr-year-dropdown')) {
+          const yearSelect = document.createElement('select');
+          yearSelect.className = 'flatpickr-year-dropdown';
+          const curYear = new Date().getFullYear();
+          for (let y = curYear; y >= 1900; y--) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y;
+            if (y === fp.currentYear) opt.selected = true;
+            yearSelect.appendChild(opt);
+          }
+          yearSelect.addEventListener('change', function() {
+            const chosenYear = parseInt(this.value, 10);
+            fp.jumpToDate(new Date(chosenYear, fp.currentMonth, 1));
+          });
+          monthElem.appendChild(yearSelect);
+
+          const numWrap = monthElem.querySelector('.numInputWrapper');
+          if (numWrap) numWrap.style.display = 'none';
+        }
+      },
+      onMonthChange: function(selectedDates, dateStr, fp) {
+        const yearSelect = fp.calendarContainer.querySelector('.flatpickr-year-dropdown');
+        if (yearSelect && parseInt(yearSelect.value, 10) !== fp.currentYear) {
+          yearSelect.value = fp.currentYear;
+        }
+      },
+      onYearChange: function(selectedDates, dateStr, fp) {
+        const yearSelect = fp.calendarContainer.querySelector('.flatpickr-year-dropdown');
+        if (yearSelect && parseInt(yearSelect.value, 10) !== fp.currentYear) {
+          yearSelect.value = fp.currentYear;
+        }
+      },
+      onChange: function(selectedDates, dateStr) {
+        if (ageInput) ageInput.value = calculateAge(dateStr);
+      }
+    });
+
+    bdateInput.addEventListener('change', function() {
+      if (ageInput) ageInput.value = calculateAge(this.value);
+    });
+  }
 
   function showAlert(msg) {
     if (alertBox) {
@@ -502,31 +585,36 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    // 2. Phone Validation
+    // 2. Phone Validation (Required)
     const phoneVal = (phoneInput.value || '').trim();
-    if (phoneVal) {
-      const cleanPhone = phoneVal.replace(/[^0-9]/g, '');
-      if (!/^09\d{9}$/.test(cleanPhone)) {
-        showAlert('Phone number must be an 11-digit Philippine mobile number starting with 09 (e.g., 09171234567).');
-        phoneInput.classList.add('is-invalid');
-        phoneInput.focus();
-        e.preventDefault();
-        return;
-      }
-      if (/^09(\d)\1{8}$/.test(cleanPhone)) {
-        showAlert('Please enter a valid phone number, not repeated digits.');
-        phoneInput.classList.add('is-invalid');
-        phoneInput.focus();
-        e.preventDefault();
-        return;
-      }
-      if (cleanPhone === '09123456789' || cleanPhone === '09987654321') {
-        showAlert('Please enter a valid phone number, not a sequential test number.');
-        phoneInput.classList.add('is-invalid');
-        phoneInput.focus();
-        e.preventDefault();
-        return;
-      }
+    if (!phoneVal) {
+      showAlert('Mobile number is required.');
+      phoneInput.classList.add('is-invalid');
+      phoneInput.focus();
+      e.preventDefault();
+      return;
+    }
+    const cleanPhone = phoneVal.replace(/[^0-9]/g, '');
+    if (!/^09\d{9}$/.test(cleanPhone)) {
+      showAlert('Phone number must be an 11-digit Philippine mobile number starting with 09 (e.g., 09171234567).');
+      phoneInput.classList.add('is-invalid');
+      phoneInput.focus();
+      e.preventDefault();
+      return;
+    }
+    if (/^09(\d)\1{8}$/.test(cleanPhone)) {
+      showAlert('Please enter a valid phone number, not repeated digits.');
+      phoneInput.classList.add('is-invalid');
+      phoneInput.focus();
+      e.preventDefault();
+      return;
+    }
+    if (cleanPhone === '09123456789' || cleanPhone === '09987654321') {
+      showAlert('Please enter a valid phone number, not a sequential test number.');
+      phoneInput.classList.add('is-invalid');
+      phoneInput.focus();
+      e.preventDefault();
+      return;
     }
 
     // 3. Email Validation
@@ -542,23 +630,40 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    // 4. Birthdate Validation
-    const bdateVal = (bdateInput.value || '').trim();
-    if (bdateVal) {
-      const d = new Date(bdateVal);
-      const today = new Date();
-      today.setHours(23, 59, 59, 999);
-      const minDate = new Date('1900-01-01');
-      if (isNaN(d.getTime()) || d > today || d < minDate) {
-        showAlert('Birthdate must be a valid past date (between 1900 and today).');
-        bdateInput.classList.add('is-invalid');
-        bdateInput.focus();
-        e.preventDefault();
-        return;
+    // 4. Sex Validation (Required)
+    const sexVal = (genderInput ? genderInput.value : '').trim();
+    if (!sexVal) {
+      showAlert('Sex is required. Please select Male, Female, or Other.');
+      if (genderInput) {
+        genderInput.classList.add('is-invalid');
+        genderInput.focus();
       }
+      e.preventDefault();
+      return;
     }
 
-    // 5. Address Validation (Required)
+    // 5. Birthdate Validation (Required)
+    const bdateVal = (bdateInput.value || '').trim();
+    if (!bdateVal) {
+      showAlert('Birthdate is required. Please select patient birthdate.');
+      bdateInput.classList.add('is-invalid');
+      bdateInput.focus();
+      e.preventDefault();
+      return;
+    }
+    const d = new Date(bdateVal);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const minDate = new Date('1900-01-01');
+    if (isNaN(d.getTime()) || d > today || d < minDate) {
+      showAlert('Birthdate must be a valid past date (between 1900 and today).');
+      bdateInput.classList.add('is-invalid');
+      bdateInput.focus();
+      e.preventDefault();
+      return;
+    }
+
+    // 6. Address Validation (Required)
     const addrVal = (addrInput.value || '').trim();
     if (!addrVal) {
       showAlert('Address is required.');

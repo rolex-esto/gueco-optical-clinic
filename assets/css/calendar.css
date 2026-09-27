@@ -1176,7 +1176,7 @@ html:not([data-theme="dark"]) .cal-btn-secondary-custom:hover,
   border-radius: 18px !important;
   font-family: 'Plus Jakarta Sans', 'Poppins', sans-serif !important;
   padding: 14px !important;
-  width: 320px !important;
+  width: 326px !important;
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4) !important;
   z-index: 100000 !important;
 }
@@ -1187,10 +1187,13 @@ html:not([data-theme="dark"]) .flatpickr-calendar,
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15) !important;
 }
 .flatpickr-months {
+  display: flex !important;
   align-items: center !important;
+  justify-content: space-between !important;
   padding-bottom: 8px !important;
   border-bottom: 1px solid rgba(255,255,255,0.1) !important;
   margin-bottom: 8px !important;
+  position: relative !important;
 }
 html:not([data-theme="dark"]) .flatpickr-months,
 [data-theme="light"] .flatpickr-months {
@@ -1198,30 +1201,77 @@ html:not([data-theme="dark"]) .flatpickr-months,
 }
 .flatpickr-months .flatpickr-month {
   color: #ffffff !important;
-  height: 38px !important;
+  height: 40px !important;
+  overflow: visible !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 1 !important;
 }
 html:not([data-theme="dark"]) .flatpickr-months .flatpickr-month,
 [data-theme="light"] .flatpickr-months .flatpickr-month {
   color: #0f172a !important;
 }
 .flatpickr-current-month {
-  font-size: 1rem !important;
+  font-size: 0.95rem !important;
   font-weight: 800 !important;
   color: inherit !important;
-  padding-top: 4px !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 0 !important;
+  transform: none !important;
 }
-.flatpickr-current-month select.flatpickr-monthDropdown-months {
+.flatpickr-current-month select.flatpickr-monthDropdown-months,
+.flatpickr-current-month select.flatpickr-year-dropdown {
   font-weight: 800 !important;
-  background: transparent !important;
-  color: inherit !important;
-  border: none !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
   cursor: pointer !important;
-  border-radius: 6px !important;
-  padding: 2px 6px !important;
+  border-radius: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 0.88rem !important;
+  width: auto !important;
+  outline: none !important;
+  display: inline-block !important;
+  transition: all .15s ease !important;
+}
+html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-monthDropdown-months,
+html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dropdown,
+[data-theme="light"] .flatpickr-current-month select.flatpickr-monthDropdown-months,
+[data-theme="light"] .flatpickr-current-month select.flatpickr-year-dropdown {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+.flatpickr-current-month select.flatpickr-monthDropdown-months option,
+.flatpickr-current-month select.flatpickr-year-dropdown option {
+  background: #142036 !important;
+  color: #ffffff !important;
+}
+html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-monthDropdown-months option,
+html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dropdown option,
+[data-theme="light"] .flatpickr-current-month select.flatpickr-monthDropdown-months option,
+[data-theme="light"] .flatpickr-current-month select.flatpickr-year-dropdown option {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+.flatpickr-current-month .numInputWrapper {
+  width: 76px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  border-radius: 8px !important;
 }
 .flatpickr-current-month input.cur-year {
   font-weight: 800 !important;
+  font-size: 0.88rem !important;
   color: inherit !important;
+  border-radius: 8px !important;
 }
 .flatpickr-months .flatpickr-prev-month,
 .flatpickr-months .flatpickr-next-month {

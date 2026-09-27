@@ -248,6 +248,11 @@ function ensureJobOrderSchema(?PDO $db = null): void {
             if (!in_array('order_status', $cols)) {
                 $db->exec("ALTER TABLE sales ADD COLUMN order_status ENUM('completed','in_progress','ready_for_pickup','claimed') NOT NULL DEFAULT 'completed' AFTER job_order_no");
             }
+            if (!in_array('status', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN status ENUM('completed','refunded','voided') NOT NULL DEFAULT 'completed'");
+            }
+            // Auto-heal any existing records where status is NULL or empty
+            $db->exec("UPDATE sales SET status = 'completed' WHERE status IS NULL OR status = ''");
         }
         $colItemStmt = $db->query("SHOW COLUMNS FROM sale_items");
         if ($colItemStmt) {
@@ -869,7 +874,7 @@ function getDashboardStats(): array {
     $todayAppointments = $stmt->fetch()['cnt'];
 
     // Today's sales
-    $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as total FROM sales WHERE DATE(created_at) = ? AND status = 'completed'");
+    $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as total FROM sales WHERE DATE(created_at) = ? AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided','refunded','cancelled'))");
     $stmt->execute([$today]);
     $todaySales = $stmt->fetch()['total'];
 
@@ -878,7 +883,7 @@ function getDashboardStats(): array {
     $lowStock = $stmt->fetch()['cnt'];
 
     // Monthly sales
-    $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as total FROM sales WHERE MONTH(created_at) = MONTH(?) AND YEAR(created_at) = YEAR(?) AND status = 'completed'");
+    $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as total FROM sales WHERE MONTH(created_at) = MONTH(?) AND YEAR(created_at) = YEAR(?) AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided','refunded','cancelled'))");
     $stmt->execute([$today, $today]);
     $monthlySales = $stmt->fetch()['total'];
 

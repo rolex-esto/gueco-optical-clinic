@@ -8,12 +8,14 @@ $breadcrumb = ['Saleslady'];
 $activeNav  = 'dashboard';
 
 $db    = getDB();
+ensureJobOrderSchema($db);
+ensureAppointmentsSchema($db);
 $today = date('Y-m-d');
 
 // Stats
 $todayAppts    = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date=? AND status NOT IN ('cancelled','no_show')"); $todayAppts->execute([$today]); $todayAppts = $todayAppts->fetch()['c'];
-$todaySales    = $db->prepare("SELECT COALESCE(SUM(total),0) as t FROM sales WHERE DATE(created_at)=? AND status='completed'"); $todaySales->execute([$today]); $todaySales = $todaySales->fetch()['t'];
-$todayTxCount  = $db->prepare("SELECT COUNT(*) as c FROM sales WHERE DATE(created_at)=? AND status='completed'"); $todayTxCount->execute([$today]); $todayTxCount = $todayTxCount->fetch()['c'];
+$todaySales    = $db->prepare("SELECT COALESCE(SUM(total),0) as t FROM sales WHERE DATE(created_at)=? AND (status='completed' OR status IS NULL OR status = '' OR status NOT IN ('voided','refunded','cancelled'))"); $todaySales->execute([$today]); $todaySales = $todaySales->fetch()['t'];
+$todayTxCount  = $db->prepare("SELECT COUNT(*) as c FROM sales WHERE DATE(created_at)=? AND (status='completed' OR status IS NULL OR status = '' OR status NOT IN ('voided','refunded','cancelled'))"); $todayTxCount->execute([$today]); $todayTxCount = $todayTxCount->fetch()['c'];
 $lowStock      = $db->query("SELECT COUNT(*) as c FROM products WHERE stock_quantity<=low_stock_alert AND status='active'")->fetch()['c'];
 
 // Today's appointment list
@@ -31,7 +33,7 @@ $recentSales = $db->prepare("
     SELECT s.*, p.full_name as patient_name
     FROM sales s
     LEFT JOIN patients p ON p.id=s.patient_id
-    JOIN users u ON u.id=s.cashier_id
+    LEFT JOIN users u ON u.id=s.cashier_id
     WHERE DATE(s.created_at)=?
     ORDER BY s.created_at DESC LIMIT 6
 ");
@@ -42,7 +44,7 @@ $recentSales = $recentSales->fetchAll();
 $hourlyLabels = []; $hourlyData = [];
 for ($h = 9; $h <= 17; $h++) {
     $hourlyLabels[] = date('g A', mktime($h,0,0));
-    $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as t FROM sales WHERE DATE(created_at)=? AND HOUR(created_at)=? AND status='completed'");
+    $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as t FROM sales WHERE DATE(created_at)=? AND HOUR(created_at)=? AND (status='completed' OR status IS NULL OR status = '' OR status NOT IN ('voided','refunded','cancelled'))");
     $stmt->execute([$today, $h]);
     $hourlyData[] = round($stmt->fetch()['t'], 2);
 }

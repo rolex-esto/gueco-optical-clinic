@@ -6,6 +6,8 @@ requireRole('admin');
 $pageTitle  = 'Sales Reports';
 $breadcrumb = ['Admin', 'Sales Reports'];
 $db = getDB();
+ensureJobOrderSchema($db);
+ensureAppointmentsSchema($db);
 
 // Date filter
 $filterFrom = $_GET['from'] ?? date('Y-m-01');
@@ -22,7 +24,9 @@ $groupBy    = $_GET['group'] ?? 'day';
 // Summary totals
 $summary = $db->prepare("
     SELECT COUNT(*) as total_tx, COALESCE(SUM(total),0) as total_sales, COALESCE(SUM(discount),0) as total_discount
-    FROM sales WHERE DATE(created_at) BETWEEN ? AND ? AND status='completed'
+    FROM sales 
+    WHERE DATE(created_at) BETWEEN ? AND ? 
+      AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided', 'refunded', 'cancelled'))
 ");
 $summary->execute([$filterFrom, $filterTo]); $summary = $summary->fetch();
 
@@ -32,7 +36,12 @@ $d = new DateTime($filterFrom);
 $end = new DateTime($filterTo);
 while ($d <= $end) {
     $date = $d->format('Y-m-d');
-    $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as t FROM sales WHERE DATE(created_at)=? AND status='completed'");
+    $stmt = $db->prepare("
+        SELECT COALESCE(SUM(total),0) as t 
+        FROM sales 
+        WHERE DATE(created_at) = ? 
+          AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided', 'refunded', 'cancelled'))
+    ");
     $stmt->execute([$date]); $chartData[] = round($stmt->fetch()['t'],2);
     $chartLabels[] = $d->format('M d');
     $d->modify('+1 day');
@@ -41,21 +50,26 @@ while ($d <= $end) {
 // Payment method breakdown
 $payBreak = $db->prepare("
     SELECT payment_method, COUNT(*) as count, COALESCE(SUM(total),0) as total
-    FROM sales WHERE DATE(created_at) BETWEEN ? AND ? AND status='completed'
+    FROM sales 
+    WHERE DATE(created_at) BETWEEN ? AND ? 
+      AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided', 'refunded', 'cancelled'))
     GROUP BY payment_method ORDER BY total DESC
 ");
 $payBreak->execute([$filterFrom, $filterTo]);
 $payBreak = $payBreak->fetchAll();
 
-// Top selling products (accounting for discount proportions)
+// Top selling products (accounting for discount proportions and custom Rx/services)
 $topProds = $db->prepare("
-    SELECT p.name, p.product_code, SUM(si.quantity) as units_sold,
+    SELECT COALESCE(p.name, si.item_name, 'Other Item') as name, 
+           COALESCE(p.product_code, '—') as product_code, 
+           SUM(si.quantity) as units_sold,
            SUM(CASE WHEN s.subtotal > 0 THEN (si.total_price * (s.total / s.subtotal)) ELSE si.total_price END) as revenue
     FROM sale_items si
-    JOIN products p ON p.id = si.product_id
     JOIN sales s ON s.id = si.sale_id
-    WHERE DATE(s.created_at) BETWEEN ? AND ? AND s.status = 'completed'
-    GROUP BY si.product_id, p.name, p.product_code ORDER BY units_sold DESC LIMIT 5
+    LEFT JOIN products p ON p.id = si.product_id
+    WHERE DATE(s.created_at) BETWEEN ? AND ? 
+      AND (s.status = 'completed' OR s.status IS NULL OR s.status = '' OR s.status NOT IN ('voided', 'refunded', 'cancelled'))
+    GROUP BY name, product_code ORDER BY units_sold DESC LIMIT 5
 ");
 $topProds->execute([$filterFrom, $filterTo]);
 $topProds = $topProds->fetchAll();

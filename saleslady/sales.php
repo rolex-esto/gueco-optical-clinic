@@ -5,6 +5,8 @@ requireRole('saleslady');
 $pageTitle  = 'Sales History';
 $breadcrumb = ['Saleslady', 'Sales'];
 $db = getDB();
+ensureJobOrderSchema($db);
+ensureAppointmentsSchema($db);
 
 $filterFrom = $_GET['from'] ?? date('Y-m-d');
 $filterTo   = $_GET['to']   ?? date('Y-m-d');
@@ -14,14 +16,14 @@ $total = $db->prepare("SELECT COUNT(*) as c FROM sales WHERE DATE(created_at) BE
 $total->execute([$filterFrom,$filterTo]); $total = $total->fetch()['c'];
 $pg = paginate($total,$perPage,$page);
 
-$todaySales = $db->prepare("SELECT COALESCE(SUM(total),0) as t, COUNT(*) as c FROM sales WHERE DATE(created_at)=? AND status='completed'");
+$todaySales = $db->prepare("SELECT COALESCE(SUM(total),0) as t, COUNT(*) as c FROM sales WHERE DATE(created_at)=? AND (status='completed' OR status IS NULL OR status = '' OR status NOT IN ('voided','refunded','cancelled'))");
 $todaySales->execute([date('Y-m-d')]); $todaySales = $todaySales->fetch();
 
 $limit = (int)$perPage;
 $offset = (int)$pg['offset'];
 $sales = $db->prepare("
     SELECT s.*, p.full_name as patient_name, u.full_name as cashier_name
-    FROM sales s LEFT JOIN patients p ON p.id=s.patient_id JOIN users u ON u.id=s.cashier_id
+    FROM sales s LEFT JOIN patients p ON p.id=s.patient_id LEFT JOIN users u ON u.id=s.cashier_id
     WHERE DATE(s.created_at) BETWEEN ? AND ?
     ORDER BY s.created_at DESC LIMIT $limit OFFSET $offset
 ");

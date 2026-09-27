@@ -7,8 +7,11 @@ $pageTitle  = 'Dashboard';
 $breadcrumb = ['Admin'];
 $activeNav  = 'dashboard';
 
+$db = getDB();
+ensureJobOrderSchema($db);
+ensureAppointmentsSchema($db);
+
 $stats = getDashboardStats();
-$db    = getDB();
 
 // Selected month for Sales and Category metrics
 $selectedMonth = $_GET['month'] ?? date('Y-m');
@@ -18,32 +21,54 @@ if (!preg_match('/^\d{4}-\d{2}$/', $selectedMonth)) {
 $isCurrentMonth = ($selectedMonth === date('Y-m'));
 $monthName = date('F Y', strtotime($selectedMonth . '-01'));
 
+$monthlySalesTotal = 0.0;
+$monthSalesCount   = 0;
+$sales7            = [];
+$labels7           = [];
+$catSales          = [];
+$prodSales         = [];
+$appointments      = [];
+$lowStockItems     = [];
+$recentSales       = [];
+
+// 1. Monthly Sales for the selected month
 try {
-    // Monthly Sales for the selected month
     $monthSalesStmt = $db->prepare("
         SELECT COALESCE(SUM(total),0) as total, COUNT(*) as count 
         FROM sales 
-        WHERE DATE_FORMAT(created_at, '%Y-%m') = ? AND status = 'completed'
+        WHERE DATE_FORMAT(created_at, '%Y-%m') = ? 
+          AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided', 'refunded', 'cancelled'))
     ");
     $monthSalesStmt->execute([$selectedMonth]);
     $monthSalesData = $monthSalesStmt->fetch();
     $monthlySalesTotal = (float)($monthSalesData['total'] ?? 0);
     $monthSalesCount   = (int)($monthSalesData['count'] ?? 0);
+} catch (Exception $e) {
+    error_log("Dashboard monthly sales error: " . $e->getMessage());
+}
 
-    // Sales chart data — last 7 days
-    $sales7 = [];
-    $labels7 = [];
-    for ($i = 6; $i >= 0; $i--) {
-        $date = date('Y-m-d', strtotime("-$i days"));
-        $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as total FROM sales WHERE DATE(created_at)=? AND status='completed'");
+// 2. Sales chart data — last 7 days
+for ($i = 6; $i >= 0; $i--) {
+    $date = date('Y-m-d', strtotime("-$i days"));
+    $labels7[] = date('M d', strtotime($date));
+    try {
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(total),0) as total 
+            FROM sales 
+            WHERE DATE(created_at) = ? 
+              AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided', 'refunded', 'cancelled'))
+        ");
         $stmt->execute([$date]);
-        $sales7[]  = round((float)($stmt->fetch()['total'] ?? 0), 2);
-        $labels7[] = date('M d', strtotime($date));
+        $sales7[] = round((float)($stmt->fetch()['total'] ?? 0), 2);
+    } catch (Exception $e) {
+        $sales7[] = 0.0;
     }
+}
 
-    // Category sales breakdown for the selected month (net revenue after discounts)
+// 3. Category sales breakdown for the selected month (net revenue after discounts)
+try {
     $catStmt = $db->prepare("
-        SELECT c.name, 
+        SELECT COALESCE(c.name, CASE WHEN si.item_type = 'service' OR si.product_id IS NULL THEN 'Prescription & Services' ELSE 'Uncategorized' END) AS name, 
                ROUND(COALESCE(SUM(
                    CASE 
                        WHEN s.subtotal > 0 THEN (si.total_price * (s.total / s.subtotal)) 
@@ -51,20 +76,36 @@ try {
                    END
                ), 0), 2) as total
         FROM sale_items si
-        JOIN sales s ON s.id = si.sale_id AND s.status = 'completed' AND DATE_FORMAT(s.created_at, '%Y-%m') = ?
-        JOIN products p ON p.id = si.product_id
-        JOIN categories c ON c.id = p.category_id
-        GROUP BY c.id, c.name
+        JOIN sales s ON s.id = si.sale_id 
+          AND (s.status = 'completed' OR s.status IS NULL OR s.status = '' OR s.status NOT IN ('voided', 'refunded', 'cancelled')) 
+          AND DATE_FORMAT(s.created_at, '%Y-%m') = ?
+        LEFT JOIN products p ON p.id = si.product_id
+        LEFT JOIN categories c ON c.id = p.category_id
+        GROUP BY name
         HAVING total > 0
         ORDER BY total DESC
-        LIMIT 6
+        LIMIT 8
     ");
     $catStmt->execute([$selectedMonth]);
     $catSales = $catStmt->fetchAll() ?: [];
 
-    // Product sales breakdown for the selected month (net revenue after discounts)
+    // Fallback: If item rows not found but monthly total exists, show General Sales
+    if (empty($catSales) && $monthlySalesTotal > 0) {
+        $catSales = [
+            ['name' => 'General Sales', 'total' => $monthlySalesTotal]
+        ];
+    }
+} catch (Exception $e) {
+    error_log("Dashboard category sales error: " . $e->getMessage());
+    if ($monthlySalesTotal > 0) {
+        $catSales = [['name' => 'General Sales', 'total' => $monthlySalesTotal]];
+    }
+}
+
+// 4. Product sales breakdown for the selected month (net revenue after discounts)
+try {
     $prodStmt = $db->prepare("
-        SELECT p.name, 
+        SELECT COALESCE(p.name, si.item_name, 'Other Item') AS name, 
                SUM(si.quantity) as units_sold,
                ROUND(COALESCE(SUM(
                    CASE 
@@ -73,17 +114,33 @@ try {
                    END
                ), 0), 2) as total
         FROM sale_items si
-        JOIN sales s ON s.id = si.sale_id AND s.status = 'completed' AND DATE_FORMAT(s.created_at, '%Y-%m') = ?
-        JOIN products p ON p.id = si.product_id
-        GROUP BY p.id, p.name
+        JOIN sales s ON s.id = si.sale_id 
+          AND (s.status = 'completed' OR s.status IS NULL OR s.status = '' OR s.status NOT IN ('voided', 'refunded', 'cancelled')) 
+          AND DATE_FORMAT(s.created_at, '%Y-%m') = ?
+        LEFT JOIN products p ON p.id = si.product_id
+        GROUP BY name
         HAVING total > 0
         ORDER BY total DESC
-        LIMIT 6
+        LIMIT 8
     ");
     $prodStmt->execute([$selectedMonth]);
     $prodSales = $prodStmt->fetchAll() ?: [];
 
-    // Today's appointments
+    // Fallback: If item rows not found but monthly total exists, show General Transactions
+    if (empty($prodSales) && $monthlySalesTotal > 0) {
+        $prodSales = [
+            ['name' => 'General Transactions', 'units_sold' => $monthSalesCount, 'total' => $monthlySalesTotal]
+        ];
+    }
+} catch (Exception $e) {
+    error_log("Dashboard product sales error: " . $e->getMessage());
+    if ($monthlySalesTotal > 0) {
+        $prodSales = [['name' => 'General Transactions', 'units_sold' => $monthSalesCount, 'total' => $monthlySalesTotal]];
+    }
+}
+
+// 5. Today's appointments
+try {
     $todayAppts = $db->prepare("
         SELECT a.*, p.full_name as patient_name, p.phone
         FROM appointments a
@@ -94,9 +151,13 @@ try {
     ");
     $todayAppts->execute();
     $appointments = $todayAppts->fetchAll() ?: [];
+} catch (Exception $e) {
+    error_log("Dashboard appointments error: " . $e->getMessage());
+}
 
-    // Low stock products
-    $lowStockItems = $db->query("
+// 6. Low stock products
+try {
+    $lowStockQuery = $db->query("
         SELECT p.name, p.stock_quantity, p.low_stock_alert, c.name as category
         FROM products p
         JOIN categories c ON c.id = p.category_id
@@ -104,29 +165,24 @@ try {
         ORDER BY p.stock_quantity ASC
         LIMIT 5
     ");
-    $lowStockItems = $lowStockItems ? ($lowStockItems->fetchAll() ?: []) : [];
+    $lowStockItems = $lowStockQuery ? ($lowStockQuery->fetchAll() ?: []) : [];
+} catch (Exception $e) {
+    error_log("Dashboard low stock error: " . $e->getMessage());
+}
 
-    // Recent sales
-    $recentSales = $db->query("
+// 7. Recent sales
+try {
+    $recentSalesQuery = $db->query("
         SELECT s.*, p.full_name as patient_name, u.full_name as cashier_name
         FROM sales s
         LEFT JOIN patients p ON p.id = s.patient_id
-        JOIN users u ON u.id = s.cashier_id
+        LEFT JOIN users u ON u.id = s.cashier_id
         ORDER BY s.created_at DESC
         LIMIT 5
     ");
-    $recentSales = $recentSales ? ($recentSales->fetchAll() ?: []) : [];
+    $recentSales = $recentSalesQuery ? ($recentSalesQuery->fetchAll() ?: []) : [];
 } catch (Exception $e) {
-    error_log("Dashboard query error: " . $e->getMessage());
-    $monthlySalesTotal = 0.0;
-    $monthSalesCount = 0;
-    $sales7 = array_fill(0, 7, 0);
-    $labels7 = array_map(fn($i) => date('M d', strtotime("-$i days")), range(6, 0));
-    $catSales = [];
-    $prodSales = [];
-    $appointments = [];
-    $lowStockItems = [];
-    $recentSales = [];
+    error_log("Dashboard recent sales error: " . $e->getMessage());
 }
 
 $extraHead = '<link rel="stylesheet" href="'.BASE_URL.'assets/css/pages/dashboard.css?v='.time().'">';

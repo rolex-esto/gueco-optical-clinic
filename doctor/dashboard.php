@@ -10,20 +10,20 @@ $activeNav  = 'dashboard';
 $db    = getDB();
 $today = date('Y-m-d');
 
-// Stats
+// Stats (Clinical consultations only)
 $totalPatients = $db->query("SELECT COUNT(*) as c FROM patients WHERE status='active'")->fetch()['c'];
-$todayAppts    = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date=? AND status NOT IN ('cancelled','no_show')");
+$todayAppts    = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date=? AND status NOT IN ('cancelled','no_show') AND purpose != 'eyeglass_claim'");
 $todayAppts->execute([$today]); $todayAppts = $todayAppts->fetch()['c'];
-$pendingAppts  = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date>=? AND status='pending'");
+$pendingAppts  = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date>=? AND status='pending' AND purpose != 'eyeglass_claim'");
 $pendingAppts->execute([$today]); $pendingAppts = $pendingAppts->fetch()['c'];
 $totalRx       = $db->query("SELECT COUNT(*) as c FROM prescriptions")->fetch()['c'];
 
-// Today's appointment queue
+// Today's appointment queue (Clinical consultations only)
 $queue = $db->prepare("
     SELECT a.*, p.full_name as patient_name, p.phone, p.gender
     FROM appointments a
     JOIN patients p ON p.id = a.patient_id
-    WHERE a.appointment_date = ?
+    WHERE a.appointment_date = ? AND a.purpose != 'eyeglass_claim'
     ORDER BY FIELD(a.status,'confirmed','pending','completed','cancelled','no_show'), a.appointment_time ASC
 ");
 $queue->execute([$today]);
@@ -38,19 +38,19 @@ $recentPatients = $db->query("
     ORDER BY p.created_at DESC LIMIT 5
 ")->fetchAll();
 
-// Weekly appointment trend
+// Weekly appointment trend (Clinical consultations)
 $weekLabels = []; $weekData = [];
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-$i days"));
-    $s = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date=? AND status NOT IN ('cancelled','no_show')");
+    $s = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date=? AND status NOT IN ('cancelled','no_show') AND purpose != 'eyeglass_claim'");
     $s->execute([$d]); $weekData[] = $s->fetch()['c'];
     $weekLabels[] = date('D', strtotime($d));
 }
 
-// Appointment status breakdown
+// Appointment status breakdown (Clinical consultations)
 $apptStatus = $db->prepare("
     SELECT status, COUNT(*) as cnt FROM appointments
-    WHERE appointment_date >= DATE_SUB(?, INTERVAL 30 DAY)
+    WHERE appointment_date >= DATE_SUB(?, INTERVAL 30 DAY) AND purpose != 'eyeglass_claim'
     GROUP BY status
 ");
 $apptStatus->execute([$today]);

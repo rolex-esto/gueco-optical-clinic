@@ -129,9 +129,9 @@ include __DIR__ . '/../includes/header.php';
         <div class="row">
           <div class="col-md-6 mb-3">
             <label class="form-label fw-bold small text-uppercase">Consultation Purpose</label>
-            <select name="purpose" class="form-select">
+            <select name="purpose" id="patientModalPurpose" class="form-select">
               <option value="consultation" selected>Eye Examination / Refraction</option>
-              <option value="eyeglass_claim">Eyeglass Claim</option>
+              <option value="eyeglass_claim">Eyeglass Claim / Fitting</option>
               <option value="follow_up">Follow-up</option>
               <option value="contact_lens_fitting">Contact Lens</option>
               <option value="other">Other</option>
@@ -139,7 +139,7 @@ include __DIR__ . '/../includes/header.php';
           </div>
           <div class="col-md-6 mb-3">
             <label class="form-label fw-bold small text-uppercase">Queue Status</label>
-            <select name="initial_status" class="form-select">
+            <select name="initial_status" id="patientModalInitialStatus" class="form-select">
               <option value="confirmed" selected>Waiting in Queue (Confirmed)</option>
               <option value="in_progress">Direct to Doctor (In-Progress)</option>
             </select>
@@ -310,6 +310,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
     bdateInput.addEventListener('change', function() {
       if (ageInput) ageInput.value = calculateAge(this.value);
+    });
+  }
+
+  // Dynamic Consultation Purpose adaptation for Eyeglass Claim
+  const ptPurpose = document.getElementById('patientModalPurpose');
+  const ptStatus = document.getElementById('patientModalInitialStatus');
+  if (ptPurpose && ptStatus) {
+    ptPurpose.addEventListener('change', function() {
+      if (this.value === 'eyeglass_claim') {
+        ptStatus.innerHTML = `
+          <option value="confirmed" selected>Ready for Fitting / Pickup (Confirmed)</option>
+          <option value="completed">Claim Completed &amp; Handed Over (Done)</option>
+        `;
+      } else {
+        ptStatus.innerHTML = `
+          <option value="confirmed" selected>Waiting in Queue (Confirmed)</option>
+          <option value="in_progress">Direct to Doctor (In-Progress)</option>
+        `;
+      }
     });
   }
 

@@ -27,6 +27,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
             $ptStmt->execute([$apptId]);
             $ptName = $ptStmt->fetch()['full_name'] ?? ('Appointment #' . $apptId);
             logActivity("Updated notes for appointment #$apptId ($ptName)", "Appointments", $_SESSION['user_id'], 'staff');
+        } elseif ($action === 'complete_claim') {
+            $db->prepare("UPDATE appointments SET status='completed', verified_by=? WHERE id=?")->execute([$_SESSION['user_id'], $apptId]);
+            $_SESSION['flash_msg'] = 'Eyeglass claim marked as completed & handed over to patient.';
+            $_SESSION['flash_type'] = 'success';
+
+            $ptStmt = $db->prepare("SELECT p.full_name FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE a.id=?");
+            $ptStmt->execute([$apptId]);
+            $ptName = $ptStmt->fetch()['full_name'] ?? ('Appointment #' . $apptId);
+            logActivity("Completed Eyeglass Claim / Fitting for appointment #$apptId ($ptName)", "Appointments", $_SESSION['user_id'], 'staff');
         }
     }
     
@@ -400,6 +409,14 @@ include __DIR__ . '/../includes/header.php';
           </div>
         </div>
 
+        <!-- Eyeglass Claim Front Desk Notice -->
+        <div id="modalClaimNotice" class="alert alert-info d-flex align-items-center gap-2 mb-3 py-2 px-3" style="display:none;font-size:0.82rem;border-radius:10px;border:1.5px solid #0284c7;background:rgba(2,132,199,0.08);">
+          <i class="fas fa-glasses fa-lg text-info flex-shrink-0"></i>
+          <div>
+            <strong>Eyeglass Claim &amp; Fitting:</strong> Optical dispensing service managed directly by Saleslady. No doctor examination required.
+          </div>
+        </div>
+
         <!-- Dynamic Lock/Status Alert for Consultation Flow -->
         <div id="modalConsultationLockAlert" class="alert alert-warning d-flex align-items-center gap-2 mb-3 py-2 px-3" style="display:none;font-size:0.82rem;border-radius:10px;border:1.5px solid #f59e0b;background:rgba(245,158,11,0.08);">
           <i class="fas fa-lock fa-lg text-warning flex-shrink-0"></i>
@@ -412,6 +429,15 @@ include __DIR__ . '/../includes/header.php';
         <div class="cal-modal-shortcuts p-3">
           <h6 class="cal-modal-shortcuts-heading"><i class="fas fa-cash-register text-primary me-2"></i>Service & POS Shortcuts</h6>
           <div class="d-flex flex-wrap gap-2">
+            <!-- Form for marking claim complete -->
+            <form method="POST" id="formCompleteClaim" style="display:none; flex:1;" class="m-0">
+              <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+              <input type="hidden" name="action" value="complete_claim">
+              <input type="hidden" name="appt_id" id="completeClaimApptId" value="">
+              <button type="submit" class="btn btn-success btn-sm w-100 py-2 shadow-sm" id="modalBtnCompleteClaim">
+                <i class="fas fa-check-double me-1"></i> Mark as Claimed / Done
+              </button>
+            </form>
             <a href="#" id="modalBtnPos" class="btn btn-primary btn-sm flex-fill py-2">
               <i class="fas fa-shopping-cart me-1"></i> Proceed to POS Checkout
             </a>
@@ -544,6 +570,13 @@ include __DIR__ . '/../includes/header.php';
                 <option value="confirmed" selected>Waiting in Clinic (Confirmed)</option>
                 <option value="in_progress">Direct to Doctor (Examining Now / In-Progress)</option>
               </select>
+            </div>
+
+            <div class="col-12" id="walkinPurposeNoticeWrap" style="display:none;">
+              <div class="alert alert-info py-2 px-3 mb-0 d-flex align-items-center gap-2" style="font-size:0.82rem; border-radius:8px; border:1px solid #0284c7; background:rgba(2,132,199,0.08);">
+                <i class="fas fa-glasses text-info fa-lg flex-shrink-0"></i>
+                <div><strong>Front Desk Service:</strong> Eyeglass Claim &amp; Fitting is handled directly by Saleslady. No Optometrist / Doctor checkup required.</div>
+              </div>
             </div>
 
             <div class="col-12">
@@ -1294,11 +1327,28 @@ document.addEventListener('DOMContentLoaded', function() {
     // Saleslady Shortcuts & Lock Logic
     const btnPos = document.getElementById('modalBtnPos');
     const lockAlert = document.getElementById('modalConsultationLockAlert');
+    const claimNotice = document.getElementById('modalClaimNotice');
+    const formCompleteClaim = document.getElementById('formCompleteClaim');
+    const completeClaimApptId = document.getElementById('completeClaimApptId');
+
     const purpose = (appt.purpose || 'consultation').toLowerCase();
-    const isConsultation = purpose.includes('consultation') || purpose.includes('eye_exam') || purpose.includes('checkup');
+    const isClaim = (purpose === 'eyeglass_claim');
+    const isConsultation = !isClaim && (purpose.includes('consultation') || purpose.includes('eye_exam') || purpose.includes('checkup'));
     const isExamCompleted = appt.status === 'completed' || (parseInt(appt.rx_count, 10) > 0 && appt.status !== 'pending' && appt.status !== 'in_progress');
     const isCancelledOrNoShow = appt.status === 'cancelled' || appt.status === 'no_show';
     const hasSale = !!appt.sale_id;
+
+    if (claimNotice) claimNotice.style.display = isClaim ? 'flex' : 'none';
+
+    // Show/hide Complete Claim button for Saleslady
+    if (isClaim && appt.status !== 'completed' && !isCancelledOrNoShow) {
+      if (formCompleteClaim) {
+        formCompleteClaim.style.display = 'block';
+        if (completeClaimApptId) completeClaimApptId.value = appt.id;
+      }
+    } else {
+      if (formCompleteClaim) formCompleteClaim.style.display = 'none';
+    }
 
     if (hasSale) {
       if (lockAlert) lockAlert.style.display = 'none';
@@ -1352,7 +1402,9 @@ document.addEventListener('DOMContentLoaded', function() {
       btnPos.className = 'btn btn-primary btn-sm flex-fill py-2 shadow-sm';
       btnPos.style.pointerEvents = '';
       btnPos.style.opacity = '1';
-      btnPos.innerHTML = `<i class="fas fa-shopping-cart me-1"></i> Proceed to POS Checkout`;
+      btnPos.innerHTML = isClaim
+        ? `<i class="fas fa-shopping-cart me-1"></i> Proceed to POS (Eyewear Billing)`
+        : `<i class="fas fa-shopping-cart me-1"></i> Proceed to POS Checkout`;
     }
 
     document.getElementById('modalBtnPatient').href = `patients.php?view=${appt.patient_id}`;
@@ -1381,7 +1433,8 @@ document.addEventListener('DOMContentLoaded', function() {
       let html = '<div class="d-flex flex-column gap-3">';
       dayAppts.forEach(appt => {
         const p = (appt.purpose || 'consultation').toLowerCase();
-        const isConsult = p.includes('consultation') || p.includes('eye_exam') || p.includes('checkup');
+        const isClaimAppt = (p === 'eyeglass_claim');
+        const isConsult = !isClaimAppt && (p.includes('consultation') || p.includes('eye_exam') || p.includes('checkup'));
         const isDone = appt.status === 'completed' || (parseInt(appt.rx_count, 10) > 0 && appt.status !== 'pending');
 
         let actionBtn = '';
@@ -1574,6 +1627,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     });
+
+    // Dynamic Consultation Purpose adaptation for Eyeglass Claim / Fitting
+    const walkinPurposeEl = document.getElementById('walkinInputPurpose');
+    const walkinStatusEl = document.getElementById('walkinInputInitialStatus');
+    const walkinNoticeWrap = document.getElementById('walkinPurposeNoticeWrap');
+
+    if (walkinPurposeEl && walkinStatusEl) {
+      walkinPurposeEl.addEventListener('change', function() {
+        if (this.value === 'eyeglass_claim') {
+          if (walkinNoticeWrap) walkinNoticeWrap.style.display = 'block';
+          walkinStatusEl.innerHTML = `
+            <option value="confirmed" selected>Ready for Fitting / Pickup (Confirmed)</option>
+            <option value="completed">Claim Completed &amp; Handed Over (Done)</option>
+          `;
+        } else {
+          if (walkinNoticeWrap) walkinNoticeWrap.style.display = 'none';
+          walkinStatusEl.innerHTML = `
+            <option value="confirmed" selected>Waiting in Clinic (Confirmed)</option>
+            <option value="in_progress">Direct to Doctor (Examining Now / In-Progress)</option>
+          `;
+        }
+      });
+    }
 
     formRegisterWalkin.addEventListener('submit', function(e) {
       if (walkinAlert) {

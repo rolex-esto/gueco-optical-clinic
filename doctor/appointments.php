@@ -126,16 +126,17 @@ $apptsStmt = $db->query("
            ) as invoice_no
     FROM appointments a
     JOIN patients p ON p.id = a.patient_id
+    WHERE a.purpose != 'eyeglass_claim'
     ORDER BY a.appointment_date ASC, a.appointment_time ASC
 ");
 $allAppointments = $apptsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Today stats
-$todayCountStmt = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date = ? AND status NOT IN ('cancelled','no_show')");
+// Today stats (Clinical consultations only)
+$todayCountStmt = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date = ? AND status NOT IN ('cancelled','no_show') AND purpose != 'eyeglass_claim'");
 $todayCountStmt->execute([$today]);
 $todayActiveCount = $todayCountStmt->fetch()['c'];
 
-$pendingCountStmt = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE status = 'pending'");
+$pendingCountStmt = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE status = 'pending' AND purpose != 'eyeglass_claim'");
 $pendingCountStmt->execute();
 $pendingCount = $pendingCountStmt->fetch()['c'];
 
@@ -669,7 +670,6 @@ include __DIR__ . '/../includes/header.php';
               <label class="form-label small fw-bold text-muted text-uppercase">Consultation Purpose</label>
               <select name="purpose" id="walkinInputPurpose" class="form-select">
                 <option value="consultation" selected>Comprehensive Eye Examination / Refraction</option>
-                <option value="eyeglass_claim">Eyeglass Claim / Fitting</option>
                 <option value="follow_up">Follow-up Check</option>
                 <option value="contact_lens_fitting">Contact Lens Assessment</option>
                 <option value="other">Other Optical Concerns</option>

@@ -360,7 +360,6 @@ include __DIR__ . '/../includes/header.php';
             <label class="form-label fw-bold small text-uppercase">Consultation Purpose</label>
             <select name="purpose" class="form-select">
               <option value="consultation" selected>Eye Examination / Refraction</option>
-              <option value="eyeglass_claim">Eyeglass Claim</option>
               <option value="follow_up">Follow-up</option>
               <option value="contact_lens_fitting">Contact Lens</option>
               <option value="other">Other</option>

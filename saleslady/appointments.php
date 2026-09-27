@@ -1248,17 +1248,21 @@ document.addEventListener('DOMContentLoaded', function() {
           ${isUnfinishedPast ? '<span class="cal-past-due-badge ms-1"><i class="fas fa-exclamation-circle"></i> Past Due</span>' : ''}
         </td>
         <td class="fw-bold text-primary">${formatTime12(appt.appointment_time)}</td>
-        <td>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</td>
+        <td>
+          <div>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</div>
+          ${(() => {
+            const pNotes = parseApptNotes(appt.notes);
+            return pNotes.service
+              ? `<small class="text-muted fst-italic">${escapeHtml(pNotes.service)}</small>`
+              : '';
+          })()}
+        </td>
         <td class="text-muted small">
           ${(() => {
             const pNotes = parseApptNotes(appt.notes);
-            if (pNotes.hasUserNotes) {
-              return escapeHtml(pNotes.userNotes);
-            }
-            if (pNotes.service) {
-              return `<span class="badge bg-light text-secondary border fw-normal"><i class="fas fa-tag me-1 text-primary"></i>${escapeHtml(pNotes.service)}</span>`;
-            }
-            return '<span class="text-muted opacity-50">—</span>';
+            return pNotes.hasUserNotes
+              ? escapeHtml(pNotes.userNotes)
+              : '<span class="text-muted opacity-50">—</span>';
           })()}
         </td>
         <td>${getStatusBadgeHtml(appt.status)}</td>
@@ -1393,7 +1397,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const apptDateObj = new Date(appt.appointment_date + 'T00:00:00');
     document.getElementById('modalDate').textContent = formatDisplayDate(apptDateObj);
     document.getElementById('modalTime').textContent = formatTime12(appt.appointment_time);
-    document.getElementById('modalPurpose').textContent = (appt.purpose || '').replace(/_/g, ' ').toUpperCase();
 
     document.getElementById('modalPhone').textContent = appt.patient_phone || '—';
     document.getElementById('modalEmail').textContent = appt.patient_email || '—';
@@ -1401,13 +1404,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('modalRxCount').textContent = `${appt.rx_count || 0} Prescription(s)`;
 
     const pNotes = parseApptNotes(appt.notes);
-    let modalNotesHtml = '';
+    // Purpose: show high-level purpose + specific service subtitle
+    let purposeHtml = `<span>${escapeHtml((appt.purpose || '').replace(/_/g, ' ').toUpperCase())}</span>`;
     if (pNotes.service) {
-      modalNotesHtml += `<div class="mb-2 pb-2 border-bottom d-flex align-items-center gap-2">
-        <span class="badge bg-primary-subtle text-primary border border-primary px-2 py-1"><i class="fas fa-tag me-1"></i> ${escapeHtml(pNotes.service)}</span>
-        <small class="text-muted">Selected Service Option</small>
-      </div>`;
+      purposeHtml += `<br><small class="text-muted fst-italic fw-normal">${escapeHtml(pNotes.service)}</small>`;
     }
+    document.getElementById('modalPurpose').innerHTML = purposeHtml;
+
+    let modalNotesHtml = '';
     if (pNotes.hasUserNotes) {
       modalNotesHtml += `<div>${escapeHtml(pNotes.userNotes)}</div>`;
     } else {

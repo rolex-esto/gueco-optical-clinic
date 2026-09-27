@@ -329,8 +329,24 @@ include __DIR__ . '/../includes/header.php';
           <td class="appt-0de4e7"><?= sanitize($a['phone'] ?? '—') ?></td>
           <td class="appt-86a1f6"><?= formatDate($a['appointment_date']) ?></td>
           <td class="appt-059a4a"><?= formatTime($a['appointment_time']) ?></td>
-          <td class="appt-bb0425"><?= ucwords(str_replace('_',' ',$a['purpose'])) ?></td>
-          <td class="appt-7a6eb0"><?= sanitize($a['notes'] ?? '—') ?></td>
+          <td class="appt-bb0425">
+            <?php
+              $rawAdminNotes = $a['notes'] ?? '';
+              $adminService = '';
+              $adminUserNotes = '';
+              if (preg_match('/^Service:\s*(.+?)(?:\n|$)/s', $rawAdminNotes, $m)) {
+                $adminService = trim($m[1]);
+                $adminUserNotes = trim(substr($rawAdminNotes, strlen($m[0])));
+              } else {
+                $adminUserNotes = $rawAdminNotes;
+              }
+            ?>
+            <?= ucwords(str_replace('_',' ',$a['purpose'])) ?>
+            <?php if ($adminService): ?>
+              <br><small class="text-muted fst-italic"><?= htmlspecialchars($adminService) ?></small>
+            <?php endif; ?>
+          </td>
+          <td class="appt-7a6eb0"><?= $adminUserNotes !== '' ? sanitize($adminUserNotes) : '—' ?></td>
           <td><?= statusBadge($a['status']) ?></td>
           <td>
             <div class="appt-152c49">

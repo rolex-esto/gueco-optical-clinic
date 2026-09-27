@@ -245,7 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
 // Search products AJAX
 if (isset($_GET['search_products'])) {
     $q = '%' . sanitize($_GET['search_products']) . '%';
-    $prods = $db->prepare("SELECT p.id, p.name, p.price, p.stock_quantity, c.name as category FROM products p JOIN categories c ON c.id=p.category_id WHERE (p.name LIKE ? OR c.name LIKE ?) AND p.status='active' AND p.stock_quantity>0 ORDER BY p.name LIMIT 20");
+    $prods = $db->prepare("SELECT p.id, p.name, p.price, p.stock_quantity, p.image, p.tier, c.name as category FROM products p JOIN categories c ON c.id=p.category_id WHERE (p.name LIKE ? OR c.name LIKE ?) AND p.status='active' AND p.stock_quantity>0 ORDER BY p.name LIMIT 20");
     $prods->execute([$q,$q]);
     header('Content-Type: application/json');
     echo json_encode($prods->fetchAll());
@@ -254,7 +254,7 @@ if (isset($_GET['search_products'])) {
 
 // Get all products by category for initial load
 $categories = $db->query("SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id=c.id AND p.status='active' AND p.stock_quantity>0) as prod_count FROM categories c WHERE c.status='active' ORDER BY c.name")->fetchAll();
-$allProducts = $db->query("SELECT p.id,p.name,p.price,p.stock_quantity,p.tier,c.name as category FROM products p JOIN categories c ON c.id=p.category_id WHERE p.status='active' AND p.stock_quantity>0 ORDER BY c.name,p.name")->fetchAll();
+$allProducts = $db->query("SELECT p.id,p.name,p.price,p.stock_quantity,p.image,p.tier,c.name as category FROM products p JOIN categories c ON c.id=p.category_id WHERE p.status='active' AND p.stock_quantity>0 ORDER BY c.name,p.name")->fetchAll();
 
 $today = date('Y-m-d');
 $activeAppointments = [];
@@ -403,6 +403,147 @@ include __DIR__ . '/../includes/header.php';
   from { opacity: 0; transform: translateY(-5px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Modern POS Product Cards ── */
+.prod-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  position: relative;
+  user-select: none;
+}
+.prod-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--clr-primary);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.12);
+}
+.prod-card:active {
+  transform: scale(0.98);
+}
+.prod-thumb-wrap {
+  width: 100%;
+  height: 125px;
+  background: var(--bg-hover);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-light);
+}
+.prod-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 8px;
+  transition: transform .25s ease;
+}
+.prod-card:hover .prod-thumb-img {
+  transform: scale(1.06);
+}
+.prod-fallback-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(59,130,246,0.18));
+  color: var(--clr-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  transition: transform .25s ease;
+}
+.prod-card:hover .prod-fallback-icon {
+  transform: scale(1.1);
+}
+.prod-badge-tier {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+}
+.prod-badge-tier .badge {
+  font-size: 0.65rem;
+  padding: 3px 7px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+.prod-badge-stock {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+.prod-badge-stock .badge {
+  font-size: 0.65rem;
+  padding: 3px 7px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.prod-card-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.prod-cat-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prod-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.15rem;
+}
+.prod-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-light);
+}
+.prod-price {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--clr-success);
+}
+.prod-add-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--clr-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  transition: all .2s ease;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+}
+.prod-card:hover .prod-add-btn {
+  background: var(--clr-primary);
+  color: #fff;
+  border-color: var(--clr-primary);
+  transform: rotate(90deg);
+}
 </style>
 
 <div class="pos-layout">
@@ -427,33 +568,90 @@ include __DIR__ . '/../includes/header.php';
     </div>
 
     <!-- Product Grid -->
-    <div id="productGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;align-content:start;">
-      <?php foreach ($allProducts as $prod): ?>
-      <div class="prod-card" 
-           data-id="<?= $prod['id'] ?>" 
-           data-name="<?= htmlspecialchars($prod['name'], ENT_QUOTES, 'UTF-8') ?>" 
-           data-price="<?= $prod['price'] ?>" 
-           data-stock="<?= $prod['stock_quantity'] ?>" 
-           data-cat="<?= htmlspecialchars($prod['category'], ENT_QUOTES, 'UTF-8') ?>"
-           data-tier="<?= htmlspecialchars($prod['tier'] ?? 'budget', ENT_QUOTES, 'UTF-8') ?>"
-           onclick="addToCart(this)"
-           style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:14px;cursor:pointer;transition:all .2s ease;"
-           onmouseover="this.style.borderColor='var(--clr-primary)';this.style.boxShadow='0 4px 20px rgba(37,99,235,.15)'"
-           onmouseout="this.style.borderColor='var(--border-color)';this.style.boxShadow='none'">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--clr-primary),var(--clr-secondary));border-radius:10px;display:flex;align-items:center;justify-content:center;">
-            <i class="fas fa-glasses" style="color:#fff;font-size:.85rem;"></i>
+    <div id="productGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:14px;align-content:start;">
+      <?php if (empty($allProducts)): ?>
+        <div style="grid-column:1 / -1;text-align:center;padding:48px 16px;color:var(--text-muted);background:var(--bg-card);border:1px dashed var(--border-color);border-radius:12px;">
+          <i class="fas fa-box-open" style="font-size:2.5rem;margin-bottom:12px;opacity:0.35;"></i>
+          <h6 style="font-weight:600;margin-bottom:4px;">No products available</h6>
+          <p style="font-size:0.8rem;margin:0;">Add active products with available stock in Inventory.</p>
+        </div>
+      <?php else: ?>
+        <?php foreach ($allProducts as $prod): 
+          $hasImg = !empty($prod['image']);
+          $catLower = strtolower($prod['category'] ?? '');
+          $fallbackIcon = 'fa-glasses';
+          if (str_contains($catLower, 'contact') || str_contains($catLower, 'lens')) {
+              $fallbackIcon = 'fa-eye';
+          } elseif (str_contains($catLower, 'solution') || str_contains($catLower, 'liquid')) {
+              $fallbackIcon = 'fa-tint';
+          } elseif (str_contains($catLower, 'accessor') || str_contains($catLower, 'case')) {
+              $fallbackIcon = 'fa-box-open';
+          } elseif (str_contains($catLower, 'sunglass')) {
+              $fallbackIcon = 'fa-sun';
+          }
+          $isLowStock = ($prod['stock_quantity'] ?? 0) <= 5;
+        ?>
+        <div class="prod-card" 
+             data-id="<?= $prod['id'] ?>" 
+             data-name="<?= htmlspecialchars($prod['name'], ENT_QUOTES, 'UTF-8') ?>" 
+             data-price="<?= $prod['price'] ?>" 
+             data-stock="<?= $prod['stock_quantity'] ?>" 
+             data-cat="<?= htmlspecialchars($prod['category'], ENT_QUOTES, 'UTF-8') ?>"
+             data-tier="<?= htmlspecialchars($prod['tier'] ?? 'budget', ENT_QUOTES, 'UTF-8') ?>"
+             onclick="addToCart(this)">
+          
+          <!-- Thumbnail Wrap with Badges -->
+          <div class="prod-thumb-wrap">
+            <!-- Floating Tier Badge -->
+            <div class="prod-badge-tier">
+              <?= tierBadge($prod['tier'] ?? 'budget') ?>
+            </div>
+
+            <!-- Floating Stock Badge -->
+            <div class="prod-badge-stock">
+              <?php if ($isLowStock): ?>
+                <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i><?= $prod['stock_quantity'] ?> left</span>
+              <?php else: ?>
+                <span class="badge" style="background:rgba(15,23,42,0.65);color:#fff;backdrop-filter:blur(4px);"><i class="fas fa-boxes me-1"></i><?= $prod['stock_quantity'] ?></span>
+              <?php endif; ?>
+            </div>
+
+            <!-- Product Image or Fallback -->
+            <?php if ($hasImg): ?>
+              <img class="prod-thumb-img" 
+                   src="<?= BASE_URL ?>assets/images/products/<?= htmlspecialchars($prod['image'], ENT_QUOTES, 'UTF-8') ?>" 
+                   alt="<?= htmlspecialchars($prod['name'], ENT_QUOTES, 'UTF-8') ?>"
+                   loading="lazy"
+                   onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+              <div class="prod-fallback-icon" style="display:none;">
+                <i class="fas <?= $fallbackIcon ?>"></i>
+              </div>
+            <?php else: ?>
+              <div class="prod-fallback-icon">
+                <i class="fas <?= $fallbackIcon ?>"></i>
+              </div>
+            <?php endif; ?>
           </div>
-          <?= tierBadge($prod['tier'] ?? 'budget') ?>
+
+          <!-- Product Card Body -->
+          <div class="prod-card-body">
+            <div class="prod-cat-tag" title="<?= sanitize($prod['category']) ?>">
+              <?= sanitize($prod['category']) ?>
+            </div>
+            <div class="prod-title" title="<?= sanitize($prod['name']) ?>">
+              <?= sanitize($prod['name']) ?>
+            </div>
+            <div class="prod-card-footer">
+              <div class="prod-price">₱<?= number_format($prod['price'], 2) ?></div>
+              <button type="button" class="prod-add-btn" title="Add to cart" aria-label="Add to cart">
+                <i class="fas fa-plus"></i>
+              </button>
+            </div>
+          </div>
+
         </div>
-        <div style="font-weight:700;font-size:.82rem;margin-bottom:4px;line-height:1.3"><?= sanitize($prod['name']) ?></div>
-        <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:8px"><?= sanitize($prod['category']) ?></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-weight:800;color:var(--clr-success);font-size:.9rem">₱<?= number_format($prod['price'],2) ?></div>
-          <div style="font-size:.68rem;color:<?= $prod['stock_quantity']<=5?'var(--clr-warning)':'var(--text-muted)' ?>"><?= $prod['stock_quantity'] ?> left</div>
-        </div>
-      </div>
-      <?php endforeach; ?>
+        <?php endforeach; ?>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -788,10 +986,10 @@ function addToCart(el) {
   
   // Visual click pulse
   el.style.transform = 'scale(0.97)';
-  el.style.background = 'rgba(37,99,235,.12)';
+  el.style.borderColor = 'var(--clr-primary)';
   setTimeout(() => {
     el.style.transform = '';
-    el.style.background = 'var(--bg-card)';
+    el.style.borderColor = '';
   }, 180);
 }
 

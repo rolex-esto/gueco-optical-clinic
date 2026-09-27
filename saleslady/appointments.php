@@ -64,11 +64,11 @@ $apptsStmt = $db->query("
            (SELECT COUNT(*) FROM appointments a2 WHERE a2.patient_id = a.patient_id AND a2.status = 'completed') as completed_visits,
            COALESCE(
                (SELECT s.id FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
-               (SELECT s2.id FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
+               (SELECT s2.id FROM sales s2 WHERE s2.patient_id = a.patient_id AND (DATE(s2.created_at) = a.appointment_date OR a.status = 'completed') ORDER BY s2.id DESC LIMIT 1)
            ) as sale_id,
            COALESCE(
                (SELECT s.invoice_no FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
-               (SELECT s2.invoice_no FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
+               (SELECT s2.invoice_no FROM sales s2 WHERE s2.patient_id = a.patient_id AND (DATE(s2.created_at) = a.appointment_date OR a.status = 'completed') ORDER BY s2.id DESC LIMIT 1)
            ) as invoice_no
     FROM appointments a
     JOIN patients p ON p.id = a.patient_id
@@ -1510,6 +1510,13 @@ document.addEventListener('DOMContentLoaded', function() {
         btnPos.style.pointerEvents = '';
         btnPos.style.opacity = '1';
         btnPos.innerHTML = `<i class="fas fa-file-invoice me-1"></i> View Receipt (${escapeHtml(appt.invoice_no || '#' + appt.sale_id)})`;
+      } else if (appt.status === 'completed') {
+        btnPos.removeAttribute('href');
+        btnPos.target = '_self';
+        btnPos.className = 'btn btn-success btn-sm w-100 py-2 text-nowrap disabled text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = 'none';
+        btnPos.style.opacity = '0.95';
+        btnPos.innerHTML = `<i class="fas fa-check-double me-1"></i> Claim &amp; Handover Completed`;
       } else if (isCancelledOrNoShow) {
         btnPos.removeAttribute('href');
         btnPos.target = '_self';
@@ -1539,6 +1546,18 @@ document.addEventListener('DOMContentLoaded', function() {
         btnPos.style.pointerEvents = '';
         btnPos.style.opacity = '1';
         btnPos.innerHTML = `<i class="fas fa-file-invoice me-1"></i> View Receipt (${escapeHtml(appt.invoice_no || '#' + appt.sale_id)})`;
+      } else if (appt.status === 'completed') {
+        if (lockAlert) {
+          lockAlert.classList.remove('d-flex');
+          lockAlert.classList.add('d-none');
+          lockAlert.style.display = 'none';
+        }
+        btnPos.removeAttribute('href');
+        btnPos.target = '_self';
+        btnPos.className = 'btn btn-success btn-sm w-100 py-2 text-nowrap disabled text-center d-inline-flex align-items-center justify-content-center';
+        btnPos.style.pointerEvents = 'none';
+        btnPos.style.opacity = '0.95';
+        btnPos.innerHTML = `<i class="fas fa-check-double me-1"></i> Completed (Consultation &amp; Checkout Done)`;
       } else if (isCancelledOrNoShow) {
         if (lockAlert) {
           lockAlert.classList.remove('d-flex');
@@ -1631,6 +1650,8 @@ document.addEventListener('DOMContentLoaded', function() {
         let actionBtn = '';
         if (appt.sale_id) {
           actionBtn = `<a href="receipt.php?id=${appt.sale_id}" target="_blank" class="btn btn-success btn-sm px-3 shadow-sm" title="View Receipt"><i class="fas fa-file-invoice me-1"></i> Receipt</a>`;
+        } else if (appt.status === 'completed') {
+          actionBtn = `<span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-3"><i class="fas fa-check-double me-1"></i> Completed</span>`;
         } else if (appt.status === 'cancelled' || appt.status === 'no_show') {
           actionBtn = `<span class="badge bg-secondary py-2 px-3">${appt.status === 'cancelled' ? 'Cancelled' : 'No-Show'}</span>`;
         } else if (isConsult && !isDone) {

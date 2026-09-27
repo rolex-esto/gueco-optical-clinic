@@ -28,6 +28,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
     $patientPhone     = sanitize($_POST['patient_phone'] ?? '');
     $appointmentId    = (int)($_POST['appointment_id'] ?? 0) ?: null;
 
+    // If appointment_id wasn't directly passed, find most recent active or uncompleted appointment for this patient
+    if ($appointmentId === null && $patientId > 0) {
+        $findAppt = $db->prepare("
+            SELECT id FROM appointments 
+            WHERE patient_id = ? 
+            ORDER BY (status IN ('confirmed','in_progress','pending')) DESC, id DESC 
+            LIMIT 1
+        ");
+        $findAppt->execute([$patientId]);
+        $appointmentId = $findAppt->fetchColumn() ?: null;
+    }
+
     // If generating a job order and prescription_id wasn't directly sent, link latest prescription silently
     if ($generateJobOrder === 1 && $prescriptionId === null && $patientId > 0) {
         $latestRxStmt = $db->prepare("SELECT id FROM prescriptions WHERE patient_id=? ORDER BY created_at DESC LIMIT 1");
@@ -212,6 +224,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
             }
         }
 
+        // Update linked appointment to 'completed'
+        if ($appointmentId > 0) {
+            $upAppt = $db->prepare("UPDATE appointments SET status='completed' WHERE id=?");
+            $upAppt->execute([$appointmentId]);
+            $upAppt->closeCursor();
+        } elseif ($patientId > 0) {
+            $upAppt = $db->prepare("UPDATE appointments SET status='completed' WHERE patient_id=? AND status IN ('confirmed','in_progress','pending')");
+            $upAppt->execute([$patientId]);
+            $upAppt->closeCursor();
+        }
+
         $db->commit();
 
         $logMsg = "Completed sale $invoiceNo for $patientName (Total: " . formatCurrency($total) . ", Type: " . strtoupper($paymentType);
@@ -296,6 +319,13 @@ try {
 
 $patients = $db->query("SELECT id, full_name, phone FROM patients WHERE status='active' ORDER BY full_name")->fetchAll();
 $selectedPatientId = (int)($_GET['patient_id'] ?? 0);
+$selectedApptId    = (int)($_GET['appt_id'] ?? 0);
+
+if ($selectedApptId > 0 && !$selectedPatientId) {
+    $apptPatientStmt = $db->prepare("SELECT patient_id FROM appointments WHERE id=?");
+    $apptPatientStmt->execute([$selectedApptId]);
+    $selectedPatientId = (int)$apptPatientStmt->fetchColumn() ?: 0;
+}
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -730,6 +760,7 @@ include __DIR__ . '/../includes/header.php';
                     data-has-rx="0"
                     data-name="<?= sanitize($pt['full_name']) ?>"
                     data-type="general"
+                    <?= ($selectedApptId > 0 && $pt['id'] === $selectedPatientId) ? 'data-appt-id="' . $selectedApptId . '"' : '' ?>
                     <?= $pt['id'] === $selectedPatientId ? 'selected' : '' ?>>
               <?= sanitize($pt['full_name']) ?>
             </option>
@@ -934,7 +965,7 @@ include __DIR__ . '/../includes/header.php';
 // Cart state
 let cart = [];
 let activePatientRx = null;
-let activeAppointmentId = null;
+let activeAppointmentId = <?= (int)$selectedApptId ?> || null;
 let lastCompletedSaleId = null;
 const formatPeso = v => '₱' + parseFloat(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
@@ -1151,7 +1182,14 @@ patientSelect.addEventListener('change', async function() {
   const patientId   = this.value;
   const status      = selectedOpt.dataset.status || '';
   const phone       = selectedOpt.dataset.phone || '';
-  activeAppointmentId = selectedOpt.dataset.apptId || null;
+  const optApptId   = selectedOpt.dataset.apptId;
+  if (optApptId) {
+    activeAppointmentId = optApptId;
+  } else if (patientId && parseInt(patientId, 10) === <?= (int)$selectedPatientId ?> && <?= (int)$selectedApptId ?> > 0) {
+    activeAppointmentId = <?= (int)$selectedApptId ?>;
+  } else {
+    activeAppointmentId = null;
+  }
 
   // Auto-fill phone into Job Order phone input
   if (phone) {

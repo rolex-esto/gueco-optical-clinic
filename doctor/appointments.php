@@ -257,6 +257,9 @@ include __DIR__ . '/../includes/header.php';
       <button type="button" class="cal-view-btn" data-view="agenda" id="viewBtnAgenda">
         <i class="fas fa-list-ul"></i> Agenda
       </button>
+      <button type="button" class="cal-view-btn" data-view="table" id="viewBtnTable">
+        <i class="fas fa-users-cog"></i> Queue
+      </button>
     </div>
   </div>
 
@@ -280,6 +283,9 @@ include __DIR__ . '/../includes/header.php';
       </button>
       <button type="button" class="cal-filter-pill" data-status="no_show">
         <i class="fas fa-user-slash text-secondary"></i> No-Show (<span id="countNoShow">0</span>)
+      </button>
+      <button type="button" class="cal-filter-pill" data-status="cancelled">
+        <i class="fas fa-times-circle text-danger"></i> Cancelled (<span id="countCancelled">0</span>)
       </button>
     </div>
 
@@ -313,6 +319,51 @@ include __DIR__ . '/../includes/header.php';
   <!-- 5. Agenda View -->
   <div id="agendaViewContainer" class="cal-agenda-view" style="display:none;">
     <!-- Generated dynamically by JavaScript -->
+  </div>
+
+  <!-- 6. Queue / Table View -->
+  <div id="tableViewContainer" style="display:none; padding:16px 24px 24px;">
+    <!-- Queue Segment Navigation Tabs -->
+    <div class="cal-queue-nav-wrap">
+      <div class="cal-queue-tabs" role="tablist">
+        <button type="button" class="cal-queue-tab-btn active" data-segment="current" id="queueTabCurrent">
+          <i class="fas fa-user-clock"></i>
+          <span>Current Appointments</span>
+          <span class="cal-queue-tab-badge" id="countSegmentCurrent">0</span>
+        </button>
+        <button type="button" class="cal-queue-tab-btn" data-segment="upcoming" id="queueTabUpcoming">
+          <i class="fas fa-calendar-alt"></i>
+          <span>Upcoming Appointments</span>
+          <span class="cal-queue-tab-badge" id="countSegmentUpcoming">0</span>
+        </button>
+        <button type="button" class="cal-queue-tab-btn" data-segment="history" id="queueTabHistory">
+          <i class="fas fa-history"></i>
+          <span>Past Due &amp; Done Appointments</span>
+          <span class="cal-queue-tab-badge" id="countSegmentHistory">0</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table" id="masterApptTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Patient</th>
+            <th>Contact</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Purpose</th>
+            <th>Notes</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <!-- Injected dynamically -->
+        </tbody>
+      </table>
+    </div>
   </div>
 
 </div>
@@ -665,8 +716,9 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentDate = new Date(initialDateStr + 'T00:00:00');
   if (isNaN(currentDate.getTime())) currentDate = new Date();
   
-  let currentView = 'month'; // 'month', 'week', 'agenda'
+  let currentView = 'month'; // 'month', 'week', 'agenda', 'table'
   let currentFilter = 'all';  // 'all', 'confirmed', 'pending', 'completed', 'no_show', 'cancelled'
+  let queueSegment = 'current'; // 'current', 'upcoming', 'history'
   let searchQuery = '';
   let selectedDateStr = initialDateStr || formatDateIso(new Date());
 
@@ -679,10 +731,13 @@ document.addEventListener('DOMContentLoaded', function() {
   const viewBtnMonth = document.getElementById('viewBtnMonth');
   const viewBtnWeek = document.getElementById('viewBtnWeek');
   const viewBtnAgenda = document.getElementById('viewBtnAgenda');
+  const viewBtnTable = document.getElementById('viewBtnTable');
   const monthViewContainer = document.getElementById('monthViewContainer');
   const weekViewContainer = document.getElementById('weekViewContainer');
   const agendaViewContainer = document.getElementById('agendaViewContainer');
+  const tableViewContainer = document.getElementById('tableViewContainer');
   const monthGrid = document.getElementById('monthGrid');
+  const tableBody = document.getElementById('tableBody');
   const searchInput = document.getElementById('calSearchInput');
   const filterPills = document.querySelectorAll('.cal-filter-pill');
 
@@ -766,12 +821,39 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function updateCounts() {
-    const total = rawAppointments.length;
-    const confirmed = rawAppointments.filter(a => a.status === 'confirmed').length;
-    const inProgress = rawAppointments.filter(a => a.status === 'in_progress').length;
-    const pending = rawAppointments.filter(a => a.status === 'pending').length;
-    const completed = rawAppointments.filter(a => a.status === 'completed').length;
-    const noShow = rawAppointments.filter(a => a.status === 'no_show').length;
+    const todayIso = formatDateIso(new Date());
+
+    // Update Segment Counts
+    const countCurrent = rawAppointments.filter(a => a.appointment_date === todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show')).length;
+    const countUpcoming = rawAppointments.filter(a => a.appointment_date > todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show')).length;
+    const countHistory = rawAppointments.filter(a => a.appointment_date < todayIso || (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show')).length;
+
+    const segCurrentEl = document.getElementById('countSegmentCurrent');
+    const segUpcomingEl = document.getElementById('countSegmentUpcoming');
+    const segHistoryEl = document.getElementById('countSegmentHistory');
+    if (segCurrentEl) segCurrentEl.textContent = countCurrent;
+    if (segUpcomingEl) segUpcomingEl.textContent = countUpcoming;
+    if (segHistoryEl) segHistoryEl.textContent = countHistory;
+
+    // Status filter pill counts (context-aware in table view, clinic-wide in calendar views)
+    let baseList = rawAppointments;
+    if (currentView === 'table') {
+      if (queueSegment === 'current') {
+        baseList = rawAppointments.filter(a => a.appointment_date === todayIso);
+      } else if (queueSegment === 'upcoming') {
+        baseList = rawAppointments.filter(a => a.appointment_date > todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'));
+      } else if (queueSegment === 'history') {
+        baseList = rawAppointments.filter(a => a.appointment_date < todayIso || (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'));
+      }
+    }
+
+    const total = baseList.length;
+    const confirmed = baseList.filter(a => a.status === 'confirmed').length;
+    const inProgress = baseList.filter(a => a.status === 'in_progress').length;
+    const pending = baseList.filter(a => a.status === 'pending').length;
+    const completed = baseList.filter(a => a.status === 'completed').length;
+    const noShow = baseList.filter(a => a.status === 'no_show').length;
+    const cancelled = baseList.filter(a => a.status === 'cancelled').length;
 
     document.getElementById('countAll').textContent = total;
     document.getElementById('countConfirmed').textContent = confirmed;
@@ -780,6 +862,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('countPending').textContent = pending;
     document.getElementById('countCompleted').textContent = completed;
     document.getElementById('countNoShow').textContent = noShow;
+    const cancEl = document.getElementById('countCancelled');
+    if (cancEl) cancEl.textContent = cancelled;
   }
 
   // ── 1. RENDER MONTH VIEW ───────────────────────────────────────
@@ -1100,36 +1184,191 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // ── 4. RENDER QUEUE / TABLE VIEW ───────────────────────────────
+  function renderTable() {
+    tableBody.innerHTML = '';
+    const todayIso = formatDateIso(new Date());
+
+    // 1. Filter by Queue Segment
+    let segmentAppts = rawAppointments.filter(appt => {
+      const isPastDate = (appt.appointment_date < todayIso);
+      const isToday = (appt.appointment_date === todayIso);
+      const isFutureDate = (appt.appointment_date > todayIso);
+      const isFinished = (appt.status === 'completed' || appt.status === 'cancelled' || appt.status === 'no_show');
+
+      if (queueSegment === 'current') {
+        if (currentFilter !== 'all') {
+          return isToday && (appt.status === currentFilter);
+        }
+        return isToday && !isFinished;
+      } else if (queueSegment === 'upcoming') {
+        if (currentFilter !== 'all') {
+          return isFutureDate && (appt.status === currentFilter);
+        }
+        return isFutureDate && !isFinished;
+      } else if (queueSegment === 'history') {
+        if (currentFilter !== 'all') {
+          return (isPastDate || isFinished) && (appt.status === currentFilter);
+        }
+        return isPastDate || isFinished;
+      }
+      return true;
+    });
+
+    // 2. Filter by search query
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      segmentAppts = segmentAppts.filter(appt => {
+        const patientName = (appt.patient_name || '').toLowerCase();
+        const phone = (appt.patient_phone || '').toLowerCase();
+        const purpose = (appt.purpose || '').toLowerCase();
+        const notes = (appt.notes || '').toLowerCase();
+        return patientName.includes(q) || phone.includes(q) || purpose.includes(q) || notes.includes(q);
+      });
+    }
+
+    // 3. Dynamic Title & Subtitle based on Queue Segment
+    if (queueSegment === 'current') {
+      calTitle.textContent = 'Current Appointments';
+      calSubtitle.innerHTML = `Today's Active Queue &middot; ${segmentAppts.length} record(s)`;
+    } else if (queueSegment === 'upcoming') {
+      calTitle.textContent = 'Upcoming Appointments';
+      calSubtitle.innerHTML = `Future Scheduled Appointments &middot; ${segmentAppts.length} record(s)`;
+    } else if (queueSegment === 'history') {
+      calTitle.textContent = 'Past Due & Done Appointments';
+      calSubtitle.innerHTML = `Past Due &amp; Completed Records &middot; ${segmentAppts.length} record(s)`;
+    }
+
+    // 4. Sort order tailored to segment
+    segmentAppts.sort((a, b) => {
+      if (queueSegment === 'history') {
+        if (a.appointment_date !== b.appointment_date) {
+          return b.appointment_date.localeCompare(a.appointment_date);
+        }
+        return (b.appointment_time || '').localeCompare(a.appointment_time || '');
+      } else {
+        if (a.appointment_date !== b.appointment_date) {
+          return a.appointment_date.localeCompare(b.appointment_date);
+        }
+        return (a.appointment_time || '').localeCompare(b.appointment_time || '');
+      }
+    });
+
+    // 5. Empty State
+    if (segmentAppts.length === 0) {
+      let emptyMsg = 'No matching appointments in this queue.';
+      let emptyIcon = 'fa-search';
+      if (queueSegment === 'current') {
+        emptyMsg = 'No active appointments in queue for today.';
+        emptyIcon = 'fa-user-clock';
+      } else if (queueSegment === 'upcoming') {
+        emptyMsg = 'No upcoming appointments scheduled.';
+        emptyIcon = 'fa-calendar-alt';
+      } else if (queueSegment === 'history') {
+        emptyMsg = 'No past due or completed appointments found.';
+        emptyIcon = 'fa-history';
+      }
+
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="9" class="text-center py-5 text-muted">
+            <div class="mb-2"><i class="fas ${emptyIcon} fa-2x opacity-50"></i></div>
+            <div class="fw-semibold">${emptyMsg}</div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    // 6. Render Rows
+    segmentAppts.forEach((appt, idx) => {
+      const isWalkin = (appt.appointment_type === 'WALK_IN');
+      const isPastDate = (appt.appointment_date < todayIso);
+      const isUnfinishedPast = isPastDate && (appt.status !== 'completed' && appt.status !== 'cancelled' && appt.status !== 'no_show');
+      const tr = document.createElement('tr');
+      const apptDateObj = new Date(appt.appointment_date + 'T00:00:00');
+
+      tr.innerHTML = `
+        <td class="text-muted fw-bold">${idx + 1}</td>
+        <td>
+          <div class="fw-bold cal-modal-title">
+            ${escapeHtml(appt.patient_name)}
+            ${isWalkin ? '<span class="cal-walkin-badge ms-1">Walk-in</span>' : ''}
+          </div>
+          <small class="text-muted">${escapeHtml(appt.patient_phone || '')}</small>
+        </td>
+        <td>${escapeHtml(appt.patient_phone || '—')}</td>
+        <td>
+          ${formatDisplayDate(apptDateObj)}
+          ${isUnfinishedPast ? '<span class="cal-past-due-badge ms-1"><i class="fas fa-exclamation-circle"></i> Past Due</span>' : ''}
+        </td>
+        <td class="fw-bold text-primary">${formatTime12(appt.appointment_time)}</td>
+        <td>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</td>
+        <td class="text-muted small">${escapeHtml(appt.notes || '—')}</td>
+        <td>${getStatusBadgeHtml(appt.status)}</td>
+        <td>
+          <div class="d-flex gap-1">
+            <button type="button" class="btn btn-outline-primary btn-sm px-2 py-1 btn-open-table-modal">
+              <i class="fas fa-eye"></i> Manage
+            </button>
+            <a href="prescriptions.php?patient_id=${appt.patient_id}&appt_id=${appt.id}" class="btn btn-primary btn-sm px-2 py-1" title="Clinical Examination &amp; Prescription">
+              <i class="fas fa-stethoscope"></i>
+            </a>
+          </div>
+        </td>
+      `;
+
+      tr.querySelector('.btn-open-table-modal').addEventListener('click', () => {
+        openAppointmentModal(appt);
+      });
+
+      tableBody.appendChild(tr);
+    });
+  }
+
   // ── Master Render Trigger ──────────────────────────────────────
   function render() {
     updateCounts();
-    if (currentView === 'month') {
-      monthViewContainer.style.display = 'block';
-      weekViewContainer.style.display = 'none';
-      agendaViewContainer.style.display = 'none';
-      renderMonth();
-    } else if (currentView === 'week') {
-      monthViewContainer.style.display = 'none';
-      weekViewContainer.style.display = 'grid';
-      agendaViewContainer.style.display = 'none';
-      renderWeek();
-    } else if (currentView === 'agenda') {
-      monthViewContainer.style.display = 'none';
-      weekViewContainer.style.display = 'none';
-      agendaViewContainer.style.display = 'flex';
-      renderAgenda();
-    }
+    monthViewContainer.style.display = (currentView === 'month') ? 'block' : 'none';
+    weekViewContainer.style.display = (currentView === 'week') ? 'grid' : 'none';
+    agendaViewContainer.style.display = (currentView === 'agenda') ? 'flex' : 'none';
+    tableViewContainer.style.display = (currentView === 'table') ? 'block' : 'none';
+
+    if (currentView === 'month') renderMonth();
+    else if (currentView === 'week') renderWeek();
+    else if (currentView === 'agenda') renderAgenda();
+    else if (currentView === 'table') renderTable();
   }
+
+  // ── Queue Segment Tabs ─────────────────────────────────────────
+  const queueTabBtns = document.querySelectorAll('.cal-queue-tab-btn');
+  queueTabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      queueTabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      queueSegment = btn.dataset.segment;
+      // Reset status filter to 'all' so user sees full segment list
+      currentFilter = 'all';
+      filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+      render();
+    });
+  });
 
   // ── Navigation Buttons ─────────────────────────────────────────
   btnToday.addEventListener('click', () => {
     currentDate = new Date();
     selectedDateStr = formatDateIso(new Date());
+    if (currentView === 'table') {
+      queueSegment = 'current';
+      queueTabBtns.forEach(b => b.classList.toggle('active', b.dataset.segment === 'current'));
+      currentFilter = 'all';
+      filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+    }
     render();
   });
 
   btnPrev.addEventListener('click', () => {
-    if (currentView === 'month' || currentView === 'agenda') {
+    if (currentView === 'month' || currentView === 'agenda' || currentView === 'table') {
       currentDate.setMonth(currentDate.getMonth() - 1);
     } else if (currentView === 'week') {
       currentDate.setDate(currentDate.getDate() - 7);
@@ -1138,7 +1377,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   btnNext.addEventListener('click', () => {
-    if (currentView === 'month' || currentView === 'agenda') {
+    if (currentView === 'month' || currentView === 'agenda' || currentView === 'table') {
       currentDate.setMonth(currentDate.getMonth() + 1);
     } else if (currentView === 'week') {
       currentDate.setDate(currentDate.getDate() + 7);
@@ -1147,28 +1386,19 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // View Switchers
-  viewBtnMonth.addEventListener('click', () => {
-    currentView = 'month';
-    viewBtnMonth.classList.add('active');
-    viewBtnWeek.classList.remove('active');
-    viewBtnAgenda.classList.remove('active');
-    render();
-  });
-
-  viewBtnWeek.addEventListener('click', () => {
-    currentView = 'week';
-    viewBtnWeek.classList.add('active');
-    viewBtnMonth.classList.remove('active');
-    viewBtnAgenda.classList.remove('active');
-    render();
-  });
-
-  viewBtnAgenda.addEventListener('click', () => {
-    currentView = 'agenda';
-    viewBtnAgenda.classList.add('active');
-    viewBtnMonth.classList.remove('active');
-    viewBtnWeek.classList.remove('active');
-    render();
+  const allViewBtns = [viewBtnMonth, viewBtnWeek, viewBtnAgenda, viewBtnTable];
+  allViewBtns.forEach(btn => {
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      allViewBtns.forEach(b => { if (b) b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentView = btn.dataset.view;
+      if (currentView === 'table') {
+        currentFilter = 'all';
+        filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+      }
+      render();
+    });
   });
 
   // Filter Buttons

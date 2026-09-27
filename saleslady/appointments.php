@@ -239,6 +239,9 @@ include __DIR__ . '/../includes/header.php';
       <button type="button" class="cal-filter-pill" data-status="no_show">
         <span class="cal-bullet bullet-no_show"></span> No-Show (<span id="countNoShow">0</span>)
       </button>
+      <button type="button" class="cal-filter-pill" data-status="cancelled">
+        <span class="cal-bullet bullet-cancelled"></span> Cancelled (<span id="countCancelled">0</span>)
+      </button>
     </div>
 
     <div class="cal-search-box">
@@ -275,6 +278,27 @@ include __DIR__ . '/../includes/header.php';
 
   <!-- 6. Queue / Table View -->
   <div id="tableViewContainer" style="display:none; padding:16px 24px 24px;">
+    <!-- Queue Segment Navigation Tabs -->
+    <div class="cal-queue-nav-wrap">
+      <div class="cal-queue-tabs" role="tablist">
+        <button type="button" class="cal-queue-tab-btn active" data-segment="current" id="queueTabCurrent">
+          <i class="fas fa-user-clock"></i>
+          <span>Current Appointments</span>
+          <span class="cal-queue-tab-badge" id="countSegmentCurrent">0</span>
+        </button>
+        <button type="button" class="cal-queue-tab-btn" data-segment="upcoming" id="queueTabUpcoming">
+          <i class="fas fa-calendar-alt"></i>
+          <span>Upcoming Appointments</span>
+          <span class="cal-queue-tab-badge" id="countSegmentUpcoming">0</span>
+        </button>
+        <button type="button" class="cal-queue-tab-btn" data-segment="history" id="queueTabHistory">
+          <i class="fas fa-history"></i>
+          <span>Past Due &amp; Done Appointments</span>
+          <span class="cal-queue-tab-badge" id="countSegmentHistory">0</span>
+        </button>
+      </div>
+    </div>
+
     <div class="table-responsive">
       <table class="table" id="masterApptTable">
         <thead>
@@ -554,6 +578,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   let currentView = 'month'; // 'month', 'week', 'agenda', 'table'
   let currentFilter = 'all';  // 'all', 'confirmed', 'pending', 'completed', 'no_show', 'cancelled'
+  let queueSegment = 'current'; // 'current', 'upcoming', 'history'
   let searchQuery = '';
   let selectedDateStr = initialDateStr || formatDateIso(new Date());
 
@@ -640,12 +665,39 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function updateCounts() {
-    const total = rawAppointments.length;
-    const confirmed = rawAppointments.filter(a => a.status === 'confirmed').length;
-    const inProgress = rawAppointments.filter(a => a.status === 'in_progress').length;
-    const pending = rawAppointments.filter(a => a.status === 'pending').length;
-    const completed = rawAppointments.filter(a => a.status === 'completed').length;
-    const noShow = rawAppointments.filter(a => a.status === 'no_show').length;
+    const todayIso = formatDateIso(new Date());
+
+    // Update Segment Counts
+    const countCurrent = rawAppointments.filter(a => a.appointment_date === todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show')).length;
+    const countUpcoming = rawAppointments.filter(a => a.appointment_date > todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show')).length;
+    const countHistory = rawAppointments.filter(a => a.appointment_date < todayIso || (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show')).length;
+
+    const segCurrentEl = document.getElementById('countSegmentCurrent');
+    const segUpcomingEl = document.getElementById('countSegmentUpcoming');
+    const segHistoryEl = document.getElementById('countSegmentHistory');
+    if (segCurrentEl) segCurrentEl.textContent = countCurrent;
+    if (segUpcomingEl) segUpcomingEl.textContent = countUpcoming;
+    if (segHistoryEl) segHistoryEl.textContent = countHistory;
+
+    // Status filter pill counts (context-aware in table view, clinic-wide in calendar views)
+    let baseList = rawAppointments;
+    if (currentView === 'table') {
+      if (queueSegment === 'current') {
+        baseList = rawAppointments.filter(a => a.appointment_date === todayIso);
+      } else if (queueSegment === 'upcoming') {
+        baseList = rawAppointments.filter(a => a.appointment_date > todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'));
+      } else if (queueSegment === 'history') {
+        baseList = rawAppointments.filter(a => a.appointment_date < todayIso || (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'));
+      }
+    }
+
+    const total = baseList.length;
+    const confirmed = baseList.filter(a => a.status === 'confirmed').length;
+    const inProgress = baseList.filter(a => a.status === 'in_progress').length;
+    const pending = baseList.filter(a => a.status === 'pending').length;
+    const completed = baseList.filter(a => a.status === 'completed').length;
+    const noShow = baseList.filter(a => a.status === 'no_show').length;
+    const cancelled = baseList.filter(a => a.status === 'cancelled').length;
 
     document.getElementById('countAll').textContent = total;
     document.getElementById('countConfirmed').textContent = confirmed;
@@ -654,6 +706,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('countPending').textContent = pending;
     document.getElementById('countCompleted').textContent = completed;
     document.getElementById('countNoShow').textContent = noShow;
+    const cancEl = document.getElementById('countCancelled');
+    if (cancEl) cancEl.textContent = cancelled;
   }
 
   // ── 1. RENDER MONTH VIEW ───────────────────────────────────────
@@ -978,24 +1032,104 @@ document.addEventListener('DOMContentLoaded', function() {
   // ── 4. RENDER QUEUE / TABLE VIEW ───────────────────────────────
   function renderTable() {
     tableBody.innerHTML = '';
-    const filteredAppts = getFilteredAppointments();
+    const todayIso = formatDateIso(new Date());
 
-    calTitle.textContent = 'Patient Appointment Queue';
-    calSubtitle.textContent = `Queue List &middot; ${filteredAppts.length} record(s)`;
+    // 1. Filter by Queue Segment
+    let segmentAppts = rawAppointments.filter(appt => {
+      const isPastDate = (appt.appointment_date < todayIso);
+      const isToday = (appt.appointment_date === todayIso);
+      const isFutureDate = (appt.appointment_date > todayIso);
+      const isFinished = (appt.status === 'completed' || appt.status === 'cancelled' || appt.status === 'no_show');
 
-    if (filteredAppts.length === 0) {
+      if (queueSegment === 'current') {
+        if (currentFilter !== 'all') {
+          return isToday && (appt.status === currentFilter);
+        }
+        return isToday && !isFinished;
+      } else if (queueSegment === 'upcoming') {
+        if (currentFilter !== 'all') {
+          return isFutureDate && (appt.status === currentFilter);
+        }
+        return isFutureDate && !isFinished;
+      } else if (queueSegment === 'history') {
+        if (currentFilter !== 'all') {
+          return (isPastDate || isFinished) && (appt.status === currentFilter);
+        }
+        return isPastDate || isFinished;
+      }
+      return true;
+    });
+
+    // 2. Filter by search query
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      segmentAppts = segmentAppts.filter(appt => {
+        const patientName = (appt.patient_name || '').toLowerCase();
+        const phone = (appt.patient_phone || '').toLowerCase();
+        const purpose = (appt.purpose || '').toLowerCase();
+        const notes = (appt.notes || '').toLowerCase();
+        return patientName.includes(q) || phone.includes(q) || purpose.includes(q) || notes.includes(q);
+      });
+    }
+
+    // 3. Dynamic Title & Subtitle based on Queue Segment
+    if (queueSegment === 'current') {
+      calTitle.textContent = 'Current Appointments';
+      calSubtitle.innerHTML = `Today's Active Queue &middot; ${segmentAppts.length} record(s)`;
+    } else if (queueSegment === 'upcoming') {
+      calTitle.textContent = 'Upcoming Appointments';
+      calSubtitle.innerHTML = `Future Scheduled Appointments &middot; ${segmentAppts.length} record(s)`;
+    } else if (queueSegment === 'history') {
+      calTitle.textContent = 'Past Due & Done Appointments';
+      calSubtitle.innerHTML = `Past Due &amp; Completed Records &middot; ${segmentAppts.length} record(s)`;
+    }
+
+    // 4. Sort order tailored to segment
+    segmentAppts.sort((a, b) => {
+      if (queueSegment === 'history') {
+        if (a.appointment_date !== b.appointment_date) {
+          return b.appointment_date.localeCompare(a.appointment_date);
+        }
+        return (b.appointment_time || '').localeCompare(a.appointment_time || '');
+      } else {
+        if (a.appointment_date !== b.appointment_date) {
+          return a.appointment_date.localeCompare(b.appointment_date);
+        }
+        return (a.appointment_time || '').localeCompare(b.appointment_time || '');
+      }
+    });
+
+    // 5. Empty State
+    if (segmentAppts.length === 0) {
+      let emptyMsg = 'No matching appointments in this queue.';
+      let emptyIcon = 'fa-search';
+      if (queueSegment === 'current') {
+        emptyMsg = 'No active appointments in queue for today.';
+        emptyIcon = 'fa-user-clock';
+      } else if (queueSegment === 'upcoming') {
+        emptyMsg = 'No upcoming appointments scheduled.';
+        emptyIcon = 'fa-calendar-alt';
+      } else if (queueSegment === 'history') {
+        emptyMsg = 'No past due or completed appointments found.';
+        emptyIcon = 'fa-history';
+      }
+
       tableBody.innerHTML = `
         <tr>
-          <td colspan="9" class="text-center py-4 text-muted">
-            <i class="fas fa-search me-1"></i> No matching appointments in queue.
+          <td colspan="9" class="text-center py-5 text-muted">
+            <div class="mb-2"><i class="fas ${emptyIcon} fa-2x opacity-50"></i></div>
+            <div class="fw-semibold">${emptyMsg}</div>
           </td>
         </tr>
       `;
       return;
     }
 
-    filteredAppts.forEach((appt, idx) => {
+    // 6. Render Rows
+    segmentAppts.forEach((appt, idx) => {
       const isWalkin = (appt.appointment_type === 'WALK_IN');
+      const isPastDate = (appt.appointment_date < todayIso);
+      const isUnfinishedPast = isPastDate && (appt.status !== 'completed' && appt.status !== 'cancelled' && appt.status !== 'no_show');
       const tr = document.createElement('tr');
       const apptDateObj = new Date(appt.appointment_date + 'T00:00:00');
 
@@ -1009,7 +1143,10 @@ document.addEventListener('DOMContentLoaded', function() {
           <small class="text-muted">${escapeHtml(appt.patient_phone || '')}</small>
         </td>
         <td>${escapeHtml(appt.patient_phone || '—')}</td>
-        <td>${formatDisplayDate(apptDateObj)}</td>
+        <td>
+          ${formatDisplayDate(apptDateObj)}
+          ${isUnfinishedPast ? '<span class="cal-past-due-badge ms-1"><i class="fas fa-exclamation-circle"></i> Past Due</span>' : ''}
+        </td>
         <td class="fw-bold text-primary">${formatTime12(appt.appointment_time)}</td>
         <td>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</td>
         <td class="text-muted small">${escapeHtml(appt.notes || '—')}</td>
@@ -1048,10 +1185,30 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (currentView === 'table') renderTable();
   }
 
+  // ── Queue Segment Tabs ─────────────────────────────────────────
+  const queueTabBtns = document.querySelectorAll('.cal-queue-tab-btn');
+  queueTabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      queueTabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      queueSegment = btn.dataset.segment;
+      // Reset status filter to 'all' so user sees full segment list
+      currentFilter = 'all';
+      filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+      render();
+    });
+  });
+
   // ── Navigation Buttons ─────────────────────────────────────────
   btnToday.addEventListener('click', () => {
     currentDate = new Date();
     selectedDateStr = formatDateIso(new Date());
+    if (currentView === 'table') {
+      queueSegment = 'current';
+      queueTabBtns.forEach(b => b.classList.toggle('active', b.dataset.segment === 'current'));
+      currentFilter = 'all';
+      filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+    }
     render();
   });
 
@@ -1080,6 +1237,10 @@ document.addEventListener('DOMContentLoaded', function() {
       allViewBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentView = btn.dataset.view;
+      if (currentView === 'table') {
+        currentFilter = 'all';
+        filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+      }
       render();
     });
   });

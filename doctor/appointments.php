@@ -1669,13 +1669,31 @@ document.addEventListener('DOMContentLoaded', function() {
             const yearSelect = document.createElement('select');
             yearSelect.className = 'flatpickr-year-dropdown';
             const curYear = new Date().getFullYear();
-            for (let y = curYear; y >= 1900; y--) {
-              const opt = document.createElement('option');
-              opt.value = y;
-              opt.textContent = y;
-              if (y === fp.currentYear) opt.selected = true;
-              yearSelect.appendChild(opt);
-            }
+
+            const decades = [
+              { label: '2020s', from: curYear, to: 2020 },
+              { label: '2010s', from: 2019, to: 2010 },
+              { label: '2000s', from: 2009, to: 2000 },
+              { label: '1990s', from: 1999, to: 1990 },
+              { label: '1980s', from: 1989, to: 1980 },
+              { label: '1970s', from: 1979, to: 1970 },
+              { label: '1960s', from: 1969, to: 1960 },
+              { label: '1950s & Earlier', from: 1959, to: 1900 }
+            ];
+
+            decades.forEach(dec => {
+              const grp = document.createElement('optgroup');
+              grp.label = dec.label;
+              for (let y = dec.from; y >= dec.to; y--) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                if (y === fp.currentYear) opt.selected = true;
+                grp.appendChild(opt);
+              }
+              yearSelect.appendChild(grp);
+            });
+
             yearSelect.addEventListener('change', function() {
               const chosenYear = parseInt(this.value, 10);
               fp.jumpToDate(new Date(chosenYear, fp.currentMonth, 1));
@@ -1683,7 +1701,7 @@ document.addEventListener('DOMContentLoaded', function() {
             monthElem.appendChild(yearSelect);
 
             const numWrap = monthElem.querySelector('.numInputWrapper');
-            if (numWrap) numWrap.style.display = 'none';
+            if (numWrap) numWrap.remove();
           }
         },
         onMonthChange: function(selectedDates, dateStr, fp) {

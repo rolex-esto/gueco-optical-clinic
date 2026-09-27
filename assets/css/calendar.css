@@ -1228,27 +1228,70 @@ html:not([data-theme="dark"]) .flatpickr-months .flatpickr-month,
 }
 .flatpickr-current-month select.flatpickr-monthDropdown-months,
 .flatpickr-current-month select.flatpickr-year-dropdown {
-  font-weight: 800 !important;
-  background: rgba(255, 255, 255, 0.08) !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  font-weight: 700 !important;
+  font-family: 'Plus Jakarta Sans', 'Poppins', sans-serif !important;
   cursor: pointer !important;
   border-radius: 8px !important;
-  padding: 4px 8px !important;
   font-size: 0.88rem !important;
-  width: auto !important;
   outline: none !important;
   display: inline-block !important;
   transition: all .15s ease !important;
+  height: 34px !important;
+  line-height: 22px !important;
+  vertical-align: middle !important;
 }
+
+.flatpickr-current-month select.flatpickr-monthDropdown-months {
+  padding: 4px 10px !important;
+  min-width: 110px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
 html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-monthDropdown-months,
-html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dropdown,
-[data-theme="light"] .flatpickr-current-month select.flatpickr-monthDropdown-months,
-[data-theme="light"] .flatpickr-current-month select.flatpickr-year-dropdown {
+[data-theme="light"] .flatpickr-current-month select.flatpickr-monthDropdown-months {
   background: #f1f5f9 !important;
   color: #0f172a !important;
   border: 1px solid #cbd5e1 !important;
 }
+
+.flatpickr-current-month select.flatpickr-year-dropdown {
+  padding: 4px 26px 4px 10px !important;
+  min-width: 95px !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 8px center !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dropdown,
+[data-theme="light"] .flatpickr-current-month select.flatpickr-year-dropdown {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.flatpickr-current-month select.flatpickr-year-dropdown optgroup {
+  font-weight: 800 !important;
+  color: #38bdf8 !important;
+  background: #142036 !important;
+  font-size: 0.8rem !important;
+  padding: 4px 2px !important;
+}
+
+html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dropdown optgroup,
+[data-theme="light"] .flatpickr-current-month select.flatpickr-year-dropdown optgroup {
+  color: #0284c7 !important;
+  background: #f1f5f9 !important;
+}
+
 .flatpickr-current-month select.flatpickr-monthDropdown-months option,
 .flatpickr-current-month select.flatpickr-year-dropdown option {
   background: #142036 !important;
@@ -1261,22 +1304,17 @@ html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dro
   background: #ffffff !important;
   color: #0f172a !important;
 }
-.flatpickr-current-month .numInputWrapper {
-  width: 76px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  border-radius: 8px !important;
-}
+/* Hide the redundant default year number input completely */
+.flatpickr-current-month .numInputWrapper,
 .flatpickr-current-month input.cur-year {
-  font-weight: 800 !important;
-  font-size: 0.88rem !important;
-  color: inherit !important;
-  border-radius: 8px !important;
+  display: none !important;
 }
 .flatpickr-months .flatpickr-prev-month,
 .flatpickr-months .flatpickr-next-month {
-  width: 32px !important;
-  height: 32px !important;
+  position: static !important;
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
   border-radius: 8px !important;
   display: flex !important;
   align-items: center !important;
@@ -1285,6 +1323,7 @@ html:not([data-theme="dark"]) .flatpickr-current-month select.flatpickr-year-dro
   transition: all .2s ease !important;
   color: #38bdf8 !important;
   fill: #38bdf8 !important;
+  z-index: 5 !important;
 }
 html:not([data-theme="dark"]) .flatpickr-months .flatpickr-prev-month,
 html:not([data-theme="dark"]) .flatpickr-months .flatpickr-next-month,

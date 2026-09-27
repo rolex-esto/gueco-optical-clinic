@@ -6,6 +6,7 @@ header('Content-Type: application/json');
 
 try {
     $db = getDB();
+    ensureAppointmentsSchema($db);
     
     $start = $_GET['start'] ?? null;
     $end = $_GET['end'] ?? null;

@@ -7,6 +7,7 @@ $pageTitle  = 'Point of Sale';
 $breadcrumb = ['Saleslady', 'POS'];
 $db = getDB();
 ensureJobOrderSchema($db);
+ensureAppointmentsSchema($db);
 
 // Process sale submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'process_sale') {
@@ -256,28 +257,35 @@ $categories = $db->query("SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.c
 $allProducts = $db->query("SELECT p.id,p.name,p.price,p.stock_quantity,p.tier,c.name as category FROM products p JOIN categories c ON c.id=p.category_id WHERE p.status='active' AND p.stock_quantity>0 ORDER BY c.name,p.name")->fetchAll();
 
 $today = date('Y-m-d');
-$activeAppointments = $db->query("
-    SELECT a.id as appointment_id,
-           a.patient_id,
-           a.appointment_type,
-           a.status,
-           a.appointment_time,
-           p.full_name,
-           p.phone,
-           (SELECT rx.id FROM prescriptions rx WHERE rx.patient_id = a.patient_id ORDER BY rx.created_at DESC LIMIT 1) as latest_rx_id
-    FROM appointments a
-    JOIN patients p ON p.id = a.patient_id
-    WHERE a.appointment_date = '$today'
-      AND a.status IN ('confirmed', 'in_progress', 'completed')
-    ORDER BY 
-        CASE a.status
-            WHEN 'completed' THEN 1
-            WHEN 'in_progress' THEN 2
-            WHEN 'confirmed' THEN 3
-            ELSE 4
-        END,
-        a.appointment_time DESC
-")->fetchAll(PDO::FETCH_ASSOC);
+$activeAppointments = [];
+try {
+    ensureAppointmentsSchema($db);
+    $activeAppointments = $db->query("
+        SELECT a.id as appointment_id,
+               a.patient_id,
+               a.appointment_type,
+               a.status,
+               a.appointment_time,
+               p.full_name,
+               p.phone,
+               (SELECT rx.id FROM prescriptions rx WHERE rx.patient_id = a.patient_id ORDER BY rx.created_at DESC LIMIT 1) as latest_rx_id
+        FROM appointments a
+        JOIN patients p ON p.id = a.patient_id
+        WHERE a.appointment_date = '$today'
+          AND a.status IN ('confirmed', 'in_progress', 'completed')
+        ORDER BY 
+            CASE a.status
+                WHEN 'completed' THEN 1
+                WHEN 'in_progress' THEN 2
+                WHEN 'confirmed' THEN 3
+                ELSE 4
+            END,
+            a.appointment_time DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+    error_log("POS activeAppointments query error: " . $e->getMessage());
+    $activeAppointments = [];
+}
 
 $patients = $db->query("SELECT id, full_name, phone FROM patients WHERE status='active' ORDER BY full_name")->fetchAll();
 $selectedPatientId = (int)($_GET['patient_id'] ?? 0);

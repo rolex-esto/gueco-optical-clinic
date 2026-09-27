@@ -180,6 +180,34 @@ function ensureCertificateSchema(?PDO $db = null): void {
     }
 }
 
+function ensureAppointmentsSchema(?PDO $db = null): void {
+    static $checked = false;
+    if ($checked) return;
+    try {
+        if (!$db) {
+            $db = getDB();
+        }
+        $colStmt = $db->query("SHOW COLUMNS FROM appointments");
+        if ($colStmt) {
+            $cols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('appointment_type', $cols)) {
+                $db->exec("ALTER TABLE appointments ADD COLUMN appointment_type VARCHAR(20) NOT NULL DEFAULT 'SCHEDULED' AFTER appointment_time");
+            }
+        }
+        $statusStmt = $db->query("SHOW COLUMNS FROM appointments LIKE 'status'");
+        if ($statusStmt) {
+            $statusRow = $statusStmt->fetch(PDO::FETCH_ASSOC);
+            $typeStr = $statusRow['Type'] ?? '';
+            if (strpos($typeStr, "'in_progress'") === false) {
+                $db->exec("ALTER TABLE appointments MODIFY COLUMN status ENUM('pending','confirmed','in_progress','completed','cancelled','no_show') DEFAULT 'pending'");
+            }
+        }
+        $checked = true;
+    } catch (Exception $e) {
+        error_log("Failed to ensure appointments schema: " . $e->getMessage());
+    }
+}
+
 function ensureJobOrderSchema(?PDO $db = null): void {
     static $checked = false;
     if ($checked) return;
@@ -187,6 +215,7 @@ function ensureJobOrderSchema(?PDO $db = null): void {
         if (!$db) {
             $db = getDB();
         }
+        ensureAppointmentsSchema($db);
         $colStmt = $db->query("SHOW COLUMNS FROM sales");
         if ($colStmt) {
             $cols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
@@ -482,6 +511,7 @@ function validateWalkinPatientData(array $data): array {
  * @return array ['success' => bool, 'error' => ?string, 'patient_id' => int, 'appointment_id' => int, 'status' => string]
  */
 function createWalkinAppointment(PDO $db, array $patientInput, string $initialStatus = 'confirmed', int $staffUserId = 0, string $purpose = 'consultation'): array {
+    ensureAppointmentsSchema($db);
     $initialStatus = strtolower(trim($initialStatus));
     // Walk-ins must NEVER be 'pending'. Default to 'confirmed' if invalid or pending passed.
     if ($initialStatus !== 'in_progress') {

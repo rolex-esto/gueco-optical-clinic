@@ -7,6 +7,7 @@ header('Content-Type: application/json');
 
 try {
     $db = getDB();
+    ensureAppointmentsSchema($db);
     $today = date('Y-m-d');
 
     // Query all appointments for TODAY where status is active

@@ -7,6 +7,7 @@ $pageTitle  = 'Appointments';
 $breadcrumb = ['Doctor', 'Appointments Calendar'];
 $activeNav  = 'appointments';
 $db = getDB();
+ensureAppointmentsSchema($db);
 $today = date('Y-m-d');
 
 // Handle status updates

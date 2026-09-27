@@ -21,6 +21,9 @@ if (!preg_match('/^\d{4}-\d{2}$/', $selectedMonth)) {
 $isCurrentMonth = ($selectedMonth === date('Y-m'));
 $monthName = date('F Y', strtotime($selectedMonth . '-01'));
 
+$startOfMonth = $selectedMonth . '-01';
+$endOfMonth   = date('Y-m-t', strtotime($startOfMonth));
+
 $monthlySalesTotal = 0.0;
 $monthSalesCount   = 0;
 $sales7            = [];
@@ -31,15 +34,15 @@ $appointments      = [];
 $lowStockItems     = [];
 $recentSales       = [];
 
-// 1. Monthly Sales for the selected month
+// 1. Monthly Sales for the selected month (uses robust date range)
 try {
     $monthSalesStmt = $db->prepare("
         SELECT COALESCE(SUM(total),0) as total, COUNT(*) as count 
         FROM sales 
-        WHERE DATE_FORMAT(created_at, '%Y-%m') = ? 
+        WHERE DATE(created_at) BETWEEN ? AND ? 
           AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided', 'refunded', 'cancelled'))
     ");
-    $monthSalesStmt->execute([$selectedMonth]);
+    $monthSalesStmt->execute([$startOfMonth, $endOfMonth]);
     $monthSalesData = $monthSalesStmt->fetch();
     $monthlySalesTotal = (float)($monthSalesData['total'] ?? 0);
     $monthSalesCount   = (int)($monthSalesData['count'] ?? 0);
@@ -77,17 +80,17 @@ try {
                ), 0), 2) as total
         FROM sale_items si
         JOIN sales s ON s.id = si.sale_id 
-          AND (s.status = 'completed' OR s.status IS NULL OR s.status = '' OR s.status NOT IN ('voided', 'refunded', 'cancelled')) 
-          AND DATE_FORMAT(s.created_at, '%Y-%m') = ?
         LEFT JOIN products p ON p.id = si.product_id
         LEFT JOIN categories c ON c.id = p.category_id
+        WHERE DATE(s.created_at) BETWEEN ? AND ?
+          AND (s.status = 'completed' OR s.status IS NULL OR s.status = '' OR s.status NOT IN ('voided', 'refunded', 'cancelled')) 
         GROUP BY name
-        HAVING total > 0
         ORDER BY total DESC
         LIMIT 8
     ");
-    $catStmt->execute([$selectedMonth]);
-    $catSales = $catStmt->fetchAll() ?: [];
+    $catStmt->execute([$startOfMonth, $endOfMonth]);
+    $rawCatSales = $catStmt->fetchAll() ?: [];
+    $catSales = array_values(array_filter($rawCatSales, fn($row) => (float)($row['total'] ?? 0) > 0));
 
     // Fallback: If item rows not found but monthly total exists, show General Sales
     if (empty($catSales) && $monthlySalesTotal > 0) {
@@ -115,16 +118,16 @@ try {
                ), 0), 2) as total
         FROM sale_items si
         JOIN sales s ON s.id = si.sale_id 
-          AND (s.status = 'completed' OR s.status IS NULL OR s.status = '' OR s.status NOT IN ('voided', 'refunded', 'cancelled')) 
-          AND DATE_FORMAT(s.created_at, '%Y-%m') = ?
         LEFT JOIN products p ON p.id = si.product_id
+        WHERE DATE(s.created_at) BETWEEN ? AND ?
+          AND (s.status = 'completed' OR s.status IS NULL OR s.status = '' OR s.status NOT IN ('voided', 'refunded', 'cancelled')) 
         GROUP BY name
-        HAVING total > 0
         ORDER BY total DESC
         LIMIT 8
     ");
-    $prodStmt->execute([$selectedMonth]);
-    $prodSales = $prodStmt->fetchAll() ?: [];
+    $prodStmt->execute([$startOfMonth, $endOfMonth]);
+    $rawProdSales = $prodStmt->fetchAll() ?: [];
+    $prodSales = array_values(array_filter($rawProdSales, fn($row) => (float)($row['total'] ?? 0) > 0));
 
     // Fallback: If item rows not found but monthly total exists, show General Transactions
     if (empty($prodSales) && $monthlySalesTotal > 0) {

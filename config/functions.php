@@ -883,8 +883,10 @@ function getDashboardStats(): array {
     $lowStock = $stmt->fetch()['cnt'];
 
     // Monthly sales
-    $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as total FROM sales WHERE MONTH(created_at) = MONTH(?) AND YEAR(created_at) = YEAR(?) AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided','refunded','cancelled'))");
-    $stmt->execute([$today, $today]);
+    $startMonth = date('Y-m-01');
+    $endMonth   = date('Y-m-t');
+    $stmt = $db->prepare("SELECT COALESCE(SUM(total),0) as total FROM sales WHERE DATE(created_at) BETWEEN ? AND ? AND (status = 'completed' OR status IS NULL OR status = '' OR status NOT IN ('voided','refunded','cancelled'))");
+    $stmt->execute([$startMonth, $endMonth]);
     $monthlySales = $stmt->fetch()['total'];
 
     // Pending appointments

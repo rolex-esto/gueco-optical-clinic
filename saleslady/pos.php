@@ -28,6 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
     $patientPhone     = sanitize($_POST['patient_phone'] ?? '');
     $appointmentId    = (int)($_POST['appointment_id'] ?? 0) ?: null;
 
+    // If generating a job order and prescription_id wasn't directly sent, link latest prescription silently
+    if ($generateJobOrder === 1 && $prescriptionId === null && $patientId > 0) {
+        $latestRxStmt = $db->prepare("SELECT id FROM prescriptions WHERE patient_id=? ORDER BY created_at DESC LIMIT 1");
+        $latestRxStmt->execute([$patientId]);
+        $prescriptionId = $latestRxStmt->fetchColumn() ?: null;
+    }
+
     if (empty($items)) {
         echo json_encode(['success'=>false,'error'=>'Cart is empty. Please add items to proceed.']);
         exit;
@@ -758,7 +765,7 @@ include __DIR__ . '/../includes/header.php';
       <!-- Live Consultation / Queue Status Indicator -->
       <div id="patientStatusBanner" style="display:none; margin-bottom:10px;"></div>
 
-      <!-- Doctor Prescription Available Banner with 1-Click Import -->
+      <!-- Doctor Prescription Available Banner with 1-Click Import (Sensitive Clinical Refraction Hidden) -->
       <div id="rxImportCard" class="card p-2 mb-2" style="display:none; background:rgba(37,99,235,0.06); border:1px solid rgba(37,99,235,0.3); border-radius:10px;">
         <div class="d-flex justify-content-between align-items-center mb-1">
           <span style="font-weight:700; font-size:0.78rem; color:var(--clr-primary);">
@@ -766,11 +773,8 @@ include __DIR__ . '/../includes/header.php';
           </span>
           <span class="badge bg-primary" id="rxDoctorBadge" style="font-size:0.65rem;">Dr. Attending</span>
         </div>
-        <div style="font-size:0.72rem; color:var(--text-main); font-family:monospace; background:var(--bg-card); padding:4px 8px; border-radius:6px; border:1px solid var(--border-light);" id="rxSummaryText">
-          OD: Plano | OS: Plano | PD: 62 mm
-        </div>
-        <div style="font-size:0.68rem; color:var(--text-muted); margin-top:3px;" id="rxLensType">
-          Lens: Single Vision Multi-coated
+        <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:2px;" id="rxLensType">
+          Recommended Lens: Single Vision Multi-coated
         </div>
         <button type="button" class="btn btn-sm btn-primary mt-2 w-100 py-1" id="btnImportRx" onclick="importRxToCart()">
           <i class="fas fa-file-import me-1"></i> 1-Click Import Rx to Cart
@@ -1167,7 +1171,7 @@ patientSelect.addEventListener('change', async function() {
     statusBanner.style.display = 'block';
     statusBanner.innerHTML = `
       <div class="alert alert-success py-1 px-2 mb-0 d-flex justify-content-between align-items-center" style="font-size:0.75rem; border-radius:8px;">
-        <span class="text-dark"><i class="fas fa-check-circle me-1 text-success"></i> <strong>Ready for Dispensing:</strong> Doctor finished consultation & refraction.</span>
+        <span class="text-dark"><i class="fas fa-check-circle me-1 text-success"></i> <strong>Ready for Dispensing:</strong> Doctor finished consultation.</span>
         <span class="badge bg-success"><i class="fas fa-check-double me-1"></i>Ready for Billing</span>
       </div>
     `;
@@ -1184,7 +1188,7 @@ patientSelect.addEventListener('change', async function() {
     statusBanner.innerHTML = '';
   }
 
-  // 2. Prescription Lookup Shortcut
+  // 2. Prescription Lookup Shortcut (Sensitive OD/OS/PD data is kept private for optometrist)
   if (patientId) {
     try {
       const res = await fetch('../api/get_patient_rx.php?patient_id=' + patientId);
@@ -1192,20 +1196,19 @@ patientSelect.addEventListener('change', async function() {
       if (data.success && data.has_rx) {
         activePatientRx = data.rx;
         document.getElementById('rxDoctorBadge').textContent = 'Dr. ' + (data.rx.doctor_name || 'Optometrist');
-        document.getElementById('rxSummaryText').textContent = `OD: ${data.rx.od_summary} | OS: ${data.rx.os_summary} | PD: ${data.rx.pd_summary}`;
-        document.getElementById('rxLensType').textContent = 'Lens Type: ' + (data.rx.lens_type || 'Single Vision Multi-coated');
-        rxImportCard.style.display = 'block';
+        document.getElementById('rxLensType').textContent = 'Recommended Lens: ' + (data.rx.lens_type || 'Single Vision Multi-coated');
+        if (rxImportCard) rxImportCard.style.display = 'block';
       } else {
         activePatientRx = null;
-        rxImportCard.style.display = 'none';
+        if (rxImportCard) rxImportCard.style.display = 'none';
       }
     } catch (e) {
-      console.log('Rx fetch error:', e);
-      rxImportCard.style.display = 'none';
+      activePatientRx = null;
+      if (rxImportCard) rxImportCard.style.display = 'none';
     }
   } else {
     activePatientRx = null;
-    rxImportCard.style.display = 'none';
+    if (rxImportCard) rxImportCard.style.display = 'none';
   }
 });
 
@@ -1393,7 +1396,7 @@ window.addEventListener('scroll', () => { if (_ddOpen) {
   }
 })();
 
-// 1-Click Import Rx into POS Cart
+// 1-Click Import Rx into POS Cart (Sensitive clinical refraction measurements kept private)
 function importRxToCart() {
   if (!activePatientRx) {
     showToast('No active prescription available to import.', 'warning');
@@ -1408,7 +1411,7 @@ function importRxToCart() {
     return;
   }
 
-  const lensName = `Prescription Lenses (${activePatientRx.lens_type || 'Multicoated'} - ${activePatientRx.od_summary} / ${activePatientRx.os_summary})`;
+  const lensName = `Prescription Lenses (${activePatientRx.lens_type || 'Single Vision Multi-coated'})`;
   cart.push({
     id: rxItemId,
     name: lensName,
@@ -1417,16 +1420,18 @@ function importRxToCart() {
     qty: 1,
     is_rx: true,
     rx_id: activePatientRx.id,
-    notes: `OD: ${activePatientRx.od_summary} | OS: ${activePatientRx.os_summary} | PD: ${activePatientRx.pd_summary} | Dr: ${activePatientRx.doctor_name}`
+    notes: `Prescription #${activePatientRx.id} · Refraction on file`
   });
 
   // Automatically enable Optical Job Order
   const chkJob = document.getElementById('chkGenerateJobOrder');
-  chkJob.checked = true;
-  toggleJobOrderPanel();
+  if (chkJob) {
+    chkJob.checked = true;
+    toggleJobOrderPanel();
+  }
 
   renderCart();
-  showToast('Prescription parameters imported into cart!', 'success');
+  showToast('Prescription lenses imported into cart!', 'success');
 }
 
 // ── Optical Job Order Controls ──────────────────────────────
@@ -1587,7 +1592,7 @@ async function processCheckout() {
       document.getElementById('chkGenerateJobOrder').checked = false;
       document.getElementById('jobOrderPanel').style.display = 'none';
       statusBanner.style.display = 'none';
-      rxImportCard.style.display = 'none';
+      if (rxImportCard) rxImportCard.style.display = 'none';
       activePatientRx = null;
       activeAppointmentId = null;
       recalculate();

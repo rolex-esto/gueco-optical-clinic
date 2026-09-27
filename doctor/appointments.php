@@ -141,6 +141,8 @@ $pendingCount = $pendingCountStmt->fetch()['c'];
 
 $extraHead = '<link rel="stylesheet" href="' . BASE_URL . 'assets/css/calendar.css?v=' . time() . '">';
 $extraHead .= '<link rel="stylesheet" href="'.BASE_URL.'assets/css/pages/dashboard.css?v='.time().'">';
+$extraHead .= '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">';
+$extraHead .= '<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>';
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -559,14 +561,24 @@ include __DIR__ . '/../includes/header.php';
           <div id="walkinAlert" class="alert alert-danger py-2 px-3 mb-3 d-none" style="font-size:0.85rem;"></div>
 
           <div class="row g-3">
-            <div class="col-md-7">
-              <label class="form-label small fw-bold text-muted text-uppercase">Full Name <span class="text-danger">*</span></label>
-              <input type="text" name="full_name" id="walkinInputFullName" class="form-control" placeholder="e.g. Juan Dela Cruz" required maxlength="100">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold text-muted text-uppercase">Last Name <span class="text-danger">*</span></label>
+              <input type="text" name="last_name" id="walkinInputLastName" class="form-control alpha-only" placeholder="e.g. Dela Cruz" required maxlength="50" autocomplete="off">
             </div>
 
-            <div class="col-md-5">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold text-muted text-uppercase">First Name <span class="text-danger">*</span></label>
+              <input type="text" name="first_name" id="walkinInputFirstName" class="form-control alpha-only" placeholder="e.g. Juan" required maxlength="50" autocomplete="off">
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label small fw-bold text-muted text-uppercase">Middle Name</label>
+              <input type="text" name="middle_name" id="walkinInputMiddleName" class="form-control alpha-only" placeholder="e.g. Santos" maxlength="50" autocomplete="off">
+            </div>
+
+            <div class="col-md-6">
               <label class="form-label small fw-bold text-muted text-uppercase">Mobile Number (09XXXXXXXXX) <span class="text-danger">*</span></label>
-              <input type="tel" name="phone" id="walkinInputPhone" class="form-control" placeholder="09XXXXXXXXX" required maxlength="11" inputmode="numeric">
+              <input type="tel" name="phone" id="walkinInputPhone" class="form-control numeric-only" placeholder="09XXXXXXXXX" required maxlength="11" inputmode="numeric" autocomplete="tel">
             </div>
 
             <div class="col-md-6">
@@ -574,24 +586,24 @@ include __DIR__ . '/../includes/header.php';
               <input type="email" name="email" id="walkinInputEmail" class="form-control" placeholder="Leave blank if none">
             </div>
 
-            <div class="col-md-3">
-              <label class="form-label small fw-bold text-muted text-uppercase">Gender</label>
+            <div class="col-md-5">
+              <label class="form-label small fw-bold text-muted text-uppercase">Sex</label>
               <select name="gender" id="walkinInputGender" class="form-select">
-                <option value="">Select</option>
+                <option value="">Select Sex</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
                 <option value="other">Other</option>
               </select>
             </div>
 
-            <div class="col-md-3">
+            <div class="col-md-7">
               <label class="form-label small fw-bold text-muted text-uppercase">Birthdate</label>
-              <input type="date" name="birthdate" id="walkinInputBirthdate" class="form-control" max="<?= date('Y-m-d') ?>">
+              <input type="text" name="birthdate" id="walkinInputBirthdate" class="form-control modern-birthdate-picker" placeholder="Select birthdate (Month / Day / Year)">
             </div>
 
             <div class="col-12">
-              <label class="form-label small fw-bold text-muted text-uppercase">Address (Optional)</label>
-              <input type="text" name="address" id="walkinInputAddress" class="form-control" placeholder="Barangay, City / Municipality">
+              <label class="form-label small fw-bold text-muted text-uppercase">Address <span class="text-danger">*</span></label>
+              <input type="text" name="address" id="walkinInputAddress" class="form-control" placeholder="Barangay, City / Municipality, Province" required maxlength="255">
             </div>
 
             <div class="col-md-6">
@@ -1613,6 +1625,48 @@ document.addEventListener('DOMContentLoaded', function() {
     const walkinAlert = document.getElementById('walkinAlert');
     const btnSubmitWalkin = document.getElementById('btnSubmitWalkin');
 
+    // Flatpickr Modern Birthdate Picker
+    let walkinBirthPicker = null;
+    const birthEl = document.getElementById('walkinInputBirthdate');
+    if (birthEl && typeof flatpickr !== 'undefined') {
+      walkinBirthPicker = flatpickr(birthEl, {
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'F j, Y',
+        altInputClass: 'form-control modern-birthdate-picker',
+        maxDate: 'today',
+        monthSelectorType: 'dropdown',
+        disableMobile: true,
+        placeholder: 'Select birthdate (Month / Day / Year)'
+      });
+    }
+
+    // Strict Alphabetical-Only restriction for Name fields (no numbers or special chars)
+    const alphaInputs = formRegisterWalkin.querySelectorAll('.alpha-only');
+    alphaInputs.forEach(input => {
+      input.addEventListener('input', function() {
+        this.value = this.value.replace(/[^a-zA-Z\sñÑáéíóúÁÉÍÓÚ]/g, '');
+      });
+      input.addEventListener('keypress', function(e) {
+        if (!/^[a-zA-Z\sñÑáéíóúÁÉÍÓÚ]$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+          e.preventDefault();
+        }
+      });
+    });
+
+    // Strict Numeric-Only restriction for Mobile Number
+    const numericInputs = formRegisterWalkin.querySelectorAll('.numeric-only');
+    numericInputs.forEach(input => {
+      input.addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);
+      });
+      input.addEventListener('keypress', function(e) {
+        if (!/^[0-9]$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+          e.preventDefault();
+        }
+      });
+    });
+
     formRegisterWalkin.addEventListener('submit', function(e) {
       e.preventDefault();
       if (walkinAlert) {
@@ -1654,6 +1708,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const modalInstance = bootstrap.Modal.getInstance(registerModalEl);
         if (modalInstance) modalInstance.hide();
         formRegisterWalkin.reset();
+        if (walkinBirthPicker) walkinBirthPicker.clear();
 
         // 3. If direct to doctor, open consultation modal immediately
         if (data.appointment && data.appointment.status === 'in_progress') {

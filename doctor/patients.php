@@ -296,39 +296,49 @@ include __DIR__ . '/../includes/header.php';
       <div class="modal-body">
         <div id="walkinFormAlert" class="alert alert-danger py-2 px-3 mb-3 d-none small"></div>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Full Name <span class="text-danger">*</span></label>
-          <input type="text" name="full_name" id="walkinFullName" class="form-control" required minlength="3" maxlength="100" placeholder="e.g. Juan Dela Cruz" autocomplete="off">
-          <small class="text-muted d-block mt-1">Please enter both First Name and Last Name (letters only).</small>
-          <div class="invalid-feedback" id="feedbackFullName">Please enter a valid patient name (at least 2 words, no numbers or repetitive letters).</div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-4">
+            <label class="form-label fw-bold small text-uppercase">Last Name <span class="text-danger">*</span></label>
+            <input type="text" name="last_name" id="walkinLastName" class="form-control alpha-only" required maxlength="50" placeholder="e.g. Dela Cruz" autocomplete="off">
+            <div class="invalid-feedback" id="feedbackLastName">Please enter a valid last name (letters only).</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold small text-uppercase">First Name <span class="text-danger">*</span></label>
+            <input type="text" name="first_name" id="walkinFirstName" class="form-control alpha-only" required maxlength="50" placeholder="e.g. Juan" autocomplete="off">
+            <div class="invalid-feedback" id="feedbackFirstName">Please enter a valid first name (letters only).</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold small text-uppercase">Middle Name</label>
+            <input type="text" name="middle_name" id="walkinMiddleName" class="form-control alpha-only" maxlength="50" placeholder="e.g. Santos" autocomplete="off">
+          </div>
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Email (Optional)</label>
+          <label class="form-label fw-bold small text-uppercase">Mobile Number (09XXXXXXXXX) <span class="text-danger">*</span></label>
+          <input type="tel" name="phone" id="walkinPhone" class="form-control numeric-only" placeholder="09XXXXXXXXX" required maxlength="11" inputmode="numeric">
+          <small class="text-muted d-block mt-1">11-digit Philippine mobile number starting with 09 (e.g. 09171234567).</small>
+          <div class="invalid-feedback" id="feedbackPhone">Phone must be an 11-digit number starting with 09.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold small text-uppercase">Email (Optional)</label>
           <input type="email" name="email" id="walkinEmail" class="form-control" placeholder="Leave blank if unknown" maxlength="100" autocomplete="off">
           <small class="text-muted d-block mt-1">A dummy email will be generated if left blank.</small>
           <div class="invalid-feedback" id="feedbackEmail">Please enter a valid email address.</div>
         </div>
 
-        <div class="mb-3">
-          <label class="form-label fw-bold">Phone (Optional)</label>
-          <input type="tel" name="phone" id="walkinPhone" class="form-control" placeholder="09XXXXXXXXX" maxlength="11" inputmode="numeric">
-          <small class="text-muted d-block mt-1">11-digit Philippine mobile number starting with 09 (e.g. 09171234567).</small>
-          <div class="invalid-feedback" id="feedbackPhone">Phone must be an 11-digit number starting with 09.</div>
-        </div>
-
         <div class="row">
           <div class="col-md-6 mb-3">
-            <label class="form-label fw-bold">Gender</label>
+            <label class="form-label fw-bold small text-uppercase">Sex</label>
             <select name="gender" id="walkinGender" class="form-select">
-              <option value="">Select</option>
+              <option value="">Select Sex</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
               <option value="other">Other</option>
             </select>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label fw-bold">Birthdate</label>
+            <label class="form-label fw-bold small text-uppercase">Birthdate</label>
             <input type="date" name="birthdate" id="walkinBirthdate" class="form-control" min="1900-01-01" max="<?= date('Y-m-d') ?>">
             <small class="text-muted d-block mt-1">Must be a past date.</small>
             <div class="invalid-feedback" id="feedbackBirthdate">Birthdate cannot be in the future.</div>
@@ -337,7 +347,7 @@ include __DIR__ . '/../includes/header.php';
 
         <div class="row">
           <div class="col-md-6 mb-3">
-            <label class="form-label fw-bold">Consultation Purpose</label>
+            <label class="form-label fw-bold small text-uppercase">Consultation Purpose</label>
             <select name="purpose" class="form-select">
               <option value="consultation" selected>Eye Examination / Refraction</option>
               <option value="eyeglass_claim">Eyeglass Claim</option>
@@ -347,7 +357,7 @@ include __DIR__ . '/../includes/header.php';
             </select>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label fw-bold">Queue Status</label>
+            <label class="form-label fw-bold small text-uppercase">Queue Status</label>
             <select name="initial_status" class="form-select">
               <option value="confirmed" selected>Waiting in Queue (Confirmed)</option>
               <option value="in_progress">Examining Now (In-Progress)</option>
@@ -356,8 +366,8 @@ include __DIR__ . '/../includes/header.php';
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">Address (Optional)</label>
-          <input type="text" name="address" id="walkinAddress" class="form-control" placeholder="City, Province" maxlength="255">
+          <label class="form-label fw-bold small text-uppercase">Address <span class="text-danger">*</span></label>
+          <input type="text" name="address" id="walkinAddress" class="form-control" placeholder="Barangay, City / Municipality, Province" required maxlength="255">
           <div class="invalid-feedback" id="feedbackAddress">Address must be at least 3 characters.</div>
         </div>
       </div>
@@ -425,7 +435,9 @@ document.addEventListener('DOMContentLoaded', function() {
   if (!form) return;
 
   const alertBox = document.getElementById('walkinFormAlert');
-  const nameInput = document.getElementById('walkinFullName');
+  const lastNameInput = document.getElementById('walkinLastName');
+  const firstNameInput = document.getElementById('walkinFirstName');
+  const middleNameInput = document.getElementById('walkinMiddleName');
   const phoneInput = document.getElementById('walkinPhone');
   const emailInput = document.getElementById('walkinEmail');
   const bdateInput = document.getElementById('walkinBirthdate');
@@ -447,81 +459,47 @@ document.addEventListener('DOMContentLoaded', function() {
     form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
   }
 
-  // Prevent typing 3 consecutive identical letters in real-time
-  if (nameInput) {
-    nameInput.addEventListener('input', function() {
-      this.value = this.value.replace(/([a-zA-ZñÑáéíóúÁÉÍÓÚ\s\.\'\-])\1{2,}/g, '$1$1');
-      this.value = this.value.replace(/[^a-zA-ZñÑáéíóúÁÉÍÓÚ\s\.\'\-]/g, '');
+  // Enforce alphabetical-only on name fields
+  form.querySelectorAll('.alpha-only').forEach(el => {
+    el.addEventListener('input', function() {
+      this.value = this.value.replace(/[^a-zA-Z\sñÑáéíóúÁÉÍÓÚ]/g, '');
     });
-  }
+    el.addEventListener('keypress', function(e) {
+      if (!/^[a-zA-Z\sñÑáéíóúÁÉÍÓÚ]$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+        e.preventDefault();
+      }
+    });
+  });
 
   // Enforce numbers only on phone
   if (phoneInput) {
     phoneInput.addEventListener('input', function() {
       this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11);
     });
+    phoneInput.addEventListener('keypress', function(e) {
+      if (!/^[0-9]$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+        e.preventDefault();
+      }
+    });
   }
 
   form.addEventListener('submit', function(e) {
     clearAlert();
 
-    // 1. Full Name Validation
-    const nameVal = (nameInput.value || '').trim().replace(/\s+/g, ' ');
-    if (!nameVal) {
-      showAlert('Full Name is required.');
-      nameInput.classList.add('is-invalid');
-      nameInput.focus();
+    // 1. Name Validation
+    const lastVal = (lastNameInput ? lastNameInput.value : '').trim();
+    const firstVal = (firstNameInput ? firstNameInput.value : '').trim();
+    if (!lastVal) {
+      showAlert('Last Name is required.');
+      if (lastNameInput) { lastNameInput.classList.add('is-invalid'); lastNameInput.focus(); }
       e.preventDefault();
       return;
     }
-    if (nameVal.length < 3) {
-      showAlert('Full Name must be at least 3 characters long.');
-      nameInput.classList.add('is-invalid');
-      nameInput.focus();
+    if (!firstVal) {
+      showAlert('First Name is required.');
+      if (firstNameInput) { firstNameInput.classList.add('is-invalid'); firstNameInput.focus(); }
       e.preventDefault();
       return;
-    }
-    if (/(.)\1{2,}/i.test(nameVal)) {
-      showAlert('Full Name contains excessive repetitive characters. Please enter a legitimate patient name.');
-      nameInput.classList.add('is-invalid');
-      nameInput.focus();
-      e.preventDefault();
-      return;
-    }
-    const words = nameVal.split(' ').filter(w => w.trim().length > 0);
-    if (words.length < 2) {
-      showAlert('Please enter both First Name and Last Name (e.g., "Juan Dela Cruz").');
-      nameInput.classList.add('is-invalid');
-      nameInput.focus();
-      e.preventDefault();
-      return;
-    }
-    let hasNoVowels = false;
-    for (let w of words) {
-      const stripped = w.replace(/\./g, '');
-      if (stripped.length > 1 && !/[aeiouyAEIOUYñÑáéíóúÁÉÍÓÚ]/.test(stripped)) {
-        hasNoVowels = true;
-        break;
-      }
-    }
-    if (hasNoVowels) {
-      showAlert('Full Name contains invalid words without vowels. Please enter a legitimate name.');
-      nameInput.classList.add('is-invalid');
-      nameInput.focus();
-      e.preventDefault();
-      return;
-    }
-
-    const lowerName = nameVal.toLowerCase();
-    const badNames = ['test', 'asdf', 'qwerty', 'zxcv', 'none', 'unknown', 'sample', 'walkin', 'patient', 'fake'];
-    for (let bad of badNames) {
-      if (lowerName === bad || lowerName.startsWith(bad + ' ') || lowerName.endsWith(' ' + bad)) {
-        showAlert('Please enter a genuine patient name, not a placeholder or test string.');
-        nameInput.classList.add('is-invalid');
-        nameInput.focus();
-        e.preventDefault();
-        return;
-      }
     }
 
     // 2. Phone Validation
@@ -580,23 +558,26 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    // 5. Address Validation
+    // 5. Address Validation (Required)
     const addrVal = (addrInput.value || '').trim();
-    if (addrVal) {
-      if (addrVal.length < 3) {
-        showAlert('Address must be at least 3 characters long.');
-        addrInput.classList.add('is-invalid');
-        addrInput.focus();
-        e.preventDefault();
-        return;
-      }
-      if (!/[a-zA-Z]/.test(addrVal)) {
-        showAlert('Address must contain letters identifying the location.');
-        addrInput.classList.add('is-invalid');
-        addrInput.focus();
-        e.preventDefault();
-        return;
-      }
+    if (!addrVal) {
+      showAlert('Address is required.');
+      addrInput.classList.add('is-invalid');
+      addrInput.focus();
+      e.preventDefault();
+      return;
+    } else if (addrVal.length < 3) {
+      showAlert('Address must be at least 3 characters long.');
+      addrInput.classList.add('is-invalid');
+      addrInput.focus();
+      e.preventDefault();
+      return;
+    } else if (!/[a-zA-Z]/.test(addrVal)) {
+      showAlert('Address must contain letters identifying the location.');
+      addrInput.classList.add('is-invalid');
+      addrInput.focus();
+      e.preventDefault();
+      return;
     }
   });
 

@@ -202,6 +202,14 @@ function ensureAppointmentsSchema(?PDO $db = null): void {
                 $db->exec("ALTER TABLE appointments MODIFY COLUMN status ENUM('pending','confirmed','in_progress','completed','cancelled','no_show') DEFAULT 'pending'");
             }
         }
+        // Ensure patients table has middle_name
+        $ptColStmt = $db->query("SHOW COLUMNS FROM patients");
+        if ($ptColStmt) {
+            $ptCols = $ptColStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('middle_name', $ptCols)) {
+                $db->exec("ALTER TABLE patients ADD COLUMN middle_name VARCHAR(100) NULL AFTER first_name");
+            }
+        }
         $checked = true;
     } catch (Exception $e) {
         error_log("Failed to ensure appointments schema: " . $e->getMessage());
@@ -347,59 +355,65 @@ function validateWalkinPatientData(array $data): array {
     $errors = [];
     $cleaned = [];
 
-    // 1. FULL NAME VALIDATION
-    $rawName = trim($data['full_name'] ?? '');
-    // Normalize spaces and camelCase accidental joins
-    $cleanName = preg_replace('/\s+/', ' ', $rawName);
-    $cleanName = preg_replace('/([a-z])([A-Z])/', '$1 $2', $cleanName);
-    $cleanName = ucwords(strtolower($cleanName));
+    // 1. NAME VALIDATION (Last Name, First Name, Middle Name)
+    $rawLastName   = trim($data['last_name'] ?? '');
+    $rawFirstName  = trim($data['first_name'] ?? '');
+    $rawMiddleName = trim($data['middle_name'] ?? '');
 
-    if (empty($cleanName)) {
-        $errors['full_name'] = 'Full Name is required.';
-    } elseif (mb_strlen($cleanName) < 3) {
-        $errors['full_name'] = 'Full Name must be at least 3 characters long.';
-    } elseif (mb_strlen($cleanName) > 100) {
-        $errors['full_name'] = 'Full Name cannot exceed 100 characters.';
-    } elseif (!preg_match("/^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\.\'\-]+$/u", $cleanName)) {
-        $errors['full_name'] = 'Full Name must only contain letters, spaces, hyphens, periods, or apostrophes (no numbers or symbols).';
-    } elseif (preg_match('/(.)\1{2,}/iu', $cleanName)) {
-        $errors['full_name'] = 'Full Name contains excessive repetitive characters. Please enter a legitimate patient name.';
-    } else {
-        // Enforce at least 2 words (e.g. First Name and Last Name)
-        $words = array_values(array_filter(explode(' ', $cleanName), fn($w) => mb_strlen(trim($w)) > 0));
-        if (count($words) < 2) {
-            $errors['full_name'] = 'Please enter both First Name and Last Name (e.g., "Juan Dela Cruz").';
-        } else {
-            // Check that words of >1 letter contain vowels (rejects keyboard mashing like "asdfghjkl zxcvbnm")
-            $nonsenseWordFound = false;
-            foreach ($words as $w) {
-                $stripped = rtrim($w, '.');
-                if (mb_strlen($stripped) > 1 && !preg_match('/[aeiouyAEIOUYñÑáéíóúÁÉÍÓÚ]/u', $stripped)) {
-                    $nonsenseWordFound = true;
-                    break;
-                }
-            }
-            if ($nonsenseWordFound) {
-                $errors['full_name'] = 'Full Name contains invalid words without vowels. Please enter a legitimate name.';
-            }
+    if ($rawLastName !== '' || $rawFirstName !== '') {
+        // Strict Alphabetical Only: No numbers or special characters allowed
+        if ($rawLastName === '') {
+            $errors['last_name'] = 'Last Name is required.';
+        } elseif (!preg_match("/^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s]+$/u", $rawLastName)) {
+            $errors['last_name'] = 'Last Name must only contain alphabetical letters (no numbers or special characters).';
+        } elseif (mb_strlen($rawLastName) < 2) {
+            $errors['last_name'] = 'Last Name must be at least 2 characters long.';
+        }
 
-            // Check against known placeholder/spam names
-            $lower = strtolower($cleanName);
-            $disallowed = [
-                'test', 'testing', 'test patient', 'sample', 'sample patient',
-                'asdf', 'asdf asdf', 'qwerty', 'zxcv', 'none', 'n/a', 'unknown',
-                'anonymous', 'walkin', 'walk in', 'walk-in', 'patient', 'fake name',
-                'no name', 'hello world', 'admin', 'user'
-            ];
-            foreach ($disallowed as $bad) {
-                if ($lower === $bad || str_starts_with($lower, $bad . ' ') || str_ends_with($lower, ' ' . $bad)) {
-                    $errors['full_name'] = 'Please enter a genuine patient name, not a placeholder or test string.';
-                    break;
-                }
+        if ($rawFirstName === '') {
+            $errors['first_name'] = 'First Name is required.';
+        } elseif (!preg_match("/^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s]+$/u", $rawFirstName)) {
+            $errors['first_name'] = 'First Name must only contain alphabetical letters (no numbers or special characters).';
+        } elseif (mb_strlen($rawFirstName) < 2) {
+            $errors['first_name'] = 'First Name must be at least 2 characters long.';
+        }
+
+        if ($rawMiddleName !== '') {
+            if (!preg_match("/^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s]+$/u", $rawMiddleName)) {
+                $errors['middle_name'] = 'Middle Name must only contain alphabetical letters (no numbers or special characters).';
             }
         }
+
+        $cleanLast   = ucwords(strtolower(preg_replace('/\s+/', ' ', $rawLastName)));
+        $cleanFirst  = ucwords(strtolower(preg_replace('/\s+/', ' ', $rawFirstName)));
+        $cleanMiddle = $rawMiddleName !== '' ? ucwords(strtolower(preg_replace('/\s+/', ' ', $rawMiddleName))) : '';
+
+        $fullName = trim($cleanFirst . ($cleanMiddle !== '' ? ' ' . $cleanMiddle : '') . ' ' . $cleanLast);
+        $cleaned['last_name']   = $cleanLast;
+        $cleaned['first_name']  = $cleanFirst;
+        $cleaned['middle_name'] = $cleanMiddle !== '' ? $cleanMiddle : null;
+        $cleaned['full_name']   = $fullName;
+    } else {
+        // Fallback for single full_name input
+        $rawName = trim($data['full_name'] ?? '');
+        $cleanName = preg_replace('/\s+/', ' ', $rawName);
+        $cleanName = preg_replace('/([a-z])([A-Z])/', '$1 $2', $cleanName);
+        $cleanName = ucwords(strtolower($cleanName));
+
+        if (empty($cleanName)) {
+            $errors['full_name'] = 'Full Name is required.';
+        } elseif (!preg_match("/^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s]+$/u", $cleanName)) {
+            $errors['full_name'] = 'Name must only contain alphabetical letters (no numbers or special characters).';
+        } else {
+            $nameParts = explode(' ', $cleanName);
+            $cleanLast = count($nameParts) > 1 ? array_pop($nameParts) : $cleanName;
+            $cleanFirst = implode(' ', $nameParts) ?: $cleanLast;
+            $cleaned['last_name']   = $cleanLast;
+            $cleaned['first_name']  = $cleanFirst;
+            $cleaned['middle_name'] = null;
+            $cleaned['full_name']   = $cleanName;
+        }
     }
-    $cleaned['full_name'] = $cleanName;
 
     // 2. EMAIL VALIDATION (OPTIONAL)
     $email = trim($data['email'] ?? '');
@@ -408,8 +422,6 @@ function validateWalkinPatientData(array $data): array {
             $errors['email'] = 'Invalid email address format (e.g. name@example.com).';
         } elseif (preg_match('/@(gmai|gmal|gmial|gmaill|gmil)\.com$/i', $email)) {
             $errors['email'] = 'Did you mean @gmail.com? Please check your email spelling.';
-        } elseif (preg_match('/(.)\1{4,}@/i', $email)) {
-            $errors['email'] = 'Email contains invalid repetitive characters.';
         } else {
             $cleaned['email'] = strtolower($email);
         }
@@ -417,32 +429,30 @@ function validateWalkinPatientData(array $data): array {
         $cleaned['email'] = ''; // Will generate walkin dummy email
     }
 
-    // 3. PHONE NUMBER VALIDATION (OPTIONAL)
+    // 3. PHONE NUMBER VALIDATION (NUMBERS ONLY, REQUIRED)
     $rawPhone = trim($data['phone'] ?? '');
-    if (!empty($rawPhone)) {
-        $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
+    if (empty($rawPhone)) {
+        $errors['phone'] = 'Mobile number is required.';
+    } elseif (!preg_match('/^[0-9]+$/', $rawPhone)) {
+        $errors['phone'] = 'Mobile number must contain digits only (no letters or special characters).';
+    } else {
+        $cleanPhone = $rawPhone;
         if (str_starts_with($cleanPhone, '63') && strlen($cleanPhone) === 12) {
             $cleanPhone = '0' . substr($cleanPhone, 2);
         }
 
         if (!preg_match('/^09\d{9}$/', $cleanPhone)) {
-            $errors['phone'] = 'Phone number must be an 11-digit Philippine mobile number starting with 09 (e.g., 09171234567).';
-        } elseif (preg_match('/^09(\d)\1{8}$/', $cleanPhone)) {
-            $errors['phone'] = 'Please enter a valid phone number, not repeated digits.';
-        } elseif ($cleanPhone === '09123456789' || $cleanPhone === '09987654321') {
-            $errors['phone'] = 'Please enter a valid phone number, not a sequential test number.';
+            $errors['phone'] = 'Mobile number must be an 11-digit Philippine mobile number starting with 09 (e.g., 09171234567).';
         } else {
             $cleaned['phone'] = $cleanPhone;
         }
-    } else {
-        $cleaned['phone'] = null;
     }
 
-    // 4. GENDER VALIDATION (OPTIONAL)
-    $gender = trim($data['gender'] ?? '');
+    // 4. SEX / GENDER VALIDATION
+    $gender = trim($data['gender'] ?? ($data['sex'] ?? ''));
     if (!empty($gender)) {
         if (!in_array($gender, ['male', 'female', 'other'], true)) {
-            $errors['gender'] = 'Invalid gender selected.';
+            $errors['gender'] = 'Invalid sex selected.';
         } else {
             $cleaned['gender'] = $gender;
         }
@@ -450,7 +460,7 @@ function validateWalkinPatientData(array $data): array {
         $cleaned['gender'] = null;
     }
 
-    // 5. BIRTHDATE VALIDATION (OPTIONAL)
+    // 5. BIRTHDATE VALIDATION
     $birthdate = trim($data['birthdate'] ?? '');
     if (!empty($birthdate)) {
         $ts = strtotime($birthdate);
@@ -470,23 +480,19 @@ function validateWalkinPatientData(array $data): array {
         $cleaned['birthdate'] = null;
     }
 
-    // 6. ADDRESS VALIDATION (OPTIONAL)
+    // 6. ADDRESS VALIDATION (NOT OPTIONAL)
     $rawAddress = trim($data['address'] ?? '');
-    if (!empty($rawAddress)) {
+    if (empty($rawAddress)) {
+        $errors['address'] = 'Address is required.';
+    } else {
         $cleanAddress = preg_replace('/\s+/', ' ', $rawAddress);
         if (mb_strlen($cleanAddress) < 3) {
             $errors['address'] = 'Address must be at least 3 characters long.';
         } elseif (mb_strlen($cleanAddress) > 255) {
             $errors['address'] = 'Address cannot exceed 255 characters.';
-        } elseif (!preg_match('/[a-zA-Z]/', $cleanAddress)) {
-            $errors['address'] = 'Address must contain letters identifying the location.';
-        } elseif (preg_match('/(.)\1{4,}/iu', $cleanAddress)) {
-            $errors['address'] = 'Address contains invalid repetitive spam characters.';
         } else {
             $cleaned['address'] = $cleanAddress;
         }
-    } else {
-        $cleaned['address'] = null;
     }
 
     return [
@@ -545,13 +551,16 @@ function createWalkinAppointment(PDO $db, array $patientInput, string $initialSt
             return ['success' => false, 'error' => reset($val['errors']), 'errors' => $val['errors']];
         }
 
-        $cleaned   = $val['cleaned'];
-        $fullName  = $cleaned['full_name'];
-        $email     = $cleaned['email'];
-        $phone     = $cleaned['phone'];
-        $address   = $cleaned['address'];
-        $gender    = $cleaned['gender'];
-        $birthdate = $cleaned['birthdate'];
+        $cleaned    = $val['cleaned'];
+        $firstName  = $cleaned['first_name'] ?? '';
+        $middleName = $cleaned['middle_name'] ?? null;
+        $lastName   = $cleaned['last_name'] ?? '';
+        $fullName   = $cleaned['full_name'];
+        $email      = $cleaned['email'];
+        $phone      = $cleaned['phone'];
+        $address    = $cleaned['address'];
+        $gender     = $cleaned['gender'];
+        $birthdate  = $cleaned['birthdate'];
 
         if (empty($email)) {
             $email = 'walkin_' . time() . '_' . rand(100, 999) . '@guest.gueco.local';
@@ -564,17 +573,20 @@ function createWalkinAppointment(PDO $db, array $patientInput, string $initialSt
             return ['success' => false, 'error' => 'Email address is already registered.'];
         }
 
-        $nameParts = explode(' ', $fullName);
-        $lastName = count($nameParts) > 1 ? array_pop($nameParts) : $fullName;
-        $firstName = implode(' ', $nameParts);
+        if (empty($firstName) || empty($lastName)) {
+            $nameParts = explode(' ', $fullName);
+            $lastName = count($nameParts) > 1 ? array_pop($nameParts) : $fullName;
+            $firstName = implode(' ', $nameParts) ?: $lastName;
+        }
         $randomPass = bin2hex(random_bytes(6));
 
         $insertPt = $db->prepare("
-            INSERT INTO patients (first_name, last_name, full_name, email, password, phone, address, gender, birthdate, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            INSERT INTO patients (first_name, middle_name, last_name, full_name, email, password, phone, address, gender, birthdate, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         ");
         $insertPt->execute([
             $firstName,
+            $middleName,
             $lastName,
             $fullName,
             $email,

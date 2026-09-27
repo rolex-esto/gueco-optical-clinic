@@ -702,26 +702,26 @@ function printReceiptPreviewIframe() {
 
 <!-- MODERN POP-UP MODAL: PATIENT TRANSACTION HISTORY & RECEIPTS -->
 <div class="modal fade" id="patientHistoryModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
-    <div class="modal-content shadow-lg border-0" style="border-radius: 20px; overflow: hidden; background: var(--bg-card);">
+  <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width: 960px; margin: 1.75rem auto;">
+    <div class="modal-content shadow-lg border-0" style="border-radius: 16px; overflow: hidden; background: var(--bg-card); max-height: 90vh; display: flex; flex-direction: column;">
       
-      <!-- Modal Header -->
-      <div class="modal-header py-3 px-4" style="background: linear-gradient(135deg, var(--clr-primary), var(--clr-secondary)); color: #fff; border: none;">
+      <!-- Modal Header (Sticky / Non-collapsing) -->
+      <div class="modal-header py-3 px-4" style="background: linear-gradient(135deg, var(--clr-primary), var(--clr-secondary)); color: #fff; border: none; flex-shrink: 0;">
         <div class="d-flex align-items-center gap-3">
-          <div id="phAvatar" style="width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.25rem; color: #fff; border: 2px solid rgba(255,255,255,0.4); flex-shrink: 0;">P</div>
+          <div id="phAvatar" style="width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.2rem; color: #fff; border: 2px solid rgba(255,255,255,0.4); flex-shrink: 0;">P</div>
           <div>
-            <h5 class="modal-title fw-bold mb-0 text-white" id="phPatientName" style="font-size: 1.2rem;">Patient Name</h5>
+            <h5 class="modal-title fw-bold mb-0 text-white" id="phPatientName" style="font-size: 1.15rem;">Patient Name</h5>
             <small style="opacity: 0.9; font-size: 0.78rem; color: #fff;"><i class="fas fa-history me-1"></i>Transaction Records &amp; Official Receipts</small>
           </div>
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       
-      <!-- Modal Body -->
-      <div class="modal-body p-4" style="background: var(--bg-body);">
+      <!-- Modal Body (Full Content & Scrollable) -->
+      <div class="modal-body p-3 p-md-4" style="background: var(--bg-body); overflow-y: auto; flex: 1 1 auto; min-height: 300px;">
         
         <!-- Patient Profile Overview Card -->
-        <div class="card border-0 shadow-sm mb-4" style="border-radius: 14px; background: var(--bg-card);">
+        <div class="card border shadow-sm mb-4" style="border-radius: 14px; background: var(--bg-card); border-color: var(--border-color) !important;">
           <div class="card-body p-3">
             <div class="row g-3 align-items-center">
               
@@ -737,7 +737,7 @@ function printReceiptPreviewIframe() {
                     <div class="fw-bold text-dark text-truncate" id="phPatientEmail">—</div>
                   </div>
                   <div class="col-sm-6">
-                    <div class="text-muted small"><i class="fas fa-map-marker-alt me-1 text-primary"></i> Address:</div>
+                    <div class="text-muted small"><i class="fas fa-map-marker-alt me-1 text-primary"></i> Complete Address:</div>
                     <div class="fw-bold text-dark text-truncate" id="phPatientAddress">—</div>
                   </div>
                   <div class="col-sm-3">
@@ -755,13 +755,13 @@ function printReceiptPreviewIframe() {
               <div class="col-lg-4">
                 <div class="row g-2">
                   <div class="col-6">
-                    <div class="p-2 rounded text-center border" style="background: var(--bg-hover);">
-                      <div class="text-muted small" style="font-size: 0.68rem; font-weight: 700;">TOTAL TRANSACTIONS</div>
+                    <div class="p-2 rounded text-center border" style="background: var(--bg-hover); border-color: var(--border-color) !important;">
+                      <div class="text-muted small" style="font-size: 0.68rem; font-weight: 700;">TRANSACTIONS</div>
                       <div class="fw-bold fs-4 text-primary" id="phTotalCount">0</div>
                     </div>
                   </div>
                   <div class="col-6">
-                    <div class="p-2 rounded text-center border" style="background: var(--bg-hover);">
+                    <div class="p-2 rounded text-center border" style="background: var(--bg-hover); border-color: var(--border-color) !important;">
                       <div class="text-muted small" style="font-size: 0.68rem; font-weight: 700;">TOTAL SPENT</div>
                       <div class="fw-bold fs-5 text-success" id="phTotalSpent" style="line-height:1.7;">₱0.00</div>
                     </div>
@@ -789,7 +789,7 @@ function printReceiptPreviewIframe() {
 
           <div id="phSalesList" style="display: none; flex-direction: column; gap: 14px;"></div>
 
-          <div id="phEmptyState" class="card border-0 shadow-sm text-center py-5 px-3" style="display: none; border-radius: 14px; background: var(--bg-card);">
+          <div id="phEmptyState" class="card border shadow-sm text-center py-5 px-3" style="display: none; border-radius: 14px; background: var(--bg-card); border-color: var(--border-color) !important;">
             <div class="mb-3">
               <div class="d-inline-flex p-3 rounded-circle bg-light">
                 <i class="fas fa-file-invoice fa-3x text-muted" style="opacity: 0.4;"></i>
@@ -802,8 +802,8 @@ function printReceiptPreviewIframe() {
 
       </div>
 
-      <!-- Modal Footer -->
-      <div class="modal-footer py-2 px-4" style="background: var(--bg-hover); border-top: 1px solid var(--border-light);">
+      <!-- Modal Footer (Sticky bottom) -->
+      <div class="modal-footer py-2 px-4" style="background: var(--bg-hover); border-top: 1px solid var(--border-light); flex-shrink: 0;">
         <button type="button" class="btn btn-secondary px-4 py-2" data-bs-dismiss="modal">Close</button>
       </div>
 

@@ -6,6 +6,7 @@ requireRole('saleslady');
 $pageTitle  = 'Point of Sale';
 $breadcrumb = ['Saleslady', 'POS'];
 $db = getDB();
+ensureJobOrderSchema($db);
 
 // Process sale submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'process_sale') {

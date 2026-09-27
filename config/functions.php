@@ -180,6 +180,51 @@ function ensureCertificateSchema(?PDO $db = null): void {
     }
 }
 
+function ensureJobOrderSchema(?PDO $db = null): void {
+    static $checked = false;
+    if ($checked) return;
+    try {
+        if (!$db) {
+            $db = getDB();
+        }
+        $colStmt = $db->query("SHOW COLUMNS FROM sales");
+        if ($colStmt) {
+            $cols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('prescription_id', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN prescription_id INT(11) NULL AFTER appointment_id");
+            }
+            if (!in_array('payment_type', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN payment_type ENUM('full','downpayment') NOT NULL DEFAULT 'full' AFTER payment_method");
+            }
+            if (!in_array('deposit_amount', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN deposit_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER payment_type");
+            }
+            if (!in_array('balance_due', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN balance_due DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER deposit_amount");
+            }
+            if (!in_array('target_pickup_date', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN target_pickup_date DATE NULL AFTER balance_due");
+            }
+            if (!in_array('job_order_no', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN job_order_no VARCHAR(50) NULL AFTER target_pickup_date");
+            }
+            if (!in_array('order_status', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN order_status ENUM('completed','in_progress','ready_for_pickup','claimed') NOT NULL DEFAULT 'completed' AFTER job_order_no");
+            }
+        }
+        $colItemStmt = $db->query("SHOW COLUMNS FROM sale_items");
+        if ($colItemStmt) {
+            $itemCols = $colItemStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('notes', $itemCols)) {
+                $db->exec("ALTER TABLE sale_items ADD COLUMN notes TEXT NULL AFTER total_price");
+            }
+        }
+        $checked = true;
+    } catch (Exception $e) {
+        error_log("Failed to ensure job order schema: " . $e->getMessage());
+    }
+}
+
 function generateCertificateNumber(?PDO $db = null): string {
     if (!$db) $db = getDB();
     ensureCertificateSchema($db);

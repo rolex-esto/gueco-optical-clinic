@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/functions.php';
 requireRole('saleslady', 'doctor', 'admin');
 
 $db = getDB();
+ensureJobOrderSchema($db);
 $saleId = (int)($_GET['id'] ?? 0);
 
 if ($saleId <= 0) {

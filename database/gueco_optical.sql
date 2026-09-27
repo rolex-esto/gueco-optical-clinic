@@ -336,6 +336,7 @@ CREATE TABLE `sale_items` (
   `quantity` int(11) NOT NULL DEFAULT 1,
   `unit_price` decimal(10,2) NOT NULL,
   `total_price` decimal(10,2) NOT NULL,
+  `notes` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `sale_id` (`sale_id`),
   KEY `product_id` (`product_id`),
@@ -350,7 +351,7 @@ CREATE TABLE `sale_items` (
 
 LOCK TABLES `sale_items` WRITE;
 /*!40000 ALTER TABLE `sale_items` DISABLE KEYS */;
-INSERT INTO `sale_items` VALUES (5,1,3,'Oakley Sport Frame','product',1,3000.00,3000.00),(6,1,11,'Hard Shell Eyeglass Case','product',1,150.00,150.00),(7,1,12,'Microfiber Cleaning Cloth','product',2,85.00,170.00),(8,2,2,'Titan Titanium Frame','product',1,4500.00,4500.00),(9,2,5,'Progressive Lens','product',2,2000.00,4000.00),(10,2,7,'Acuvue Oasys Monthly','product',1,600.00,600.00),(11,2,9,'ReNu Multi-Purpose Solution','product',2,350.00,700.00),(12,2,12,'Microfiber Cleaning Cloth','product',1,20.00,20.00),(13,3,1,'Ray-Ban Classic Frame','product',2,1500.00,3000.00),(14,4,3,'Oakley Sport Frame','product',2,3000.00,6000.00),(15,4,9,'ReNu Multi-Purpose Solution','product',2,350.00,700.00),(16,5,12,'Microfiber Cleaning Cloth','product',5,85.00,425.00),(17,5,2,'Titan Titanium Frame','product',2,4500.00,9000.00),(18,5,9,'ReNu Multi-Purpose Solution','product',3,350.00,1050.00);
+INSERT INTO `sale_items` VALUES (5,1,3,'Oakley Sport Frame','product',1,3000.00,3000.00,NULL),(6,1,11,'Hard Shell Eyeglass Case','product',1,150.00,150.00,NULL),(7,1,12,'Microfiber Cleaning Cloth','product',2,85.00,170.00,NULL),(8,2,2,'Titan Titanium Frame','product',1,4500.00,4500.00,NULL),(9,2,5,'Progressive Lens','product',2,2000.00,4000.00,NULL),(10,2,7,'Acuvue Oasys Monthly','product',1,600.00,600.00,NULL),(11,2,9,'ReNu Multi-Purpose Solution','product',2,350.00,700.00,NULL),(12,2,12,'Microfiber Cleaning Cloth','product',1,20.00,20.00,NULL),(13,3,1,'Ray-Ban Classic Frame','product',2,1500.00,3000.00,NULL),(14,4,3,'Oakley Sport Frame','product',2,3000.00,6000.00,NULL),(15,4,9,'ReNu Multi-Purpose Solution','product',2,350.00,700.00,NULL),(16,5,12,'Microfiber Cleaning Cloth','product',5,85.00,425.00,NULL),(17,5,2,'Titan Titanium Frame','product',2,4500.00,9000.00,NULL),(18,5,9,'ReNu Multi-Purpose Solution','product',3,350.00,1050.00,NULL);
 /*!40000 ALTER TABLE `sale_items` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -363,14 +364,21 @@ DROP TABLE IF EXISTS `sales`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sales` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `invoice_no` varchar(20) NOT NULL,
+  `invoice_no` varchar(50) NOT NULL,
   `patient_id` int(11) DEFAULT NULL,
   `cashier_id` int(11) NOT NULL,
   `appointment_id` int(11) DEFAULT NULL,
+  `prescription_id` int(11) DEFAULT NULL,
   `subtotal` decimal(10,2) NOT NULL DEFAULT 0.00,
   `discount` decimal(10,2) NOT NULL DEFAULT 0.00,
   `total` decimal(10,2) NOT NULL DEFAULT 0.00,
   `payment_method` enum('cash','gcash','other') DEFAULT 'cash',
+  `payment_type` enum('full','downpayment') NOT NULL DEFAULT 'full',
+  `deposit_amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `balance_due` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `target_pickup_date` date DEFAULT NULL,
+  `job_order_no` varchar(50) DEFAULT NULL,
+  `order_status` enum('completed','in_progress','ready_for_pickup','claimed') NOT NULL DEFAULT 'completed',
   `amount_paid` decimal(10,2) DEFAULT 0.00,
   `change_amount` decimal(10,2) DEFAULT 0.00,
   `status` enum('completed','refunded','voided') DEFAULT 'completed',
@@ -380,11 +388,45 @@ CREATE TABLE `sales` (
   KEY `patient_id` (`patient_id`),
   KEY `cashier_id` (`cashier_id`),
   KEY `appointment_id` (`appointment_id`),
+  KEY `prescription_id` (`prescription_id`),
   CONSTRAINT `sales_ibfk_1` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`id`) ON DELETE SET NULL,
   CONSTRAINT `sales_ibfk_2` FOREIGN KEY (`cashier_id`) REFERENCES `users` (`id`),
   CONSTRAINT `sales_ibfk_3` FOREIGN KEY (`appointment_id`) REFERENCES `appointments` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `examination_certificates`
+--
+
+DROP TABLE IF EXISTS `examination_certificates`;
+CREATE TABLE `examination_certificates` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `certificate_no` varchar(50) NOT NULL,
+  `patient_id` int(11) NOT NULL,
+  `doctor_id` int(11) NOT NULL,
+  `appointment_id` int(11) DEFAULT NULL,
+  `certificate_date` date NOT NULL,
+  `patient_name` varchar(255) NOT NULL,
+  `patient_age` int(11) DEFAULT NULL,
+  `patient_address` varchar(255) DEFAULT NULL,
+  `branch` varchar(255) NOT NULL DEFAULT 'Poblacion, Capas, Tarlac | Cel No.: 0923-425-7857',
+  `reason_for_exam` text NOT NULL,
+  `requested_by` varchar(255) NOT NULL,
+  `purpose` varchar(255) NOT NULL,
+  `doctor_name` varchar(150) NOT NULL DEFAULT 'MARIA LUZ S. GUECO, O.D.',
+  `doctor_title` varchar(100) NOT NULL DEFAULT 'OPTOMETRIST',
+  `doctor_license_no` varchar(100) NOT NULL DEFAULT 'LIC. NO. 4385',
+  `include_signature` tinyint(1) NOT NULL DEFAULT 1,
+  `remarks` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `certificate_no` (`certificate_no`),
+  KEY `idx_cert_patient` (`patient_id`),
+  KEY `idx_cert_doctor` (`doctor_id`),
+  KEY `idx_cert_appointment` (`appointment_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `sales`

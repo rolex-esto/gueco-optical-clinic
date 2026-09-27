@@ -267,6 +267,63 @@ function ensureJobOrderSchema(?PDO $db = null): void {
     }
 }
 
+function ensurePrescriptionsSchema(?PDO $db = null): void {
+    static $checked = false;
+    if ($checked) return;
+    try {
+        if (!$db) {
+            $db = getDB();
+        }
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS `prescriptions` (
+              `id` int(11) NOT NULL AUTO_INCREMENT,
+              `patient_id` int(11) NOT NULL,
+              `doctor_id` int(11) NOT NULL,
+              `record_id` int(11) DEFAULT NULL,
+              `appointment_id` int(11) DEFAULT NULL,
+              `od_sphere` varchar(20) DEFAULT NULL,
+              `od_cylinder` varchar(20) DEFAULT NULL,
+              `od_axis` varchar(20) DEFAULT NULL,
+              `od_add` varchar(20) DEFAULT NULL,
+              `os_sphere` varchar(20) DEFAULT NULL,
+              `os_cylinder` varchar(20) DEFAULT NULL,
+              `os_axis` varchar(20) DEFAULT NULL,
+              `os_add` varchar(20) DEFAULT NULL,
+              `pd` varchar(20) DEFAULT NULL,
+              `add_power` varchar(20) DEFAULT NULL,
+              `notes` text DEFAULT NULL,
+              `recommendations` text DEFAULT NULL,
+              `lens_type` varchar(100) DEFAULT NULL,
+              `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`),
+              KEY `patient_id` (`patient_id`),
+              KEY `doctor_id` (`doctor_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+
+        $colStmt = $db->query("SHOW COLUMNS FROM prescriptions");
+        if ($colStmt) {
+            $cols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('appointment_id', $cols)) {
+                $db->exec("ALTER TABLE prescriptions ADD COLUMN appointment_id INT(11) NULL AFTER record_id");
+            }
+            if (!in_array('add_power', $cols)) {
+                $db->exec("ALTER TABLE prescriptions ADD COLUMN add_power VARCHAR(20) NULL AFTER pd");
+            }
+            if (!in_array('notes', $cols)) {
+                $db->exec("ALTER TABLE prescriptions ADD COLUMN notes TEXT NULL");
+            }
+            if (!in_array('recommendations', $cols)) {
+                $db->exec("ALTER TABLE prescriptions ADD COLUMN recommendations TEXT NULL");
+            }
+        }
+        $checked = true;
+    } catch (Exception $e) {
+        error_log("Failed to ensure prescriptions schema: " . $e->getMessage());
+    }
+}
+
 function generateCertificateNumber(?PDO $db = null): string {
     if (!$db) $db = getDB();
     ensureCertificateSchema($db);

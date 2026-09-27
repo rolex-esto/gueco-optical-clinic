@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/functions.php';
 requirePatientLogin();
 
 $db        = getDB();
+ensurePrescriptionsSchema($db);
 $patientId = $_SESSION['patient_id'];
 $today     = date('Y-m-d');
 
@@ -157,11 +158,26 @@ $fullDatesStmt = $db->prepare("SELECT appointment_date FROM appointments WHERE a
 $fullDatesStmt->execute([$slotCount]);
 $fullyBookedDates = $fullDatesStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 
-$myAppts = $db->prepare("SELECT * FROM appointments WHERE patient_id=? ORDER BY appointment_date DESC, appointment_time DESC LIMIT 30");
-$myAppts->execute([$patientId]); $myAppts = $myAppts->fetchAll();
+$myAppts = $db->prepare("
+    SELECT a.*,
+           (
+               SELECT rx.id 
+               FROM prescriptions rx 
+               WHERE rx.appointment_id = a.id 
+                  OR (rx.patient_id = a.patient_id AND DATE(rx.created_at) = a.appointment_date)
+               ORDER BY (rx.appointment_id = a.id) DESC, rx.id DESC 
+               LIMIT 1
+           ) AS rx_id
+    FROM appointments a 
+    WHERE a.patient_id = ? 
+    ORDER BY a.appointment_date DESC, a.appointment_time DESC 
+    LIMIT 30
+");
+$myAppts->execute([$patientId]);
+$myAppts = $myAppts->fetchAll(PDO::FETCH_ASSOC);
 
 // Filter upcoming and past appointments
-$upcoming = array_filter($myAppts, fn($a) => $a['appointment_date'] >= $today && !in_array($a['status'],['cancelled','no_show']));
+$upcoming = array_filter($myAppts, fn($a) => $a['appointment_date'] >= $today && !in_array($a['status'], ['cancelled', 'no_show', 'completed']));
 // Sort upcoming chronologically ASC (closest/earliest upcoming first)
 usort($upcoming, function($a, $b) {
     if ($a['appointment_date'] === $b['appointment_date']) {
@@ -170,8 +186,8 @@ usort($upcoming, function($a, $b) {
     return strcmp($a['appointment_date'], $b['appointment_date']);
 });
 
-// Past appointments remain DESC (most recent past visit first)
-$past = array_values(array_filter($myAppts, fn($a) => $a['appointment_date'] < $today || in_array($a['status'],['cancelled','no_show'])));
+// Past & completed appointments remain DESC (most recent past visit first)
+$past = array_values(array_filter($myAppts, fn($a) => $a['appointment_date'] < $today || in_array($a['status'], ['cancelled', 'no_show', 'completed'])));
 
 // The closest/soonest upcoming appointment for the ticket card
 $nextAppt = !empty($upcoming) ? $upcoming[0] : null;
@@ -260,6 +276,7 @@ $patientRxStmt = $db->prepare("
 ");
 $patientRxStmt->execute([$patientId]);
 $patientRxList = $patientRxStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$patientRxStmt->closeCursor();
 $latestRx      = !empty($patientRxList) ? $patientRxList[0] : null;
 $totalRxCount  = count($patientRxList);
 
@@ -4324,6 +4341,11 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
           <?php endif; ?>
           <?= str_replace('_',' ',ucfirst($a['status'])) ?>
         </span>
+        <?php if (!empty($a['rx_id'])): ?>
+        <button type="button" class="btn btn-sm" onclick="openRxModal(<?= (int)$a['rx_id'] ?>)" style="display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;padding:6px 14px;border-radius:100px;border:1.5px solid rgba(124,58,237,0.35);color:#7C3AED;background:rgba(124,58,237,0.08);cursor:pointer;transition:all 0.2s ease;" title="View official prescription slip copy">
+          <i class="fas fa-file-prescription"></i> <span>View Prescription Copy</span>
+        </button>
+        <?php endif; ?>
         <div style="display:flex;gap:6px;">
           <?php if ($isPending): ?>
           <!-- Edit: only available while pending -->
@@ -4357,10 +4379,10 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
     <?php endforeach; ?>
     <?php endif; ?>
 
-    <!-- Past -->
+    <!-- Past & Completed Appointments -->
     <?php if (!empty($past)): ?>
     <div style="font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:26px 0 12px;padding:0 4px;display:flex;align-items:center;gap:6px;">
-      <i class="fas fa-history"></i> Past &amp; Cancelled Appointments
+      <i class="fas fa-history"></i> Past &amp; Completed Appointments
     </div>
     <?php foreach ($past as $a):
       $d = new DateTime($a['appointment_date']);
@@ -4368,6 +4390,7 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
       if (!empty($a['notes']) && preg_match('/^Service:\s*(.+)$/m', $a['notes'], $psm)) {
           $pastService = trim($psm[1]);
       }
+      $targetRxId = !empty($a['rx_id']) ? (int)$a['rx_id'] : (($a['status'] === 'completed' && !empty($latestRx)) ? (int)$latestRx['id'] : 0);
     ?>
     <div class="appt-item <?= in_array($a['status'],['cancelled','no_show'])?'cancelled':'' ?>" id="appt-card-<?= $a['id'] ?>">
       <div class="appt-date-box">
@@ -4382,18 +4405,26 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
         <div style="font-size:.74rem;color:var(--text-subtle);margin-top:3px;"><i class="fas fa-tag me-1"></i><?= htmlspecialchars(htmlspecialchars_decode((string)$pastService, ENT_QUOTES), ENT_QUOTES, 'UTF-8') ?></div>
         <?php endif; ?>
       </div>
-      <span class="status-badge status-<?= $a['status'] ?>">
-        <?php if ($a['status'] === 'pending'): ?>
-          <i class="fas fa-hourglass-half status-badge-icon me-1"></i>
-        <?php elseif ($a['status'] === 'confirmed'): ?>
-          <span class="status-dot dot-green pulse"></span>
-        <?php elseif ($a['status'] === 'completed'): ?>
-          <span class="status-dot" style="background:#00ADEF;"></span>
-        <?php else: ?>
-          <span class="status-dot" style="background:#94A3B8;"></span>
+      <div class="appt-actions-wrap" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span class="status-badge status-<?= $a['status'] ?>">
+          <?php if ($a['status'] === 'pending'): ?>
+            <i class="fas fa-hourglass-half status-badge-icon me-1"></i>
+          <?php elseif ($a['status'] === 'confirmed'): ?>
+            <span class="status-dot dot-green pulse"></span>
+          <?php elseif ($a['status'] === 'completed'): ?>
+            <span class="status-dot" style="background:#00ADEF;"></span>
+          <?php else: ?>
+            <span class="status-dot" style="background:#94A3B8;"></span>
+          <?php endif; ?>
+          <?= str_replace('_',' ',ucfirst($a['status'])) ?>
+        </span>
+
+        <?php if ($targetRxId > 0): ?>
+        <button type="button" class="btn btn-sm" onclick="openRxModal(<?= $targetRxId ?>)" style="display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;padding:6px 14px;border-radius:100px;border:1.5px solid rgba(124,58,237,0.35);color:#7C3AED;background:rgba(124,58,237,0.08);cursor:pointer;transition:all 0.2s ease;" title="View official prescription slip copy">
+          <i class="fas fa-file-prescription"></i> <span>View Prescription Copy</span>
+        </button>
         <?php endif; ?>
-        <?= str_replace('_',' ',ucfirst($a['status'])) ?>
-      </span>
+      </div>
     </div>
     <?php endforeach; ?>
     <?php endif; ?>
@@ -6060,6 +6091,19 @@ function copyRxValues(rxId) {
     alert(text);
   }
 }
+
+// Auto-open prescription modal if directed from a notification, email, or URL link
+document.addEventListener('DOMContentLoaded', function() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const openRxId = urlParams.get('open_rx') || urlParams.get('rx_id');
+    if (openRxId) {
+      setTimeout(() => {
+        openRxModal(openRxId);
+      }, 350);
+    }
+  } catch (e) {}
+});
 </script>
 </body>
 </html>

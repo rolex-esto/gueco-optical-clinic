@@ -163,10 +163,10 @@ include __DIR__ . '/../includes/header.php';
 <div class="table-wrapper">
   <div class="table-responsive">
     <table class="table">
-      <thead><tr><th>#</th><th>Patient</th><th>Contact</th><th>Address</th><th>Gender</th><th>Registered</th></tr></thead>
+      <thead><tr><th>#</th><th>Patient</th><th>Contact</th><th>Address</th><th>Gender</th><th>Registered</th><th>Actions</th></tr></thead>
       <tbody>
         <?php if (empty($patients)): ?>
-        <tr><td colspan="6"><div class="empty-state"><div class="empty-icon"><i class="fas fa-users"></i></div><h6>No patients found</h6></div></td></tr>
+        <tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><i class="fas fa-users"></i></div><h6>No patients found</h6></div></td></tr>
         <?php else: ?>
         <?php foreach ($patients as $i => $p): 
             $ptName = getPatientDisplayName($p);
@@ -192,6 +192,16 @@ include __DIR__ . '/../includes/header.php';
           <td style="font-size:.78rem;color:var(--text-muted)"><?= sanitize($p['address']??'—') ?></td>
           <td style="font-size:.82rem"><?= $p['gender']?ucfirst($p['gender']):'—' ?></td>
           <td style="font-size:.78rem;color:var(--text-muted)"><?= formatDate($p['created_at']) ?></td>
+          <td>
+            <div class="d-flex gap-1 align-items-center">
+              <button type="button" class="btn btn-sm btn-outline-primary btn-icon" onclick="openPatientHistory(<?= (int)$p['id'] ?>)" title="View Transaction History & Receipts">
+                <i class="fas fa-receipt"></i>
+              </button>
+              <a href="pos.php?patient_id=<?= (int)$p['id'] ?>" class="btn btn-sm btn-primary btn-icon" title="New POS Sale / Dispense for this Patient">
+                <i class="fas fa-shopping-cart"></i>
+              </a>
+            </div>
+          </td>
         </tr>
         <?php endforeach; ?>
         <?php endif; ?>

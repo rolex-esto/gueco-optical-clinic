@@ -536,7 +536,7 @@ include __DIR__ . '/../includes/header.php';
         <button type="button" id="patientDropdownTrigger"
           onclick="togglePatientDropdown(event)"
           style="width:100%;text-align:left;background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;padding:7px 12px;font-size:.83rem;cursor:pointer;color:var(--text-primary);display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:'Poppins',sans-serif;transition:border-color .15s,box-shadow .15s;">
-          <span id="patientDropdownLabel" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);">Walk-in / Anonymous Customer</span>
+          <span id="patientDropdownLabel" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);">Select patient...</span>
           <i class="fas fa-chevron-down" id="patientDropdownChevron" style="font-size:.68rem;color:var(--text-muted);transition:transform .2s;flex-shrink:0;"></i>
         </button>
 
@@ -1073,8 +1073,9 @@ function buildPatientList(filter) {
       const groupItems = [];
       Array.from(child.children).forEach(opt => {
         if (opt.disabled) return;
-        const dataName = (opt.dataset.name || opt.text || '').toLowerCase();
-        if (!q || dataName.includes(q)) {
+        const dataName = (opt.dataset.name || opt.text || '').trim();
+        if (!dataName) return; // skip patients with no name recorded
+        if (!q || dataName.toLowerCase().includes(q)) {
           groupItems.push(makePatientItem(opt));
         }
       });

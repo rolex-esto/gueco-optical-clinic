@@ -85,21 +85,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Filters
-$filterDate   = $_GET['date']   ?? '';
-$filterMonth  = $_GET['month']  ?? '';
-$filterStatus = $_GET['status'] ?? '';
-$search       = $_GET['search'] ?? '';
+$filterDate   = sanitize($_GET['date']   ?? '');
+$filterMonth  = sanitize($_GET['month']  ?? '');
+$filterStatus = sanitize($_GET['status'] ?? '');
+$search       = sanitize($_GET['search'] ?? '');
 $page         = max(1, (int)($_GET['page'] ?? 1));
 $perPage      = 15;
 
-// If visiting page with no query parameters at all (initial load), default to current month
-if (empty($_GET)) {
-    $filterMonth = date('Y-m');
-} elseif (isset($_GET['all'])) {
+if (isset($_GET['all'])) {
     $filterDate = '';
     $filterMonth = '';
     $filterStatus = '';
     $search = '';
+}
+
+// Overall Stats (Clinic-wide summary, independent of current list filter)
+$overallStats = [
+    'pending'   => 0,
+    'confirmed' => 0,
+    'completed' => 0,
+    'cancelled' => 0,
+    'no_show'   => 0
+];
+try {
+    $statStmt = $db->query("SELECT status, COUNT(*) as c FROM appointments GROUP BY status");
+    if ($statStmt) {
+        while ($row = $statStmt->fetch(PDO::FETCH_ASSOC)) {
+            $st = $row['status'] ?? '';
+            if (isset($overallStats[$st])) {
+                $overallStats[$st] = (int)$row['c'];
+            }
+        }
+        $statStmt->closeCursor();
+    }
+} catch (Exception $e) {
+    error_log("Failed to fetch appointment stats: " . $e->getMessage());
 }
 
 $where = ['1=1'];
@@ -119,50 +139,46 @@ if (!empty($filterStatus)) {
 }
 
 if (!empty($search)) {
-    $where[] = 'p.full_name LIKE ?';
-    $params[] = "%$search%";
+    $where[] = '(p.full_name LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ? OR p.phone LIKE ? OR a.id LIKE ?)';
+    $sParam = "%$search%";
+    $params[] = $sParam;
+    $params[] = $sParam;
+    $params[] = $sParam;
+    $params[] = $sParam;
+    $params[] = $sParam;
 }
 
 $whereStr = implode(' AND ', $where);
 
 try {
-    $countStmt = $db->prepare("SELECT COUNT(*) as c FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE $whereStr");
+    $countStmt = $db->prepare("SELECT COUNT(*) as c FROM appointments a LEFT JOIN patients p ON p.id = a.patient_id WHERE $whereStr");
     $countStmt->execute($params);
-    $total = (int)($countStmt->fetch()['c'] ?? 0);
-    $pagination = paginate($total, $perPage, $page);
+    $total = (int)($countStmt->fetchColumn() ?: 0);
+    $countStmt->closeCursor();
 
+    $pagination = paginate($total, $perPage, $page);
     $limit = (int)$perPage;
-    $offset = (int)$pagination['offset'];
+    $offset = (int)($pagination['offset'] ?? 0);
+
     $apptsStmt = $db->prepare("
-        SELECT a.*, p.full_name as patient_name, p.phone, p.email as patient_email
+        SELECT a.*, 
+               COALESCE(NULLIF(TRIM(p.full_name), ''), NULLIF(TRIM(CONCAT(COALESCE(p.first_name, ''), ' ', COALESCE(p.last_name, ''))), ''), CONCAT('Patient #', a.patient_id)) as patient_name,
+               COALESCE(p.phone, '—') as phone,
+               COALESCE(p.email, '—') as patient_email
         FROM appointments a
-        JOIN patients p ON p.id = a.patient_id
+        LEFT JOIN patients p ON p.id = a.patient_id
         WHERE $whereStr
-        ORDER BY a.appointment_date ASC, a.appointment_time ASC
+        ORDER BY a.appointment_date DESC, a.appointment_time DESC, a.id DESC
         LIMIT $limit OFFSET $offset
     ");
     $apptsStmt->execute($params);
-    $appts = $apptsStmt->fetchAll() ?: [];
-
-    // Overall Stats
-    $overallStats = [];
-    foreach (['pending','confirmed','completed','cancelled','no_show'] as $s) {
-        $stmt = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE status=?");
-        $stmt->execute([$s]);
-        $overallStats[$s] = (int)($stmt->fetch()['c'] ?? 0);
-    }
+    $appts = $apptsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $apptsStmt->closeCursor();
 } catch (Exception $e) {
     error_log("Appointments query error: " . $e->getMessage());
     $total = 0;
     $pagination = paginate(0, $perPage, 1);
     $appts = [];
-    $overallStats = [
-        'pending'   => 0,
-        'confirmed' => 0,
-        'completed' => 0,
-        'cancelled' => 0,
-        'no_show'   => 0
-    ];
 }
 
 $extraHead = '<link rel="stylesheet" href="'.BASE_URL.'assets/css/pages/appointments.css?v='.time().'">';
@@ -248,10 +264,10 @@ include __DIR__ . '/../includes/header.php';
 
       <!-- Action Buttons -->
       <div class="appt-filter-actions">
-        <button type="submit" class="btn btn-primary" title="Apply filters"><i class="fas fa-search"></i> Filter</button>
-        <a href="appointments.php?all=1" class="btn btn-secondary" title="Reset all filters"><i class="fas fa-undo"></i></a>
-        <a href="appointments.php?date=<?= $today ?>" class="btn btn-outline-primary" title="Filter for Today"><i class="fas fa-calendar-day"></i> Today</a>
-        <a href="appointments.php?month=<?= date('Y-m') ?>" class="btn btn-outline-primary" title="Filter for This Month"><i class="fas fa-calendar-alt"></i> This Month</a>
+        <button type="submit" class="btn btn-primary" title="Apply filters"><i class="fas fa-search me-1"></i> Filter</button>
+        <a href="appointments.php?all=1" class="btn btn-secondary" title="View all appointments / Reset filters"><i class="fas fa-undo me-1"></i> Reset</a>
+        <a href="appointments.php?date=<?= $today ?>" class="btn btn-outline-primary" title="Filter for Today"><i class="fas fa-calendar-day me-1"></i> Today</a>
+        <a href="appointments.php?month=<?= date('Y-m') ?>" class="btn btn-outline-primary" title="Filter for This Month"><i class="fas fa-calendar-alt me-1"></i> This Month</a>
       </div>
     </form>
   </div>
@@ -293,6 +309,9 @@ include __DIR__ . '/../includes/header.php';
           echo '<i class="fas fa-calendar me-1"></i> All dates';
       }
       ?>
+      <?php if (!empty($filterDate) || !empty($filterMonth) || !empty($filterStatus) || !empty($search)): ?>
+        <a href="appointments.php?all=1" class="ms-2 badge bg-secondary text-white text-decoration-none" title="Clear all filters"><i class="fas fa-times me-1"></i>Clear Filter</a>
+      <?php endif; ?>
     </span>
   </div>
   <div class="table-responsive">

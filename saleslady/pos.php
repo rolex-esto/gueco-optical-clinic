@@ -395,6 +395,14 @@ include __DIR__ . '/../includes/header.php';
   color: #fff;
   border-color: var(--clr-primary);
 }
+/* ── Searchable Patient Dropdown ── */
+#patientDropdownWrap { position: relative; }
+.patient-dd-item { transition: background .1s ease; }
+#patientDropdownPanel { animation: ddSlideIn .13s ease; }
+@keyframes ddSlideIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 </style>
 
 <div class="pos-layout">
@@ -472,51 +480,81 @@ include __DIR__ . '/../includes/header.php';
     <!-- Summary Panel -->
     <div style="padding:14px 16px;border-top:1px solid var(--border-light);background:var(--bg-hover);flex-shrink:0;">
       
-      <!-- Patient Selection (Active Walk-in & Clinic Queue Lookup) -->
-      <div style="margin-bottom:10px;">
+      <!-- Patient Selection — Searchable Custom Dropdown -->
+      <div style="margin-bottom:10px;" id="patientDropdownWrap">
         <label style="font-size:.72rem;font-weight:700;color:var(--text-muted);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
           <span><i class="fas fa-user-circle me-1"></i> PATIENT / CLINIC QUEUE</span>
           <span id="queueSyncIndicator" class="text-success small" style="font-size:0.68rem;display:none;"><i class="fas fa-sync-alt fa-spin"></i> Live Queue</span>
         </label>
-        
-        <select id="patientSelect" class="form-select form-select-sm" style="font-size:.82rem;">
-          <option value="" data-phone="" data-has-rx="0" data-status="" data-type="retail">Walk-in Customer (Retail / Anonymous / OTC)</option>
-          
+
+        <!-- Hidden native select — drives all existing JS data/event logic -->
+        <select id="patientSelect" style="display:none;" aria-hidden="true">
+          <option value="" data-phone="" data-has-rx="0" data-status="" data-type="retail">Walk-in / Anonymous Customer</option>
+
           <?php if (!empty($activeAppointments)): ?>
-          <optgroup label="📍 TODAY'S ACTIVE CLINIC PATIENTS (Queue)" id="optgroupActiveClinic">
-            <?php foreach ($activeAppointments as $act): 
+          <optgroup label="Today's Active Queue" id="optgroupActiveClinic">
+            <?php foreach ($activeAppointments as $act):
                 $isWalkin = ($act['appointment_type'] ?? '') === 'WALK_IN';
-                $typeTag = $isWalkin ? 'Walk-in' : 'Scheduled';
                 $statusTag = 'Waiting in Queue';
-                if ($act['status'] === 'in_progress') $statusTag = 'With Doctor (In Consultation)';
-                elseif ($act['status'] === 'completed') $statusTag = 'Refraction Done (Ready for Dispensing)';
+                if ($act['status'] === 'in_progress') $statusTag = 'With Doctor';
+                elseif ($act['status'] === 'completed') $statusTag = 'Ready for Dispensing';
             ?>
-            <option value="<?= $act['patient_id'] ?>" 
-                    data-appt-id="<?= $act['appointment_id'] ?>" 
-                    data-phone="<?= sanitize($act['phone'] ?? '') ?>" 
+            <option value="<?= $act['patient_id'] ?>"
+                    data-appt-id="<?= $act['appointment_id'] ?>"
+                    data-phone="<?= sanitize($act['phone'] ?? '') ?>"
                     data-has-rx="<?= !empty($act['latest_rx_id']) ? '1' : '0' ?>"
                     data-status="<?= $act['status'] ?>"
                     data-name="<?= sanitize($act['full_name']) ?>"
                     data-type="active_clinic"
+                    data-status-tag="<?= htmlspecialchars($statusTag) ?>"
                     <?= $act['patient_id'] === $selectedPatientId ? 'selected' : '' ?>>
-              <?= sanitize($act['full_name']) ?> — <?= $typeTag ?> [<?= $statusTag ?>]
+              <?= sanitize($act['full_name']) ?>
             </option>
             <?php endforeach; ?>
           </optgroup>
           <?php else: ?>
-          <optgroup label="📍 TODAY'S ACTIVE CLINIC PATIENTS (Queue)" id="optgroupActiveClinic">
+          <optgroup label="Today's Active Queue" id="optgroupActiveClinic">
             <option disabled value="">No active clinic consultations right now</option>
           </optgroup>
           <?php endif; ?>
 
-          <optgroup label="📁 Registered Patients (All)">
+          <optgroup label="Registered Patients">
             <?php foreach ($patients as $pt): ?>
-            <option value="<?= $pt['id'] ?>" data-phone="<?= sanitize($pt['phone']??'') ?>" data-has-rx="0" data-name="<?= sanitize($pt['full_name']) ?>" data-type="general">
-              <?= sanitize($pt['full_name']) ?> — <?= sanitize($pt['phone'] ?: 'No phone') ?>
+            <option value="<?= $pt['id'] ?>"
+                    data-phone="<?= sanitize($pt['phone'] ?? '') ?>"
+                    data-has-rx="0"
+                    data-name="<?= sanitize($pt['full_name']) ?>"
+                    data-type="general"
+                    <?= $pt['id'] === $selectedPatientId ? 'selected' : '' ?>>
+              <?= sanitize($pt['full_name']) ?>
             </option>
             <?php endforeach; ?>
           </optgroup>
         </select>
+
+        <!-- Visible trigger button -->
+        <button type="button" id="patientDropdownTrigger"
+          onclick="togglePatientDropdown(event)"
+          style="width:100%;text-align:left;background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;padding:7px 12px;font-size:.83rem;cursor:pointer;color:var(--text-primary);display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:'Poppins',sans-serif;transition:border-color .15s,box-shadow .15s;">
+          <span id="patientDropdownLabel" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);">Walk-in / Anonymous Customer</span>
+          <i class="fas fa-chevron-down" id="patientDropdownChevron" style="font-size:.68rem;color:var(--text-muted);transition:transform .2s;flex-shrink:0;"></i>
+        </button>
+
+        <!-- Dropdown panel (uses position:fixed set by JS to escape overflow:hidden) -->
+        <div id="patientDropdownPanel" style="display:none;position:fixed;z-index:1080;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);overflow:hidden;">
+          <!-- Search -->
+          <div style="padding:8px 8px 6px;border-bottom:1px solid var(--border-light);">
+            <input type="text" id="patientSearchInput" class="form-control form-control-sm"
+              placeholder="🔍 Search patient by name..."
+              style="font-size:.82rem;"
+              oninput="filterPatientDropdown(this.value)"
+              onclick="event.stopPropagation()">
+          </div>
+          <!-- Scrollable list -->
+          <div id="patientDropdownList"
+            style="max-height:240px;overflow-y:auto;padding:4px 0;scrollbar-width:thin;scrollbar-color:var(--clr-primary) rgba(0,0,0,.05);">
+          </div>
+        </div>
       </div>
 
       <!-- Live Consultation / Queue Status Indicator -->
@@ -972,6 +1010,189 @@ patientSelect.addEventListener('change', async function() {
     rxImportCard.style.display = 'none';
   }
 });
+
+// ── Searchable Custom Patient Dropdown ──────────────────────────────────────
+let _ddOpen = false;
+
+function togglePatientDropdown(e) {
+  e && e.stopPropagation();
+  _ddOpen ? closePatientDropdown() : openPatientDropdown();
+}
+
+function openPatientDropdown() {
+  _ddOpen = true;
+  const trigger = document.getElementById('patientDropdownTrigger');
+  const panel   = document.getElementById('patientDropdownPanel');
+  const rect    = trigger.getBoundingClientRect();
+
+  // Position using fixed coords so overflow:hidden on parent card doesn't clip it
+  panel.style.top   = (rect.bottom + 4) + 'px';
+  panel.style.left  = rect.left + 'px';
+  panel.style.width = rect.width + 'px';
+  panel.style.display = 'block';
+
+  document.getElementById('patientDropdownChevron').style.transform = 'rotate(180deg)';
+  trigger.style.borderColor = 'var(--clr-primary)';
+  trigger.style.boxShadow   = '0 0 0 2px rgba(37,99,235,.15)';
+
+  buildPatientList('');
+  const si = document.getElementById('patientSearchInput');
+  si.value = '';
+  setTimeout(() => si.focus(), 40);
+}
+
+function closePatientDropdown() {
+  _ddOpen = false;
+  document.getElementById('patientDropdownPanel').style.display = 'none';
+  document.getElementById('patientDropdownChevron').style.transform = '';
+  const trigger = document.getElementById('patientDropdownTrigger');
+  trigger.style.borderColor = 'var(--border-color)';
+  trigger.style.boxShadow   = '';
+}
+
+function filterPatientDropdown(val) {
+  buildPatientList(val);
+}
+
+function buildPatientList(filter) {
+  const list = document.getElementById('patientDropdownList');
+  const sel  = document.getElementById('patientSelect');
+  const q    = filter.toLowerCase().trim();
+  list.innerHTML = '';
+  let anyVisible = false;
+
+  Array.from(sel.children).forEach(child => {
+    if (child.tagName === 'OPTION') {
+      // Walk-in / Anonymous top-level option
+      if (!q || 'walk-in anonymous customer'.includes(q)) {
+        list.appendChild(makePatientItem(child));
+        anyVisible = true;
+      }
+    } else if (child.tagName === 'OPTGROUP') {
+      // Collect matching items within this group
+      const groupItems = [];
+      Array.from(child.children).forEach(opt => {
+        if (opt.disabled) return;
+        const dataName = (opt.dataset.name || opt.text || '').toLowerCase();
+        if (!q || dataName.includes(q)) {
+          groupItems.push(makePatientItem(opt));
+        }
+      });
+      if (groupItems.length) {
+        // Group header
+        const hdr = document.createElement('div');
+        hdr.style.cssText = 'font-size:.65rem;font-weight:700;letter-spacing:.05em;color:var(--text-muted);padding:8px 14px 3px;text-transform:uppercase;';
+        hdr.textContent = child.id === 'optgroupActiveClinic' ? "Today's Active Queue" : 'Registered Patients';
+        list.appendChild(hdr);
+        groupItems.forEach(i => list.appendChild(i));
+        anyVisible = true;
+      }
+    }
+  });
+
+  if (!anyVisible) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:18px 12px;text-align:center;font-size:.82rem;color:var(--text-muted);';
+    empty.innerHTML = '<i class="fas fa-search me-1"></i>No patients found';
+    list.appendChild(empty);
+  }
+}
+
+function makePatientItem(opt) {
+  const wrap = document.createElement('div');
+  wrap.className = 'patient-dd-item';
+
+  const sel        = document.getElementById('patientSelect');
+  const isSel      = opt.value === sel.value;
+  const isActive   = opt.dataset.type === 'active_clinic';
+  const statusTag  = opt.dataset.statusTag || '';
+  const displayName = opt.value === ''
+    ? 'Walk-in / Anonymous Customer'
+    : (opt.dataset.name || opt.text || '');
+
+  wrap.style.cssText = `padding:7px 14px;cursor:pointer;font-size:.84rem;display:flex;align-items:center;gap:9px;`
+    + (isSel ? 'background:rgba(37,99,235,.09);font-weight:600;' : '');
+
+  // Left icon
+  const icon = document.createElement('span');
+  icon.style.cssText = 'flex-shrink:0;width:16px;text-align:center;font-size:.72rem;';
+  if (opt.value === '') {
+    icon.innerHTML = '<i class="fas fa-user-slash text-muted"></i>';
+  } else if (isActive) {
+    icon.innerHTML = '<i class="fas fa-circle" style="color:var(--clr-success);font-size:.48rem;vertical-align:middle;"></i>';
+  } else {
+    icon.innerHTML = '<i class="fas fa-user text-muted"></i>';
+  }
+
+  // Name
+  const name = document.createElement('span');
+  name.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  name.textContent = displayName;
+
+  wrap.appendChild(icon);
+  wrap.appendChild(name);
+
+  // Status badge (active queue only)
+  if (isActive && statusTag) {
+    const badge = document.createElement('span');
+    badge.style.cssText = 'flex-shrink:0;font-size:.62rem;padding:2px 7px;border-radius:4px;background:rgba(37,99,235,.12);color:var(--clr-primary);';
+    badge.textContent = statusTag;
+    wrap.appendChild(badge);
+  }
+
+  // Checkmark if selected
+  if (isSel) {
+    const chk = document.createElement('span');
+    chk.innerHTML = '<i class="fas fa-check" style="color:var(--clr-primary);font-size:.72rem;"></i>';
+    wrap.appendChild(chk);
+  }
+
+  wrap.addEventListener('mouseenter', () => { if (!isSel) wrap.style.background = 'var(--bg-hover)'; });
+  wrap.addEventListener('mouseleave', () => { wrap.style.background = isSel ? 'rgba(37,99,235,.09)' : ''; });
+  wrap.addEventListener('click', () => {
+    const sel = document.getElementById('patientSelect');
+    sel.value = opt.value;
+    const lbl = document.getElementById('patientDropdownLabel');
+    lbl.textContent = displayName;
+    lbl.style.color  = opt.value === '' ? 'var(--text-muted)' : 'var(--text-primary)';
+    closePatientDropdown();
+    sel.dispatchEvent(new Event('change'));
+  });
+
+  return wrap;
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {
+  if (_ddOpen && !document.getElementById('patientDropdownWrap').contains(e.target)
+      && !document.getElementById('patientDropdownPanel').contains(e.target)) {
+    closePatientDropdown();
+  }
+});
+
+// Re-position dropdown on scroll/resize so it follows the trigger
+window.addEventListener('resize', () => { if (_ddOpen) openPatientDropdown(); });
+window.addEventListener('scroll', () => { if (_ddOpen) {
+  const trigger = document.getElementById('patientDropdownTrigger');
+  const panel   = document.getElementById('patientDropdownPanel');
+  const rect    = trigger.getBoundingClientRect();
+  panel.style.top  = (rect.bottom + 4) + 'px';
+  panel.style.left = rect.left + 'px';
+}}, true);
+
+// Init: if patient pre-selected via URL ?patient_id=, update label & fire change
+(function initPatientDropdownLabel() {
+  const sel = document.getElementById('patientSelect');
+  const idx = sel.selectedIndex;
+  if (idx > 0) {
+    const opt = sel.options[idx];
+    const displayName = opt.dataset.name || opt.text || '';
+    const lbl = document.getElementById('patientDropdownLabel');
+    lbl.textContent = displayName;
+    lbl.style.color = 'var(--text-primary)';
+    sel.dispatchEvent(new Event('change'));
+  }
+})();
 
 // 1-Click Import Rx into POS Cart
 function importRxToCart() {

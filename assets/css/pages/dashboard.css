@@ -361,3 +361,125 @@ html:not([data-theme="dark"]) .dash-mp-footer {
   background: #235EAE;
   color: #FFFFFF;
 }
+
+/* ─── Clickable Bento Stat Cards ───────────────── */
+.bento-stat.clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+  position: relative;
+}
+.bento-stat.clickable:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 16px 36px -6px rgba(var(--stat-rgb, 35, 94, 174), 0.24), 0 4px 14px -2px rgba(0, 0, 0, 0.08);
+  border-color: rgba(var(--stat-rgb, 35, 94, 174), 0.65) !important;
+}
+.bento-stat.clickable:active {
+  transform: translateY(-2px) scale(0.99);
+}
+.bento-stat.clickable:focus-visible {
+  outline: 2px solid var(--stat-color, var(--clr-primary));
+  outline-offset: 2px;
+}
+.bento-stat-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--stat-color, var(--clr-primary));
+  margin-top: 5px;
+  opacity: 0.8;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.bento-stat.clickable:hover .bento-stat-hint {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+/* ─── Modern Dashboard Modal Styling ───────────────── */
+.dash-modal .modal-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  font-family: 'Plus Jakarta Sans', 'Poppins', sans-serif;
+}
+.dash-modal .modal-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.dash-modal-header-green {
+  background: linear-gradient(135deg, #059669, #10B981);
+}
+.dash-modal-header-blue {
+  background: linear-gradient(135deg, #0284C7, #0EA5E9);
+}
+.dash-modal-header-purple {
+  background: linear-gradient(135deg, #7C3AED, #8B5CF6);
+}
+.dash-modal-header-red {
+  background: linear-gradient(135deg, #DC2626, #EF4444);
+}
+.dash-modal .modal-body {
+  padding: 22px 24px;
+  max-height: calc(85vh - 160px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--clr-primary) rgba(0, 0, 0, 0.05);
+}
+.dash-modal .modal-footer {
+  padding: 14px 24px;
+  background: var(--bg-hover);
+  border-top: 1px solid var(--border-color);
+}
+.dash-summary-pill {
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.dash-summary-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.dash-summary-pill-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+.dash-summary-pill-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.dash-tx-table th {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 12px 14px;
+  border-bottom: 2px solid var(--border-color);
+  background: var(--bg-hover);
+}
+.dash-tx-table td {
+  padding: 12px 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.86rem;
+}
+.dash-tx-table tr:hover td {
+  background: var(--bg-hover);
+}
+

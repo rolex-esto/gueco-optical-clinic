@@ -409,7 +409,6 @@ document.addEventListener("DOMContentLoaded", function() {
           <div class="col-md-6">
             <label class="form-label">Base Model / Series (Optional)</label>
             <input type="text" name="base_model" class="form-control" placeholder="e.g. METAL 6631, PLASTIC SUNCARI">
-            <small class="text-muted" style="font-size:0.7rem;">Items with matching Base Model group under 1 parent item with a variant selector.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Variant / Color (Optional)</label>

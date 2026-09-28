@@ -28,11 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 $db   = getDB();
-                $stmt = $db->prepare("SELECT * FROM users WHERE email = ? AND status = 'active' LIMIT 1");
+                $stmt = $db->prepare("SELECT * FROM users WHERE BINARY email = ? AND status = 'active' LIMIT 1");
                 $stmt->execute([$email]);
                 $user = $stmt->fetch();
 
-                if ($user && password_verify($password, $user['password'])) {
+                if ($user && $user['email'] === $email && password_verify($password, $user['password'])) {
                     clearRateLimit($rlKey);
                     session_regenerate_id(true);
 

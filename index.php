@@ -164,11 +164,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             try {
                 $db   = getDB();
                 ensurePatientSchema($db);
-                $stmt = $db->prepare("SELECT * FROM patients WHERE email = ? AND status = 'active' LIMIT 1");
+                $stmt = $db->prepare("SELECT * FROM patients WHERE BINARY email = ? AND status = 'active' LIMIT 1");
                 $stmt->execute([$email]);
                 $patient = $stmt->fetch();
 
-                if ($patient && password_verify($password, $patient['password'])) {
+                if ($patient && $patient['email'] === $email && password_verify($password, $patient['password'])) {
                     // Defense-in-depth: if account is not yet email verified, require OTP verification
                     if (isset($patient['email_verified']) && (int)$patient['email_verified'] === 0) {
                         issuePatientLoginOTP([

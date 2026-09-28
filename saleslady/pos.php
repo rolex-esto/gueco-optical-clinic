@@ -8,6 +8,7 @@ $breadcrumb = ['Saleslady', 'POS'];
 $db = getDB();
 ensureJobOrderSchema($db);
 ensureAppointmentsSchema($db);
+ensureFinancialComplianceSchema($db);
 
 // Process sale submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'process_sale') {
@@ -109,7 +110,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
         }
     }
 
-    $total = max(0, $subtotal - $discount);
+    $discountType     = in_array($_POST['discount_type'] ?? '', ['none', 'flat', 'senior_pwd'], true) ? $_POST['discount_type'] : 'none';
+    $seniorId         = sanitize($_POST['senior_id'] ?? '');
+
+    // VAT & Discount Computation
+    $vatRate = 0.12;
+    $vatableSales = 0;
+    $vatAmount = 0;
+    $vatExemptSales = 0;
+    
+    if ($discountType === 'senior_pwd') {
+        // SC/PWD: Subtotal / 1.12 = VAT Exempt Sales
+        $vatExemptSales = round($subtotal / (1 + $vatRate), 2);
+        // 20% discount on VAT Exempt Sales
+        $discount = round($vatExemptSales * 0.20, 2);
+        $total = max(0, $vatExemptSales - $discount);
+        $vatableSales = 0;
+        $vatAmount = 0;
+    } else {
+        // Flat discount or None
+        if ($discountType === 'none') {
+            $discount = 0;
+        }
+        $total = max(0, $subtotal - $discount);
+        // Compute VAT backwards from Total
+        $vatableSales = round($total / (1 + $vatRate), 2);
+        $vatAmount = $total - $vatableSales;
+        $vatExemptSales = 0;
+    }
 
     // Validation: Disallow finalizing a prescription checkout without patient contact details
     if ($hasRxItem || $generateJobOrder === 1) {
@@ -190,17 +218,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
         $saleStmt = $db->prepare("
             INSERT INTO sales (
                 invoice_no, patient_id, cashier_id, appointment_id,
-                subtotal, discount, total, payment_method,
-                payment_type, deposit_amount, balance_due, target_pickup_date,
-                prescription_id, job_order_no, order_status,
+                subtotal, discount_type, senior_id, discount, total, 
+                vatable_sales, vat_amount, vat_exempt_sales,
+                payment_method, payment_type, deposit_amount, balance_due, 
+                target_pickup_date, prescription_id, job_order_no, order_status,
                 amount_paid, change_amount, status
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'completed')
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'completed')
         ");
         $saleStmt->execute([
             $invoiceNo, $patientId, $_SESSION['user_id'], $appointmentId,
-            $subtotal, $discount, $total, $dbPaymentMethod,
-            $paymentType, $depositAmount, $balanceDue, $targetPickupDate,
-            $prescriptionId, $jobOrderNo, $orderStatus,
+            $subtotal, $discountType, $seniorId, $discount, $total,
+            $vatableSales, $vatAmount, $vatExemptSales,
+            $dbPaymentMethod, $paymentType, $depositAmount, $balanceDue, 
+            $targetPickupDate, $prescriptionId, $jobOrderNo, $orderStatus,
             $amountPaid, $change
         ]);
         $saleId = $db->lastInsertId();
@@ -275,16 +305,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
 // Search products AJAX
 if (isset($_GET['search_products'])) {
     $q = '%' . sanitize($_GET['search_products']) . '%';
-    $prods = $db->prepare("SELECT p.id, p.name, p.price, p.stock_quantity, p.image, p.tier, c.name as category FROM products p JOIN categories c ON c.id=p.category_id WHERE (p.name LIKE ? OR c.name LIKE ?) AND p.status='active' AND p.stock_quantity>0 ORDER BY p.name LIMIT 20");
-    $prods->execute([$q,$q]);
+    $prods = $db->prepare("SELECT p.id, p.name, p.base_model, p.variant_name, p.product_code, p.price, p.stock_quantity, p.image, p.tier, c.name as category FROM products p JOIN categories c ON c.id=p.category_id WHERE (p.name LIKE ? OR c.name LIKE ? OR p.base_model LIKE ? OR p.variant_name LIKE ?) AND p.status='active' AND p.stock_quantity>0 ORDER BY COALESCE(p.base_model, p.name), p.name LIMIT 50");
+    $prods->execute([$q,$q,$q,$q]);
     header('Content-Type: application/json');
     echo json_encode($prods->fetchAll());
     exit;
 }
 
 // Get all products by category for initial load
+ensureProductVariantSchema($db);
 $categories = $db->query("SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id=c.id AND p.status='active' AND p.stock_quantity>0) as prod_count FROM categories c WHERE c.status='active' ORDER BY c.name")->fetchAll();
-$allProducts = $db->query("SELECT p.id,p.name,p.price,p.stock_quantity,p.image,p.tier,c.name as category FROM products p JOIN categories c ON c.id=p.category_id WHERE p.status='active' AND p.stock_quantity>0 ORDER BY c.name,p.name")->fetchAll();
+$allProducts = $db->query("SELECT p.id,p.name,p.base_model,p.variant_name,p.product_code,p.price,p.stock_quantity,p.image,p.tier,p.category_id,c.name as category FROM products p JOIN categories c ON c.id=p.category_id WHERE p.status='active' AND p.stock_quantity>0 ORDER BY c.name,COALESCE(p.base_model,p.name) ASC,p.name ASC")->fetchAll();
+
+// Group products by base_model if identical base model exists
+$groupedProducts = [];
+foreach ($allProducts as $p) {
+    $groupKey = !empty($p['base_model']) ? ('m_' . $p['category_id'] . '_' . strtolower(trim($p['base_model']))) : ('p_' . $p['id']);
+    if (!isset($groupedProducts[$groupKey])) {
+        $groupedProducts[$groupKey] = [
+            'base_model'   => $p['base_model'] ?: $p['name'],
+            'has_variants' => false,
+            'primary'      => $p,
+            'variants'     => []
+        ];
+    }
+    $groupedProducts[$groupKey]['variants'][] = $p;
+    if (count($groupedProducts[$groupKey]['variants']) > 1) {
+        $groupedProducts[$groupKey]['has_variants'] = true;
+    }
+}
 
 $today = date('Y-m-d');
 $activeAppointments = [];
@@ -606,14 +655,15 @@ include __DIR__ . '/../includes/header.php';
 
     <!-- Product Grid -->
     <div id="productGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:14px;align-content:start;">
-      <?php if (empty($allProducts)): ?>
+      <?php if (empty($groupedProducts)): ?>
         <div style="grid-column:1 / -1;text-align:center;padding:48px 16px;color:var(--text-muted);background:var(--bg-card);border:1px dashed var(--border-color);border-radius:12px;">
           <i class="fas fa-box-open" style="font-size:2.5rem;margin-bottom:12px;opacity:0.35;"></i>
           <h6 style="font-weight:600;margin-bottom:4px;">No products available</h6>
           <p style="font-size:0.8rem;margin:0;">Add active products with available stock in Inventory.</p>
         </div>
       <?php else: ?>
-        <?php foreach ($allProducts as $prod): 
+        <?php foreach ($groupedProducts as $item): 
+          $prod = $item['primary'];
           $hasImg = !empty($prod['image']);
           $catLower = strtolower($prod['category'] ?? '');
           $fallbackIcon = 'fa-glasses';
@@ -627,6 +677,7 @@ include __DIR__ . '/../includes/header.php';
               $fallbackIcon = 'fa-sun';
           }
           $isLowStock = ($prod['stock_quantity'] ?? 0) <= 5;
+          $allTerms = strtolower($item['base_model'] . ' ' . implode(' ', array_column($item['variants'], 'variant_name')) . ' ' . implode(' ', array_column($item['variants'], 'product_code')) . ' ' . implode(' ', array_column($item['variants'], 'name')));
         ?>
         <div class="prod-card" 
              data-id="<?= $prod['id'] ?>" 
@@ -635,6 +686,7 @@ include __DIR__ . '/../includes/header.php';
              data-stock="<?= $prod['stock_quantity'] ?>" 
              data-cat="<?= htmlspecialchars($prod['category'], ENT_QUOTES, 'UTF-8') ?>"
              data-tier="<?= htmlspecialchars($prod['tier'] ?? 'budget', ENT_QUOTES, 'UTF-8') ?>"
+             data-search-terms="<?= htmlspecialchars($allTerms, ENT_QUOTES, 'UTF-8') ?>"
              onclick="addToCart(this)">
           
           <!-- Thumbnail Wrap with Badges -->
@@ -675,9 +727,37 @@ include __DIR__ . '/../includes/header.php';
             <div class="prod-cat-tag" title="<?= sanitize($prod['category']) ?>">
               <?= sanitize($prod['category']) ?>
             </div>
-            <div class="prod-title" title="<?= sanitize($prod['name']) ?>">
-              <?= sanitize($prod['name']) ?>
+            <div class="prod-title" title="<?= sanitize($item['base_model']) ?>" style="display:flex;align-items:baseline;justify-content:space-between;gap:4px;">
+              <span><?= sanitize($item['base_model']) ?></span>
+              <?php if ($item['has_variants']): ?>
+                <span class="badge bg-primary" style="font-size:0.58rem; padding:1px 4px; flex-shrink:0;"><?= count($item['variants']) ?> opt</span>
+              <?php endif; ?>
             </div>
+
+            <?php if ($item['has_variants']): ?>
+            <!-- Variant Selector Dropdown -->
+            <div style="margin-bottom:8px;" onclick="event.stopPropagation();">
+              <label style="font-size:0.65rem; font-weight:700; color:var(--clr-primary); margin-bottom:2px; display:block;">
+                <i class="fas fa-palette me-1"></i>Color / Variant:
+              </label>
+              <select class="form-select form-select-sm pos-variant-select"
+                      style="font-size:0.75rem; padding:2px 20px 2px 6px; font-weight:600; cursor:pointer;"
+                      onchange="onPosVariantChange(this)"
+                      onclick="event.stopPropagation();">
+                <?php foreach ($item['variants'] as $v): ?>
+                  <option value="<?= $v['id'] ?>"
+                          data-code="<?= htmlspecialchars($v['product_code'] ?: '', ENT_QUOTES, 'UTF-8') ?>"
+                          data-name="<?= htmlspecialchars($v['name'], ENT_QUOTES, 'UTF-8') ?>"
+                          data-variant="<?= htmlspecialchars($v['variant_name'] ?: $v['name'], ENT_QUOTES, 'UTF-8') ?>"
+                          data-price="<?= $v['price'] ?>"
+                          data-stock="<?= (int)$v['stock_quantity'] ?>">
+                    <?= htmlspecialchars($v['variant_name'] ?: $v['name']) ?> (<?= (int)$v['stock_quantity'] ?> left)
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <?php endif; ?>
+
             <div class="prod-card-footer">
               <div class="prod-price">₱<?= number_format($prod['price'], 2) ?></div>
               <button type="button" class="prod-add-btn" title="Add to cart" aria-label="Add to cart">
@@ -866,27 +946,46 @@ include __DIR__ . '/../includes/header.php';
         </div>
       </div>
 
-      <!-- Discount & Payment Method -->
+      <!-- Discount Type & Amount -->
       <div style="display:flex;gap:8px;margin-bottom:10px;align-items:flex-end;">
         <div style="flex:1">
-          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">DISCOUNT (₱)</label>
-          <input type="number" id="discountInput" class="form-control form-control-sm" value="0" min="0" step="0.01" style="font-size:.85rem;" oninput="recalculate()">
-        </div>
-        <div style="flex:1">
-          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">PAYMENT</label>
-          <select id="paymentMethod" class="form-select form-select-sm" style="font-size:.82rem;">
-            <option value="cash">Cash</option>
-            <option value="gcash">GCash</option>
-            <option value="card">Card</option>
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">DISCOUNT TYPE</label>
+          <select id="discountType" class="form-select form-select-sm" style="font-size:.82rem;" onchange="toggleDiscountType()">
+            <option value="none">None</option>
+            <option value="flat">Flat Amount (₱)</option>
+            <option value="senior_pwd">Senior/PWD (20% + VAT Exempt)</option>
           </select>
+        </div>
+        <div style="flex:1" id="discountValueContainer" style="display:none;">
+          <label style="font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">DISCOUNT (₱)</label>
+          <input type="number" id="discountInput" class="form-control form-control-sm" value="0" min="0" step="0.01" style="font-size:.85rem;" oninput="recalculate()" disabled>
         </div>
       </div>
 
-      <!-- Totals Card -->
+      <!-- Senior ID Input -->
+      <div id="seniorIdContainer" style="display:none; margin-bottom:10px;">
+        <label style="font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">SENIOR CITIZEN / PWD ID NO.</label>
+        <input type="text" id="seniorIdInput" class="form-control form-control-sm" placeholder="Enter ID Number">
+      </div>
+
+      <!-- Payment Method -->
+      <div style="margin-bottom:10px;">
+        <label style="font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;">PAYMENT METHOD</label>
+        <select id="paymentMethod" class="form-select form-select-sm" style="font-size:.82rem;">
+          <option value="cash">Cash</option>
+          <option value="gcash">GCash</option>
+          <option value="card">Card</option>
+        </select>
+      </div>
+
+      <!-- Totals Card with VAT -->
       <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px;"><span style="color:var(--text-muted)">Subtotal</span><span id="subtotalDisplay" style="font-weight:600;">₱0.00</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px;"><span style="color:var(--clr-warning)">Discount</span><span id="discountDisplay" style="color:var(--clr-warning);font-weight:600;">-₱0.00</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:.95rem;font-weight:800;border-top:1px solid var(--border-light);padding-top:6px;"><span>TOTAL</span><span id="totalDisplay" style="color:var(--clr-success)">₱0.00</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:2px;"><span style="color:var(--text-muted)">Subtotal</span><span id="subtotalDisplay" style="font-weight:600;">₱0.00</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:2px;"><span style="color:var(--clr-warning)">Discount</span><span id="discountDisplay" style="color:var(--clr-warning);font-weight:600;">-₱0.00</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:2px;"><span style="color:var(--text-muted)">VAT Exempt Sales</span><span id="vatExemptDisplay" style="font-weight:600;">₱0.00</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:2px;"><span style="color:var(--text-muted)">VATable Sales</span><span id="vatableDisplay" style="font-weight:600;">₱0.00</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:4px;"><span style="color:var(--text-muted)">VAT Amount (12%)</span><span id="vatAmountDisplay" style="font-weight:600;">₱0.00</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:.95rem;font-weight:800;border-top:1px solid var(--border-light);padding-top:6px;"><span>TOTAL DUE</span><span id="totalDisplay" style="color:var(--clr-success)">₱0.00</span></div>
       </div>
 
       <!-- Amount Paid (cash only) -->
@@ -989,12 +1088,42 @@ function filterProducts() {
   const cat  = catFilter.value.toLowerCase().trim();
   const tier = tierFilter.value.toLowerCase().trim();
   document.querySelectorAll('.prod-card').forEach(card => {
-    const name = (card.dataset.name || '').toLowerCase();
-    const c    = (card.dataset.cat || '').toLowerCase();
-    const t    = (card.dataset.tier || 'budget').toLowerCase();
-    const show = (!q || name.includes(q)) && (!cat || c === cat) && (!tier || t === tier);
+    const name  = (card.dataset.name || '').toLowerCase();
+    const terms = (card.dataset.searchTerms || '').toLowerCase();
+    const c     = (card.dataset.cat || '').toLowerCase();
+    const t     = (card.dataset.tier || 'budget').toLowerCase();
+    const matchText = !q || name.includes(q) || terms.includes(q);
+    const show = matchText && (!cat || c === cat) && (!tier || t === tier);
     card.style.display = show ? '' : 'none';
   });
+}
+
+function onPosVariantChange(selectEl) {
+  const opt = selectEl.options[selectEl.selectedIndex];
+  const card = selectEl.closest('.prod-card');
+  if (!card || !opt) return;
+
+  const id = parseInt(opt.value, 10);
+  const name = opt.dataset.name;
+  const price = parseFloat(opt.dataset.price);
+  const stock = parseInt(opt.dataset.stock, 10);
+
+  card.dataset.id = id;
+  card.dataset.name = name;
+  card.dataset.price = price;
+  card.dataset.stock = stock;
+
+  const priceEl = card.querySelector('.prod-price');
+  if (priceEl) priceEl.textContent = formatPeso(price);
+
+  const badgeStock = card.querySelector('.prod-badge-stock');
+  if (badgeStock) {
+    if (stock <= 5) {
+      badgeStock.innerHTML = `<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>${stock} left</span>`;
+    } else {
+      badgeStock.innerHTML = `<span class="badge" style="background:rgba(15,23,42,0.65);color:#fff;backdrop-filter:blur(4px);"><i class="fas fa-boxes me-1"></i>${stock}</span>`;
+    }
+  }
 }
 
 // Add to cart
@@ -1123,35 +1252,82 @@ function renderCart() {
   recalculate();
 }
 
+function toggleDiscountType() {
+  const type = document.getElementById('discountType').value;
+  const valContainer = document.getElementById('discountValueContainer');
+  const discountInput = document.getElementById('discountInput');
+  const seniorContainer = document.getElementById('seniorIdContainer');
+
+  if (type === 'flat') {
+    valContainer.style.display = 'block';
+    discountInput.disabled = false;
+    seniorContainer.style.display = 'none';
+  } else if (type === 'senior_pwd') {
+    valContainer.style.display = 'block';
+    discountInput.disabled = true; // Auto-calculated
+    seniorContainer.style.display = 'block';
+  } else {
+    valContainer.style.display = 'none';
+    discountInput.value = '0';
+    seniorContainer.style.display = 'none';
+  }
+  recalculate();
+}
+
 function recalculate() {
   const subtotal = cart.reduce((s,i) => s + i.price * i.qty, 0);
-  const discount = parseFloat(document.getElementById('discountInput').value) || 0;
-  const total    = Math.max(0, subtotal - discount);
+  const type = document.getElementById('discountType').value;
+  let discount = parseFloat(document.getElementById('discountInput').value) || 0;
+  
+  let vatable = 0;
+  let vatAmount = 0;
+  let vatExempt = 0;
+  let total = subtotal;
+
+  if (type === 'senior_pwd') {
+    // SC/PWD: subtotal is vat exempt, 20% discount on that
+    vatExempt = subtotal / 1.12;
+    discount = vatExempt * 0.20;
+    total = Math.max(0, vatExempt - discount);
+    document.getElementById('discountInput').value = discount.toFixed(2);
+  } else {
+    if (type === 'none') {
+      discount = 0;
+      document.getElementById('discountInput').value = '0';
+    }
+    total = Math.max(0, subtotal - discount);
+    vatable = total / 1.12;
+    vatAmount = total - vatable;
+  }
+
   const paidInput = document.getElementById('amountPaid');
   const paid     = parseFloat(paidInput.value) || 0;
   const change   = Math.max(0, paid - total);
 
   document.getElementById('subtotalDisplay').textContent = formatPeso(subtotal);
   document.getElementById('discountDisplay').textContent = '-' + formatPeso(discount);
+  document.getElementById('vatExemptDisplay').textContent = formatPeso(vatExempt);
+  document.getElementById('vatableDisplay').textContent = formatPeso(vatable);
+  document.getElementById('vatAmountDisplay').textContent = formatPeso(vatAmount);
   document.getElementById('totalDisplay').textContent    = formatPeso(total);
   document.getElementById('changeDisplay').textContent   = formatPeso(change);
 
   if (document.getElementById('payTypeDown').checked) {
-    recalculateDeposit();
+    recalculateDeposit(total);
   }
 }
 
 function setExactAmount() {
-  const subtotal = cart.reduce((s,i) => s + i.price * i.qty, 0);
-  const discount = parseFloat(document.getElementById('discountInput').value) || 0;
-  const total    = Math.max(0, subtotal - discount);
+  const type = document.getElementById('discountType').value;
+  let totalStr = document.getElementById('totalDisplay').textContent.replace('₱', '').replace(',', '');
+  let total = parseFloat(totalStr) || 0;
+  
   const paidInput = document.getElementById('amountPaid');
   
   if (document.getElementById('payTypeDown').checked) {
     const dep = parseFloat(document.getElementById('depositAmount').value) || 0;
     paidInput.value = dep.toFixed(2);
   } else {
-    paidInput.value = total.toFixed(2);
   }
   recalculate();
 }

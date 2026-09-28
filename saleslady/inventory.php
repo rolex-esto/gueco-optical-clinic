@@ -6,6 +6,7 @@ requireRole('saleslady');
 $pageTitle  = 'Inventory';
 $breadcrumb = ['Saleslady', 'Inventory'];
 $db = getDB();
+ensureProductVariantSchema($db);
 $msg = ''; $msgType = 'success';
 
 // Stock-in / out
@@ -46,9 +47,27 @@ $whereStr = implode(' AND ', $where);
 $products = $db->prepare("
     SELECT p.*, c.name as cat_name
     FROM products p JOIN categories c ON c.id=p.category_id
-    WHERE $whereStr ORDER BY c.name, p.name
+    WHERE $whereStr ORDER BY c.name, COALESCE(p.base_model, p.name) ASC, p.name ASC
 ");
 $products->execute($params); $products = $products->fetchAll();
+
+// Group products by base_model if identical base model exists
+$groupedProducts = [];
+foreach ($products as $p) {
+    $groupKey = !empty($p['base_model']) ? ('m_' . $p['category_id'] . '_' . strtolower(trim($p['base_model']))) : ('p_' . $p['id']);
+    if (!isset($groupedProducts[$groupKey])) {
+        $groupedProducts[$groupKey] = [
+            'base_model'   => $p['base_model'] ?: $p['name'],
+            'has_variants' => false,
+            'primary'      => $p,
+            'variants'     => []
+        ];
+    }
+    $groupedProducts[$groupKey]['variants'][] = $p;
+    if (count($groupedProducts[$groupKey]['variants']) > 1) {
+        $groupedProducts[$groupKey]['has_variants'] = true;
+    }
+}
 
 $categories = $db->query("SELECT * FROM categories WHERE status='active' ORDER BY name")->fetchAll();
 
@@ -82,7 +101,7 @@ document.addEventListener("DOMContentLoaded", function() {
 <div class="row" style="margin-bottom:16px;">
   <div class="col-8">
     <div class="section-header">
-      <h5><i class="fas fa-warehouse me-2" style="color:var(--clr-primary)"></i>Stock Management (<?= count($products) ?>)</h5>
+      <h5><i class="fas fa-warehouse me-2" style="color:var(--clr-primary)"></i>Stock Management (<?= count($groupedProducts) ?><?= count($groupedProducts) !== count($products) ? ' Models, ' . count($products) . ' SKUs' : '' ?>)</h5>
       <div style="display:flex;gap:8px;">
         <a href="?stock=low" class="btn btn-warning btn-sm"><i class="fas fa-exclamation-triangle"></i> Low Stock</a>
         <a href="?stock=out" class="btn btn-danger btn-sm"><i class="fas fa-times-circle"></i> Out of Stock</a>
@@ -112,27 +131,72 @@ document.addEventListener("DOMContentLoaded", function() {
         <table class="table">
           <thead><tr><th>Product</th><th>Tier</th><th>Category</th><th>Price</th><th>Stock</th><th>Alert At</th><th>Actions</th></tr></thead>
           <tbody>
-            <?php if (empty($products)): ?>
+            <?php if (empty($groupedProducts)): ?>
             <tr><td colspan="7"><div class="empty-state"><div class="empty-icon"><i class="fas fa-boxes"></i></div><h6>No products found</h6></div></td></tr>
             <?php else: ?>
-            <?php foreach ($products as $p): ?>
-            <?php $isLow = $p['stock_quantity'] <= $p['low_stock_alert']; $isOut = $p['stock_quantity'] == 0; ?>
-            <tr>
-              <td><div style="font-weight:600;font-size:.88rem"><?= sanitize($p['name']) ?></div></td>
+            <?php foreach ($groupedProducts as $item): ?>
+            <?php 
+              $p = $item['primary'];
+              $isLow = $p['stock_quantity'] <= $p['low_stock_alert']; 
+              $isOut = $p['stock_quantity'] == 0; 
+              $totalModelStock = array_sum(array_column($item['variants'], 'stock_quantity'));
+            ?>
+            <tr id="row-prod-<?= $p['id'] ?>">
+              <td>
+                <div style="font-weight:700;font-size:.9rem;display:flex;align-items:center;gap:6px;">
+                  <?= sanitize($item['base_model']) ?>
+                  <?php if ($item['has_variants']): ?>
+                    <span class="badge bg-primary" style="font-size:.65rem; padding:2px 6px;"><?= count($item['variants']) ?> Variants</span>
+                  <?php endif; ?>
+                </div>
+                <div class="cell-code" style="font-family:monospace; color:var(--text-muted); font-size:0.75rem; margin-top:2px;">
+                  <?= sanitize($p['product_code'] ?: '') ?>
+                </div>
+                <?php if ($item['has_variants']): ?>
+                <!-- Variant Selector Dropdown -->
+                <div style="margin-top:6px; display:inline-flex; align-items:center; gap:6px; background:var(--bg-hover); padding:3px 8px; border-radius:6px; border:1px solid var(--border-color);">
+                  <label style="font-size:0.72rem; font-weight:700; color:var(--clr-primary); margin:0; white-space:nowrap;">
+                    <i class="fas fa-palette me-1"></i>Color / Variant:
+                  </label>
+                  <select class="form-select form-select-sm variant-picker-select" 
+                          style="font-size:0.78rem; padding:2px 24px 2px 8px; height:auto; width:auto; font-weight:600; cursor:pointer;"
+                          onchange="onVariantChange(this)">
+                    <?php foreach ($item['variants'] as $v): ?>
+                      <option value="<?= $v['id'] ?>"
+                              data-code="<?= htmlspecialchars($v['product_code'] ?: '') ?>"
+                              data-name="<?= htmlspecialchars($v['name']) ?>"
+                              data-variant="<?= htmlspecialchars($v['variant_name'] ?: $v['name']) ?>"
+                              data-price="<?= number_format($v['price'], 2) ?>"
+                              data-stock="<?= (int)$v['stock_quantity'] ?>"
+                              data-low-alert="<?= (int)$v['low_stock_alert'] ?>">
+                        <?= htmlspecialchars($v['variant_name'] ?: $v['name']) ?> (Stock: <?= (int)$v['stock_quantity'] ?>)
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <?php endif; ?>
+              </td>
               <td><?= tierBadge($p['tier'] ?? 'budget') ?></td>
               <td><span class="badge bg-secondary"><?= sanitize($p['cat_name']) ?></span></td>
-              <td style="font-weight:700;color:var(--clr-success)"><?= formatCurrency($p['price']) ?></td>
-              <td>
-                <span style="font-weight:800;font-size:.95rem;color:<?= $isOut?'#DC2626':($isLow?'#EF4444':'var(--text-primary)') ?>">
+              <td class="cell-price" style="font-weight:700;color:var(--clr-success)"><?= formatCurrency($p['price']) ?></td>
+              <td class="cell-stock">
+                <span class="stock-qty-val" style="font-weight:800;font-size:.95rem;color:<?= $isOut?'#DC2626':($isLow?'#EF4444':'var(--text-primary)') ?>">
                   <?= $p['stock_quantity'] ?>
                 </span>
-                <?php if ($isOut): ?><span class="badge badge-out-alert ms-1" style="font-size:.65rem; padding:2px 6px;">OUT</span>
-                <?php elseif ($isLow): ?><span class="badge badge-low-alert ms-1" style="font-size:.65rem; padding:2px 6px; font-weight:700;">LOW</span><?php endif; ?>
+                <span class="stock-badge-val">
+                  <?php if ($isOut): ?><span class="badge badge-out-alert ms-1" style="font-size:.65rem; padding:2px 6px;">OUT</span>
+                  <?php elseif ($isLow): ?><span class="badge badge-low-alert ms-1" style="font-size:.65rem; padding:2px 6px; font-weight:700;">LOW</span><?php endif; ?>
+                </span>
+                <?php if ($item['has_variants']): ?>
+                  <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;" title="Combined stock for all variants of this model">
+                    Model Total: <strong class="model-total-val"><?= $totalModelStock ?></strong>
+                  </div>
+                <?php endif; ?>
               </td>
-              <td style="font-size:.8rem;color:var(--text-muted)"><?= $p['low_stock_alert'] ?></td>
+              <td class="cell-alert" style="font-size:.8rem;color:var(--text-muted)"><?= $p['low_stock_alert'] ?></td>
               <td>
-                <button class="btn btn-sm btn-success btn-icon" title="Stock In" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', 'stock_in')"><i class="fas fa-plus"></i></button>
-                <button class="btn btn-sm btn-warning btn-icon" title="Stock Out" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', 'stock_out')"><i class="fas fa-minus"></i></button>
+                <button class="btn btn-sm btn-success btn-icon btn-action-in" title="Stock In" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', 'stock_in')"><i class="fas fa-plus"></i></button>
+                <button class="btn btn-sm btn-warning btn-icon btn-action-out" title="Stock Out" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', 'stock_out')"><i class="fas fa-minus"></i></button>
               </td>
             </tr>
             <?php endforeach; ?>
@@ -198,6 +262,54 @@ function openStockModal(id, name, action) {
   document.getElementById('stockTitle').innerHTML = `<i class="fas fa-${isIn?'plus':'minus'} me-2" style="color:var(--clr-${isIn?'success':'warning'})"></i>${isIn?'Stock In':'Stock Out'}`;
   document.getElementById('sBtn').className = `btn btn-${isIn?'success':'warning'}`;
   openModal('stockModal');
+}
+
+function onVariantChange(selectEl) {
+  const opt = selectEl.options[selectEl.selectedIndex];
+  const row = selectEl.closest('tr');
+  if (!row || !opt) return;
+
+  // 1. Update SKU / Code
+  const codeCell = row.querySelector('.cell-code');
+  if (codeCell) codeCell.textContent = opt.dataset.code || '';
+
+  // 2. Update Price
+  const priceCell = row.querySelector('.cell-price');
+  if (priceCell) priceCell.textContent = '₱' + opt.dataset.price;
+
+  // 3. Update Stock & Alert Badge
+  const stockCell = row.querySelector('.cell-stock');
+  if (stockCell) {
+    const qtyVal = stockCell.querySelector('.stock-qty-val');
+    const badgeVal = stockCell.querySelector('.stock-badge-val');
+    const stock = parseInt(opt.dataset.stock) || 0;
+    const alertAt = parseInt(opt.dataset.lowAlert) || 5;
+    const isOut = stock === 0;
+    const isLow = stock <= alertAt && !isOut;
+
+    if (qtyVal) {
+      qtyVal.textContent = stock;
+      qtyVal.style.color = isOut ? '#DC2626' : (isLow ? '#EF4444' : 'var(--text-primary)');
+    }
+    if (badgeVal) {
+      if (isOut) badgeVal.innerHTML = '<span class="badge badge-out-alert ms-1" style="font-size:.65rem; padding:2px 6px;">OUT</span>';
+      else if (isLow) badgeVal.innerHTML = '<span class="badge badge-low-alert ms-1" style="font-size:.65rem; padding:2px 6px; font-weight:700;">LOW</span>';
+      else badgeVal.innerHTML = '';
+    }
+  }
+
+  // 4. Update Alert At
+  const alertCell = row.querySelector('.cell-alert');
+  if (alertCell) alertCell.textContent = opt.dataset.lowAlert || '5';
+
+  // 5. Update Actions (Stock In / Stock Out)
+  const btnIn = row.querySelector('.btn-action-in');
+  const btnOut = row.querySelector('.btn-action-out');
+  const prodId = opt.value;
+  const prodName = opt.dataset.name;
+
+  if (btnIn) btnIn.setAttribute('onclick', `openStockModal(${prodId}, '${prodName.replace(/'/g, "\\'")}', 'stock_in')`);
+  if (btnOut) btnOut.setAttribute('onclick', `openStockModal(${prodId}, '${prodName.replace(/'/g, "\\'")}', 'stock_out')`);
 }
 </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>

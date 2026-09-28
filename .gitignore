@@ -9,3 +9,4 @@ credentials.php
 config/credentials.php
 env.local.php
 config/env.local.php
+gueco_optical_clean.sql

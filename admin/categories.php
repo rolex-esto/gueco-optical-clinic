@@ -11,6 +11,7 @@ $msg = ''; $msgType = 'success';
 
 // Handle POST
 $reopenData = null;
+ensureCategoriesSchema($db);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireCsrfToken();
     $action = $_POST['action'] ?? '';
@@ -20,9 +21,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = sanitize(trim($_POST['name'] ?? ''));
         $desc = sanitize(trim($_POST['description'] ?? ''));
         if ($name) {
-            $db->prepare("INSERT INTO categories (name, description) VALUES (?,?)")->execute([$name, $desc]);
-            $msg = "Category \"$name\" added successfully.";
-            logActivity("Added new category \"$name\"", "Categories", $_SESSION['user_id'], 'staff');
+            $existing = $db->prepare("SELECT id FROM categories WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))");
+            $existing->execute([$name]);
+            if ($existing->fetch()) {
+                $msg = "A category named \"$name\" already exists.";
+                $msgType = 'danger';
+            } else {
+                $db->prepare("INSERT INTO categories (name, description) VALUES (?,?)")->execute([$name, $desc]);
+                $msg = "Category \"$name\" added successfully.";
+                logActivity("Added new category \"$name\"", "Categories", $_SESSION['user_id'], 'staff');
+            }
         } else { $msg = 'Category name is required.'; $msgType = 'danger'; }
     } elseif ($action === 'edit') {
         $id   = (int)$_POST['id'];
@@ -30,19 +38,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $desc = sanitize(trim($_POST['description'] ?? ''));
         $stat = $_POST['status'] ?? 'active';
         if ($name && $id) {
-            $stmt = $db->prepare("SELECT name, description, status FROM categories WHERE id=?");
-            $stmt->execute([$id]);
-            $old = $stmt->fetch();
-
-            if ($old && $old['name'] === $name && $old['description'] === $desc && $old['status'] === $stat) {
-                $msg = "No changes were made. The category is already " . strtoupper($stat) . "!";
-                $msgType = "info";
-                $reopenData = ['id' => $id, 'name' => $name, 'desc' => $desc, 'stat' => $stat];
+            $existing = $db->prepare("SELECT id FROM categories WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND id != ?");
+            $existing->execute([$name, $id]);
+            if ($existing->fetch()) {
+                $msg = "Another category named \"$name\" already exists.";
+                $msgType = 'danger';
             } else {
-                $db->prepare("UPDATE categories SET name=?, description=?, status=? WHERE id=?")->execute([$name, $desc, $stat, $id]);
-                $msg = "Category successfully updated. Status is now " . strtoupper($stat) . "!";
-                $msgType = "success";
-                logActivity("Updated category \"$name\" (Status: " . strtoupper($stat) . ")", "Categories", $_SESSION['user_id'], 'staff');
+                $stmt = $db->prepare("SELECT name, description, status FROM categories WHERE id=?");
+                $stmt->execute([$id]);
+                $old = $stmt->fetch();
+
+                if ($old && $old['name'] === $name && $old['description'] === $desc && $old['status'] === $stat) {
+                    $msg = "No changes were made. The category is already " . strtoupper($stat) . "!";
+                    $msgType = "info";
+                    $reopenData = ['id' => $id, 'name' => $name, 'desc' => $desc, 'stat' => $stat];
+                } else {
+                    $db->prepare("UPDATE categories SET name=?, description=?, status=? WHERE id=?")->execute([$name, $desc, $stat, $id]);
+                    $msg = "Category successfully updated. Status is now " . strtoupper($stat) . "!";
+                    $msgType = "success";
+                    logActivity("Updated category \"$name\" (Status: " . strtoupper($stat) . ")", "Categories", $_SESSION['user_id'], 'staff');
+                }
             }
         }
     } elseif ($action === 'toggle_status') {

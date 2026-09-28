@@ -76,7 +76,9 @@ try {
     $walkinData2 = [
         'full_name'  => 'Pedro Penduko Silang',
         'phone'      => '09281234567',
-        'gender'     => 'male'
+        'gender'     => 'male',
+        'birthdate'  => '1990-08-20',
+        'address'    => 'Capas, Tarlac'
     ];
     $res2 = createWalkinAppointment($db, $walkinData2, 'pending', 1, 'consultation');
     $apptId2 = $res2['appointment_id'];
@@ -94,7 +96,9 @@ try {
     $walkinData3 = [
         'full_name'  => 'Clara Del Monte Ramos',
         'phone'      => '09185556677',
-        'gender'     => 'female'
+        'gender'     => 'female',
+        'birthdate'  => '1998-11-12',
+        'address'    => 'Concepcion, Tarlac'
     ];
     $res3 = createWalkinAppointment($db, $walkinData3, 'in_progress', 1, 'consultation');
     $apptId3 = $res3['appointment_id'];

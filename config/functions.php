@@ -216,6 +216,39 @@ function ensureAppointmentsSchema(?PDO $db = null): void {
     }
 }
 
+function ensureFinancialComplianceSchema(?PDO $db = null): void {
+    static $checked = false;
+    if ($checked) return;
+    try {
+        if (!$db) {
+            $db = getDB();
+        }
+        $colStmt = $db->query("SHOW COLUMNS FROM sales");
+        if ($colStmt) {
+            $cols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+            
+            if (!in_array('discount_type', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN discount_type ENUM('none','flat','senior_pwd') NOT NULL DEFAULT 'none' AFTER subtotal");
+            }
+            if (!in_array('senior_id', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN senior_id VARCHAR(50) NULL AFTER discount_type");
+            }
+            if (!in_array('vatable_sales', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN vatable_sales DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER total");
+            }
+            if (!in_array('vat_amount', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN vat_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER vatable_sales");
+            }
+            if (!in_array('vat_exempt_sales', $cols)) {
+                $db->exec("ALTER TABLE sales ADD COLUMN vat_exempt_sales DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER vat_amount");
+            }
+        }
+        $checked = true;
+    } catch (Throwable $e) {
+        error_log("Financial compliance schema ensure error: " . $e->getMessage());
+    }
+}
+
 function ensureJobOrderSchema(?PDO $db = null): void {
     static $checked = false;
     if ($checked) return;
@@ -264,6 +297,61 @@ function ensureJobOrderSchema(?PDO $db = null): void {
         $checked = true;
     } catch (Exception $e) {
         error_log("Failed to ensure job order schema: " . $e->getMessage());
+    }
+}
+
+function ensureCategoriesSchema(?PDO $db = null): void {
+    static $checked = false;
+    if ($checked) return;
+    try {
+        if (!$db) {
+            $db = getDB();
+        }
+        // Deduplicate categories if any exist
+        $rows = $db->query("SELECT id, name FROM categories ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+        $seen = [];
+        foreach ($rows as $r) {
+            $key = strtolower(trim($r['name']));
+            if (!isset($seen[$key])) {
+                $seen[$key] = $r['id'];
+            } else {
+                $canonicalId = $seen[$key];
+                $dupId = $r['id'];
+                $db->prepare("UPDATE products SET category_id = ? WHERE category_id = ?")->execute([$canonicalId, $dupId]);
+                $db->prepare("DELETE FROM categories WHERE id = ?")->execute([$dupId]);
+            }
+        }
+        $indexes = $db->query("SHOW INDEX FROM categories WHERE Column_name = 'name' AND Non_unique = 0")->fetchAll();
+        if (empty($indexes)) {
+            $db->exec("ALTER TABLE categories ADD UNIQUE INDEX uniq_category_name (name)");
+        }
+        $checked = true;
+    } catch (Throwable $e) {
+        error_log("Failed to ensure categories schema: " . $e->getMessage());
+    }
+}
+
+function ensureProductVariantSchema(?PDO $db = null): void {
+    static $checked = false;
+    if ($checked) return;
+    try {
+        if (!$db) {
+            $db = getDB();
+        }
+        ensureCategoriesSchema($db);
+        $cols = $db->query("SHOW COLUMNS FROM products")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('base_model', $cols)) {
+            $db->exec("ALTER TABLE products ADD COLUMN base_model VARCHAR(150) NULL AFTER name");
+        }
+        if (!in_array('variant_name', $cols)) {
+            $db->exec("ALTER TABLE products ADD COLUMN variant_name VARCHAR(100) NULL AFTER base_model");
+        }
+        if (!in_array('parent_id', $cols)) {
+            $db->exec("ALTER TABLE products ADD COLUMN parent_id INT(11) NULL AFTER variant_name");
+        }
+        $checked = true;
+    } catch (Throwable $e) {
+        error_log("Failed to ensure product variant schema: " . $e->getMessage());
     }
 }
 
@@ -1170,4 +1258,5 @@ function getClinicLogoUrl(string $basePrefix = ''): string {
     $cachedLogo .= '?v=' . $ver;
     return $basePrefix . $cachedLogo;
 }
+
 

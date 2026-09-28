@@ -6,6 +6,7 @@ requireRole('admin');
 $pageTitle  = 'Inventory Management';
 $breadcrumb = ['Admin', 'Inventory'];
 $db = getDB();
+ensureProductVariantSchema($db);
 $msg = ''; $msgType = 'success';
 $reopenData = null;
 
@@ -16,16 +17,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     if ($action === 'add' || $action === 'edit') {
         $productCode = sanitize(trim($_POST['product_code'] ?? ''));
-        $name     = sanitize(trim($_POST['name'] ?? ''));
-        $catId    = (int)($_POST['category_id'] ?? 0);
-        $tier     = sanitize(trim($_POST['tier'] ?? 'budget'));
+        $name        = sanitize(trim($_POST['name'] ?? ''));
+        $baseModel   = sanitize(trim($_POST['base_model'] ?? '')) ?: null;
+        $variantName = sanitize(trim($_POST['variant_name'] ?? '')) ?: null;
+        $catId       = (int)($_POST['category_id'] ?? 0);
+        $tier        = sanitize(trim($_POST['tier'] ?? 'budget'));
         if (!in_array($tier, ['budget', 'mid', 'high'])) $tier = 'budget';
-        $suppId   = (int)($_POST['supplier_id'] ?? 0) ?: null;
-        $price    = (float)($_POST['price'] ?? 0);
-        $stock    = (int)($_POST['stock_quantity'] ?? 0);
-        $alert    = (int)($_POST['low_stock_alert'] ?? 5);
-        $desc     = sanitize(trim($_POST['description'] ?? ''));
-        $stat     = $_POST['status'] ?? 'active';
+        $suppId      = (int)($_POST['supplier_id'] ?? 0) ?: null;
+        $price       = (float)($_POST['price'] ?? 0);
+        $stock       = (int)($_POST['stock_quantity'] ?? 0);
+        $alert       = (int)($_POST['low_stock_alert'] ?? 5);
+        $desc        = sanitize(trim($_POST['description'] ?? ''));
+        $stat        = $_POST['status'] ?? 'active';
 
         if (!$productCode || !$name || !$catId || $price < 0) { $msg = 'Product Code, Name, category, and a valid price are required.'; $msgType = 'danger'; }
         else {
@@ -50,8 +53,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
 
                 if ($action === 'add') {
-                    $db->prepare("INSERT INTO products (product_code,name,category_id,tier,supplier_id,price,stock_quantity,low_stock_alert,description,status,image) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
-                       ->execute([$productCode,$name,$catId,$tier,$suppId,$price,$stock,$alert,$desc,$stat,$imagePath]);
+                    $db->prepare("INSERT INTO products (product_code,name,base_model,variant_name,category_id,tier,supplier_id,price,stock_quantity,low_stock_alert,description,status,image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+                       ->execute([$productCode,$name,$baseModel,$variantName,$catId,$tier,$suppId,$price,$stock,$alert,$desc,$stat,$imagePath]);
                     // Log inventory
                     $newId = $db->lastInsertId();
                     if ($stock > 0) {
@@ -62,21 +65,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                     logActivity("Added new product \"$name\" ($productCode, Tier: " . tierLabel($tier) . ", Price: " . formatCurrency($price) . ", Stock: $stock)", "Inventory", $_SESSION['user_id'], 'staff');
                 } else {
                     $id = (int)$_POST['id'];
-                    $stmt = $db->prepare("SELECT product_code, name, category_id, tier, supplier_id, price, low_stock_alert, description, status FROM products WHERE id=?");
+                    $stmt = $db->prepare("SELECT product_code, name, base_model, variant_name, category_id, tier, supplier_id, price, low_stock_alert, description, status FROM products WHERE id=?");
                     $stmt->execute([$id]);
                     $old = $stmt->fetch();
                     
-                    if ($old && $old['product_code'] === $productCode && $old['name'] === $name && (int)$old['category_id'] === $catId && ($old['tier'] ?? 'budget') === $tier && (int)$old['supplier_id'] === $suppId && (float)$old['price'] === $price && (int)$old['low_stock_alert'] === $alert && $old['description'] === $desc && $old['status'] === $stat && !$imagePath) {
+                    if ($old && $old['product_code'] === $productCode && $old['name'] === $name && ($old['base_model'] ?? null) === $baseModel && ($old['variant_name'] ?? null) === $variantName && (int)$old['category_id'] === $catId && ($old['tier'] ?? 'budget') === $tier && (int)$old['supplier_id'] === $suppId && (float)$old['price'] === $price && (int)$old['low_stock_alert'] === $alert && $old['description'] === $desc && $old['status'] === $stat && !$imagePath) {
                         $msg = "No changes were made. Product is already up to date!";
                         $msgType = "info";
-                        $reopenData = ['id' => $id, 'name' => $name, 'category_id' => $catId, 'tier' => $tier, 'supplier_id' => $suppId, 'price' => $price, 'low_stock_alert' => $alert, 'description' => $desc, 'status' => $stat];
+                        $reopenData = ['id' => $id, 'name' => $name, 'base_model' => $baseModel, 'variant_name' => $variantName, 'category_id' => $catId, 'tier' => $tier, 'supplier_id' => $suppId, 'price' => $price, 'low_stock_alert' => $alert, 'description' => $desc, 'status' => $stat];
                     } else {
                         if ($imagePath) {
-                            $db->prepare("UPDATE products SET product_code=?,name=?,category_id=?,tier=?,supplier_id=?,price=?,low_stock_alert=?,description=?,status=?,image=? WHERE id=?")
-                               ->execute([$productCode,$name,$catId,$tier,$suppId,$price,$alert,$desc,$stat,$imagePath,$id]);
+                            $db->prepare("UPDATE products SET product_code=?,name=?,base_model=?,variant_name=?,category_id=?,tier=?,supplier_id=?,price=?,low_stock_alert=?,description=?,status=?,image=? WHERE id=?")
+                               ->execute([$productCode,$name,$baseModel,$variantName,$catId,$tier,$suppId,$price,$alert,$desc,$stat,$imagePath,$id]);
                         } else {
-                            $db->prepare("UPDATE products SET product_code=?,name=?,category_id=?,tier=?,supplier_id=?,price=?,low_stock_alert=?,description=?,status=? WHERE id=?")
-                               ->execute([$productCode,$name,$catId,$tier,$suppId,$price,$alert,$desc,$stat,$id]);
+                            $db->prepare("UPDATE products SET product_code=?,name=?,base_model=?,variant_name=?,category_id=?,tier=?,supplier_id=?,price=?,low_stock_alert=?,description=?,status=? WHERE id=?")
+                               ->execute([$productCode,$name,$baseModel,$variantName,$catId,$tier,$suppId,$price,$alert,$desc,$stat,$id]);
                         }
                         $msg = "Product updated successfully!";
                         logActivity("Updated product \"$name\" ($productCode, Tier: " . tierLabel($tier) . ", Price: " . formatCurrency($price) . ", Status: " . strtoupper($stat) . ")", "Inventory", $_SESSION['user_id'], 'staff');
@@ -129,9 +132,27 @@ $products = $db->prepare("
     FROM products p
     JOIN categories c ON c.id=p.category_id
     LEFT JOIN suppliers s ON s.id=p.supplier_id
-    WHERE $whereStr ORDER BY c.name, p.name ASC
+    WHERE $whereStr ORDER BY c.name, COALESCE(p.base_model, p.name) ASC, p.name ASC
 ");
 $products->execute($params); $products = $products->fetchAll();
+
+// Group products by base_model if identical base model exists
+$groupedProducts = [];
+foreach ($products as $p) {
+    $groupKey = !empty($p['base_model']) ? ('m_' . $p['category_id'] . '_' . strtolower(trim($p['base_model']))) : ('p_' . $p['id']);
+    if (!isset($groupedProducts[$groupKey])) {
+        $groupedProducts[$groupKey] = [
+            'base_model'   => $p['base_model'] ?: $p['name'],
+            'has_variants' => false,
+            'primary'      => $p,
+            'variants'     => []
+        ];
+    }
+    $groupedProducts[$groupKey]['variants'][] = $p;
+    if (count($groupedProducts[$groupKey]['variants']) > 1) {
+        $groupedProducts[$groupKey]['has_variants'] = true;
+    }
+}
 
 $categories = $db->query("SELECT * FROM categories WHERE status='active' ORDER BY name")->fetchAll();
 $suppliers  = $db->query("SELECT * FROM suppliers WHERE status='active' ORDER BY company_name")->fetchAll();
@@ -158,7 +179,7 @@ document.addEventListener("DOMContentLoaded", function() {
 <?php endif; ?>
 
 <div class="section-header">
-  <h5><i  class="fas fa-boxes me-2 inv-b6b6a8"></i>Inventory — <?= count($products) ?> Products</h5>
+  <h5><i class="fas fa-boxes me-2 inv-b6b6a8"></i>Inventory — <?= count($groupedProducts) ?> <?= count($groupedProducts) !== count($products) ? 'Models (' . count($products) . ' SKUs / Variants)' : 'Products' ?></h5>
   <div class="inv-96b971">
     <button id="viewToggleBtn" class="btn btn-view-toggle btn-sm" onclick="toggleView()"><i class="fas fa-th-large"></i> Grid View</button>
     <a href="inventory_logs.php" class="btn btn-info btn-sm text-white"><i class="fas fa-history"></i> Stock History</a>
@@ -169,19 +190,19 @@ document.addEventListener("DOMContentLoaded", function() {
 </div>
 
 <!-- Filter bar -->
-<div  class="card inv-684111">
-  <div  class="card-body inv-140fb6">
+<div class="card inv-684111">
+  <div class="card-body inv-140fb6">
     <form method="GET" class="inv-7cdce4">
-      <div class="inv-ce6b9e"><label  class="form-label inv-7c8fee">Search</label>
+      <div class="inv-ce6b9e"><label class="form-label inv-7c8fee">Search</label>
         <input type="text" name="search" class="form-control" placeholder="Product name or SKU..." value="<?= htmlspecialchars($search) ?>"></div>
-      <div class="inv-398dad"><label  class="form-label inv-7c8fee">Category</label>
+      <div class="inv-398dad"><label class="form-label inv-7c8fee">Category</label>
         <select name="cat" class="form-select">
           <option value="">All Categories</option>
           <?php foreach ($categories as $c): ?>
           <option value="<?= $c['id'] ?>" <?= $catFilter==$c['id']?'selected':'' ?>><?= sanitize($c['name']) ?></option>
           <?php endforeach; ?>
         </select></div>
-      <div class="inv-398dad"><label  class="form-label inv-7c8fee">Product Tier</label>
+      <div class="inv-398dad"><label class="form-label inv-7c8fee">Product Tier</label>
         <select name="tier" class="form-select">
           <option value="">All Tiers</option>
           <option value="budget" <?= $tierFilter==='budget'?'selected':'' ?>>⚪ Budget Product</option>
@@ -199,49 +220,91 @@ document.addEventListener("DOMContentLoaded", function() {
     <table class="table">
       <thead><tr><th>#</th><th>CODE</th><th>Product</th><th>Tier</th><th>Category</th><th>Supplier</th><th>Price</th><th>Stock</th><th>Alert</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
-        <?php if (empty($products)): ?>
+        <?php if (empty($groupedProducts)): ?>
         <tr><td colspan="11"><div class="empty-state"><div class="empty-icon"><i class="fas fa-boxes"></i></div><h6>No products found</h6></div></td></tr>
         <?php else: ?>
-        <?php foreach ($products as $i => $p): ?>
+        <?php $rowCounter = 0; ?>
+        <?php foreach ($groupedProducts as $item): ?>
         <?php 
+          $rowCounter++;
+          $p = $item['primary'];
           $isLow = $p['stock_quantity'] <= $p['low_stock_alert']; 
           $isOut = $p['stock_quantity'] == 0; 
           $rowClass = $isOut ? 'table-row-out' : ($isLow ? 'table-row-low' : '');
+          $totalModelStock = array_sum(array_column($item['variants'], 'stock_quantity'));
         ?>
-        <tr class="<?= $rowClass ?>">
-          <td class="inv-67fd48"><?= $i+1 ?></td>
-          <td style="font-family:monospace; color:var(--text-primary); font-size:0.85rem; font-weight:600;"><?= sanitize($p['product_code'] ?: '—') ?></td>
+        <tr class="<?= $rowClass ?>" id="row-prod-<?= $p['id'] ?>">
+          <td class="inv-67fd48"><?= $rowCounter ?></td>
+          <td class="cell-code" style="font-family:monospace; color:var(--text-primary); font-size:0.85rem; font-weight:600;"><?= sanitize($p['product_code'] ?: '—') ?></td>
           <td>
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:flex-start; gap:10px;">
               <?php if($p['image']): ?>
-                <img src="<?= BASE_URL ?>assets/images/products/<?= $p['image'] ?>" alt="Product" style="width:40px; height:40px; object-fit:cover; border-radius:5px;">
+                <img src="<?= BASE_URL ?>assets/images/products/<?= $p['image'] ?>" alt="Product" style="width:40px; height:40px; object-fit:cover; border-radius:5px; margin-top:2px;">
               <?php else: ?>
-                <div style="width:40px; height:40px; background:var(--bg-card); border-radius:5px; display:flex; align-items:center; justify-content:center; color:var(--text-muted);"><i class="fas fa-image"></i></div>
+                <div style="width:40px; height:40px; background:var(--bg-card); border-radius:5px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); margin-top:2px;"><i class="fas fa-glasses"></i></div>
               <?php endif; ?>
               <div>
-                <div class="inv-bac3c9"><?= sanitize($p['name']) ?></div>
-                <div class="inv-26a4f5"><?= sanitize($p['description'] ?: '—') ?></div>
+                <div class="inv-bac3c9" style="font-weight:700; font-size:.92rem; display:flex; align-items:center; gap:6px;">
+                  <?= sanitize($item['base_model']) ?>
+                  <?php if ($item['has_variants']): ?>
+                    <span class="badge bg-primary" style="font-size:.65rem; padding:3px 7px;"><?= count($item['variants']) ?> Variants</span>
+                  <?php endif; ?>
+                </div>
+                <div class="inv-26a4f5"><?= sanitize($p['description'] ?: ($item['has_variants'] ? ($item['base_model'] . ' Series') : '—')) ?></div>
+                
+                <?php if ($item['has_variants']): ?>
+                <!-- Variant Selector Dropdown -->
+                <div style="margin-top:6px; display:inline-flex; align-items:center; gap:6px; background:var(--bg-hover); padding:3px 8px; border-radius:6px; border:1px solid var(--border-color);">
+                  <label style="font-size:0.72rem; font-weight:700; color:var(--clr-primary); margin:0; white-space:nowrap;">
+                    <i class="fas fa-palette me-1"></i>Color / Variant:
+                  </label>
+                  <select class="form-select form-select-sm variant-picker-select" 
+                          style="font-size:0.78rem; padding:2px 24px 2px 8px; height:auto; width:auto; font-weight:600; cursor:pointer;"
+                          onchange="onVariantChange(this)">
+                    <?php foreach ($item['variants'] as $v): ?>
+                      <option value="<?= $v['id'] ?>"
+                              data-code="<?= htmlspecialchars($v['product_code'] ?: '—') ?>"
+                              data-name="<?= htmlspecialchars($v['name']) ?>"
+                              data-variant="<?= htmlspecialchars($v['variant_name'] ?: $v['name']) ?>"
+                              data-price="<?= number_format($v['price'], 2) ?>"
+                              data-price-raw="<?= $v['price'] ?>"
+                              data-stock="<?= (int)$v['stock_quantity'] ?>"
+                              data-low-alert="<?= (int)$v['low_stock_alert'] ?>"
+                              data-obj='<?= htmlspecialchars(json_encode($v), ENT_QUOTES, "UTF-8") ?>'>
+                        <?= htmlspecialchars($v['variant_name'] ?: $v['name']) ?> (Stock: <?= (int)$v['stock_quantity'] ?>)
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <?php endif; ?>
               </div>
             </div>
           </td>
           <td><?= tierBadge($p['tier'] ?? 'budget') ?></td>
           <td><span class="badge bg-secondary"><?= sanitize($p['cat_name']) ?></span></td>
           <td class="inv-67fd48"><?= sanitize($p['supplier_name'] ?? '—') ?></td>
-          <td class="inv-c0f652"><?= formatCurrency($p['price']) ?></td>
-          <td>
-            <span style="font-weight:700;font-size:.95rem;color:<?= $isOut?'#DC2626':($isLow?'#EF4444':'var(--text-primary)') ?>">
+          <td class="inv-c0f652 cell-price" style="font-weight:700; color:var(--clr-success);"><?= formatCurrency($p['price']) ?></td>
+          <td class="cell-stock">
+            <span class="stock-qty-val" style="font-weight:700;font-size:.95rem;color:<?= $isOut?'#DC2626':($isLow?'#EF4444':'var(--text-primary)') ?>">
               <?= $p['stock_quantity'] ?>
             </span>
-            <?php if ($isOut): ?><span class="badge badge-out-alert inv-c1ae5c">OUT</span>
-            <?php elseif ($isLow): ?><span class="badge badge-low-alert inv-c1ae5c">LOW</span><?php endif; ?>
+            <span class="stock-badge-val">
+              <?php if ($isOut): ?><span class="badge badge-out-alert inv-c1ae5c">OUT</span>
+              <?php elseif ($isLow): ?><span class="badge badge-low-alert inv-c1ae5c">LOW</span><?php endif; ?>
+            </span>
+            <?php if ($item['has_variants']): ?>
+              <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;" title="Combined stock for all variants of this model">
+                Model Total: <strong class="model-total-val"><?= $totalModelStock ?></strong>
+              </div>
+            <?php endif; ?>
           </td>
-          <td class="inv-00a7ed"><?= $p['low_stock_alert'] ?></td>
-          <td><?= statusBadge($p['status']) ?></td>
+          <td class="inv-00a7ed cell-alert"><?= $p['low_stock_alert'] ?></td>
+          <td class="cell-status"><?= statusBadge($p['status']) ?></td>
           <td>
-            <div class="inv-152c49">
-              <button class="btn btn-sm btn-success btn-icon" title="Stock In" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', 'stock_in')"><i class="fas fa-plus"></i></button>
-              <button class="btn btn-sm btn-warning btn-icon" title="Stock Out" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', 'stock_out')"><i class="fas fa-minus"></i></button>
-              <button class="btn btn-sm btn-outline-primary btn-icon" title="Edit" onclick="openEditProduct(<?= htmlspecialchars(json_encode($p)) ?>)"><i class="fas fa-edit"></i></button>
+            <div class="inv-152c49 cell-actions">
+              <button class="btn btn-sm btn-success btn-icon btn-action-in" title="Stock In" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', 'stock_in')"><i class="fas fa-plus"></i></button>
+              <button class="btn btn-sm btn-warning btn-icon btn-action-out" title="Stock Out" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', 'stock_out')"><i class="fas fa-minus"></i></button>
+              <button class="btn btn-sm btn-outline-primary btn-icon btn-action-edit" title="Edit" onclick='openEditProduct(<?= htmlspecialchars(json_encode($p), ENT_QUOTES, "UTF-8") ?>)'><i class="fas fa-edit"></i></button>
             </div>
           </td>
         </tr>
@@ -253,8 +316,9 @@ document.addEventListener("DOMContentLoaded", function() {
 </div>
 
 <div id="gridView" style="display:none; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:20px; margin-bottom:20px;">
-  <?php foreach ($products as $p): ?>
+  <?php foreach ($groupedProducts as $item): ?>
     <?php 
+    $p = $item['primary'];
     $isLow = $p['stock_quantity'] <= $p['low_stock_alert'];
     $isOut = $p['stock_quantity'] == 0; 
     $cardClass = $isOut ? 'product-card card-out-stock' : ($isLow ? 'product-card card-low-stock' : 'product-card');
@@ -270,24 +334,48 @@ document.addEventListener("DOMContentLoaded", function() {
           <img src="<?= BASE_URL ?>assets/images/products/<?= $p['image'] ?>" alt="Product" style="width:100%; height:160px; object-fit:cover; border-radius:8px;">
         <?php else: ?>
           <div style="width:100%; height:160px; background:var(--bg-hover); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:2rem;">
-            <i class="fas fa-image"></i>
+            <i class="fas fa-glasses"></i>
           </div>
         <?php endif; ?>
       </div>
       
       <div style="flex-grow:1;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-          <span style="font-family:monospace; color:var(--text-primary); font-size:0.85rem; font-weight:600;"><?= sanitize($p['product_code'] ?: '—') ?></span>
+          <span class="grid-code" style="font-family:monospace; color:var(--text-primary); font-size:0.85rem; font-weight:600;"><?= sanitize($p['product_code'] ?: '—') ?></span>
           <?= tierBadge($p['tier'] ?? 'budget') ?>
         </div>
-        <div style="font-weight:700; font-size:1.05rem; line-height:1.2; margin-bottom:5px; color:var(--text-primary);"><?= sanitize($p['name']) ?></div>
-        <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;"><?= sanitize($p['cat_name']) ?></div>
+        <div style="font-weight:700; font-size:1.05rem; line-height:1.2; margin-bottom:5px; color:var(--text-primary);"><?= sanitize($item['base_model']) ?></div>
+        <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;"><?= sanitize($p['cat_name']) ?></div>
+
+        <?php if ($item['has_variants']): ?>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:0.72rem; font-weight:700; color:var(--clr-primary); margin-bottom:2px; display:block;">
+            <i class="fas fa-palette me-1"></i>Color / Variant:
+          </label>
+          <select class="form-select form-select-sm grid-variant-picker" 
+                  style="font-size:0.78rem; font-weight:600;"
+                  onchange="onGridVariantChange(this)">
+            <?php foreach ($item['variants'] as $v): ?>
+              <option value="<?= $v['id'] ?>"
+                      data-code="<?= htmlspecialchars($v['product_code'] ?: '—') ?>"
+                      data-name="<?= htmlspecialchars($v['name']) ?>"
+                      data-variant="<?= htmlspecialchars($v['variant_name'] ?: $v['name']) ?>"
+                      data-price="<?= number_format($v['price'], 2) ?>"
+                      data-stock="<?= (int)$v['stock_quantity'] ?>"
+                      data-low-alert="<?= (int)$v['low_stock_alert'] ?>"
+                      data-obj='<?= htmlspecialchars(json_encode($v), ENT_QUOTES, "UTF-8") ?>'>
+                <?= htmlspecialchars($v['variant_name'] ?: $v['name']) ?> (<?= (int)$v['stock_quantity'] ?>)
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <?php endif; ?>
       </div>
       
       <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:15px; flex-grow:0;">
-        <div style="font-weight:800; font-size:1.15rem; color:var(--clr-success);">₱<?= number_format($p['price'], 2) ?></div>
+        <div class="grid-price" style="font-weight:800; font-size:1.15rem; color:var(--clr-success);">₱<?= number_format($p['price'], 2) ?></div>
         
-        <div style="text-align:right;">
+        <div class="grid-stock-badge" style="text-align:right;">
           <?php if($isOut): ?>
             <span class="badge badge-out-alert"><i class="fas fa-times-circle me-1"></i>Out of Stock</span>
           <?php elseif($isLow): ?>
@@ -299,11 +387,10 @@ document.addEventListener("DOMContentLoaded", function() {
       </div>
       
       <div style="display:flex; gap:5px; flex-grow:0;">
-        <button class="btn btn-sm btn-outline-success" style="flex:1;" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes(sanitize($p['name'])) ?>', 'stock_in')" title="Stock In"><i class="fas fa-plus"></i></button>
-        <button class="btn btn-sm btn-outline-warning" style="flex:1;" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes(sanitize($p['name'])) ?>', 'stock_out')" title="Stock Out"><i class="fas fa-minus"></i></button>
-        <button class="btn btn-sm btn-outline-primary" style="flex:1;" onclick='openEditProduct(<?= htmlspecialchars(json_encode($p), ENT_QUOTES, "UTF-8") ?>)' title="Edit"><i class="fas fa-edit"></i></button>
+        <button class="btn btn-sm btn-outline-success grid-btn-in" style="flex:1;" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes(sanitize($p['name'])) ?>', 'stock_in')" title="Stock In"><i class="fas fa-plus"></i></button>
+        <button class="btn btn-sm btn-outline-warning grid-btn-out" style="flex:1;" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes(sanitize($p['name'])) ?>', 'stock_out')" title="Stock Out"><i class="fas fa-minus"></i></button>
+        <button class="btn btn-sm btn-outline-primary grid-btn-edit" style="flex:1;" onclick='openEditProduct(<?= htmlspecialchars(json_encode($p), ENT_QUOTES, "UTF-8") ?>)' title="Edit"><i class="fas fa-edit"></i></button>
       </div>
-    </div>
   <?php endforeach; ?>
 </div>
 
@@ -317,6 +404,17 @@ document.addEventListener("DOMContentLoaded", function() {
         <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
         <div class="form-group"><label class="form-label">Product Code / SKU *</label><input type="text" name="product_code" class="form-control" placeholder="Enter Product Code" required></div>
         <div class="form-group"><label class="form-label">Product Name *</label><input type="text" name="name" class="form-control" required></div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-6">
+            <label class="form-label">Base Model / Series (Optional)</label>
+            <input type="text" name="base_model" class="form-control" placeholder="e.g. METAL 6631, PLASTIC SUNCARI">
+            <small class="text-muted" style="font-size:0.7rem;">Items with matching Base Model group under 1 parent item with a variant selector.</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Variant / Color (Optional)</label>
+            <input type="text" name="variant_name" class="form-control" placeholder="e.g. Gold/Pink, Black, 8022 Grey">
+          </div>
+        </div>
         <div class="inv-b1eb0f">
           <div  class="form-group inv-da5cd6"><label class="form-label">Category *</label>
             <select name="category_id" class="form-select" required><option value="">Select</option>
@@ -356,6 +454,16 @@ document.addEventListener("DOMContentLoaded", function() {
         <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
         <div class="form-group"><label class="form-label">Product Code / SKU *</label><input type="text" name="product_code" id="epCode" class="form-control" placeholder="Enter Product Code" required></div>
         <div class="form-group"><label class="form-label">Product Name *</label><input type="text" name="name" id="epName" class="form-control" required></div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-6">
+            <label class="form-label">Base Model / Series (Optional)</label>
+            <input type="text" name="base_model" id="epBaseModel" class="form-control" placeholder="e.g. METAL 6631, PLASTIC SUNCARI">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Variant / Color (Optional)</label>
+            <input type="text" name="variant_name" id="epVariantName" class="form-control" placeholder="e.g. Gold/Pink, Black, 8022 Grey">
+          </div>
+        </div>
         <div class="inv-b1eb0f">
           <div  class="form-group inv-da5cd6"><label class="form-label">Category *</label>
             <select name="category_id" id="epCat" class="form-select" required><option value="">Select</option>
@@ -478,11 +586,101 @@ function confirmEdit(e, form) {
   });
 }
 
+function onVariantChange(selectEl) {
+  const opt = selectEl.options[selectEl.selectedIndex];
+  const row = selectEl.closest('tr');
+  if (!row || !opt) return;
+
+  // 1. Update SKU / CODE
+  const codeCell = row.querySelector('.cell-code');
+  if (codeCell) codeCell.textContent = opt.dataset.code || '—';
+
+  // 2. Update Price
+  const priceCell = row.querySelector('.cell-price');
+  if (priceCell) priceCell.textContent = '₱' + opt.dataset.price;
+
+  // 3. Update Stock & Alert Badge
+  const stockCell = row.querySelector('.cell-stock');
+  if (stockCell) {
+    const qtyVal = stockCell.querySelector('.stock-qty-val');
+    const badgeVal = stockCell.querySelector('.stock-badge-val');
+    const stock = parseInt(opt.dataset.stock) || 0;
+    const alertAt = parseInt(opt.dataset.lowAlert) || 5;
+    const isOut = stock === 0;
+    const isLow = stock <= alertAt && !isOut;
+
+    if (qtyVal) {
+      qtyVal.textContent = stock;
+      qtyVal.style.color = isOut ? '#DC2626' : (isLow ? '#EF4444' : 'var(--text-primary)');
+    }
+    if (badgeVal) {
+      if (isOut) badgeVal.innerHTML = '<span class="badge badge-out-alert inv-c1ae5c">OUT</span>';
+      else if (isLow) badgeVal.innerHTML = '<span class="badge badge-low-alert inv-c1ae5c">LOW</span>';
+      else badgeVal.innerHTML = '';
+    }
+  }
+
+  // 4. Update Alert At
+  const alertCell = row.querySelector('.cell-alert');
+  if (alertCell) alertCell.textContent = opt.dataset.lowAlert || '5';
+
+  // 5. Update Actions (Stock In / Stock Out / Edit)
+  const btnIn = row.querySelector('.btn-action-in');
+  const btnOut = row.querySelector('.btn-action-out');
+  const btnEdit = row.querySelector('.btn-action-edit');
+  const prodId = opt.value;
+  const prodName = opt.dataset.name;
+
+  if (btnIn) btnIn.setAttribute('onclick', `openStockModal(${prodId}, '${prodName.replace(/'/g, "\\'")}', 'stock_in')`);
+  if (btnOut) btnOut.setAttribute('onclick', `openStockModal(${prodId}, '${prodName.replace(/'/g, "\\'")}', 'stock_out')`);
+  if (btnEdit && opt.dataset.obj) btnEdit.setAttribute('onclick', `openEditProduct(${opt.dataset.obj})`);
+}
+
+function onGridVariantChange(selectEl) {
+  const opt = selectEl.options[selectEl.selectedIndex];
+  const card = selectEl.closest('.product-card');
+  if (!card || !opt) return;
+
+  const codeEl = card.querySelector('.grid-code');
+  if (codeEl) codeEl.textContent = opt.dataset.code || '—';
+
+  const priceEl = card.querySelector('.grid-price');
+  if (priceEl) priceEl.textContent = '₱' + opt.dataset.price;
+
+  const stockEl = card.querySelector('.grid-stock-badge');
+  const stock = parseInt(opt.dataset.stock) || 0;
+  const alertAt = parseInt(opt.dataset.lowAlert) || 5;
+  const isOut = stock === 0;
+  const isLow = stock <= alertAt && !isOut;
+
+  if (stockEl) {
+    if (isOut) {
+      stockEl.innerHTML = '<span class="badge badge-out-alert"><i class="fas fa-times-circle me-1"></i>Out of Stock</span>';
+    } else if (isLow) {
+      stockEl.innerHTML = `<span class="badge badge-low-alert"><i class="fas fa-exclamation-triangle me-1"></i>Low: ${stock}</span>`;
+    } else {
+      stockEl.innerHTML = `<span class="badge bg-success" style="font-weight:600; font-size:0.8rem; padding:4px 10px; border-radius:20px;">${stock} in stock</span>`;
+    }
+  }
+
+  const btnIn = card.querySelector('.grid-btn-in');
+  const btnOut = card.querySelector('.grid-btn-out');
+  const btnEdit = card.querySelector('.grid-btn-edit');
+  const prodId = opt.value;
+  const prodName = opt.dataset.name;
+
+  if (btnIn) btnIn.setAttribute('onclick', `openStockModal(${prodId}, '${prodName.replace(/'/g, "\\'")}', 'stock_in')`);
+  if (btnOut) btnOut.setAttribute('onclick', `openStockModal(${prodId}, '${prodName.replace(/'/g, "\\'")}', 'stock_out')`);
+  if (btnEdit && opt.dataset.obj) btnEdit.setAttribute('onclick', `openEditProduct(${opt.dataset.obj})`);
+}
+
 function openEditProduct(p) {
   currentEditProduct = p;
   document.getElementById('epId').value = p.id;
   document.getElementById('epCode').value = p.product_code || '';
   document.getElementById('epName').value = p.name;
+  document.getElementById('epBaseModel').value = p.base_model || '';
+  document.getElementById('epVariantName').value = p.variant_name || '';
   document.getElementById('epCat').value = p.category_id;
   document.getElementById('epTier').value = p.tier || 'budget';
   document.getElementById('epSupp').value = p.supplier_id || '';

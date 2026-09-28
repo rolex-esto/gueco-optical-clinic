@@ -391,6 +391,7 @@ document.addEventListener("DOMContentLoaded", function() {
         <button class="btn btn-sm btn-outline-warning grid-btn-out" style="flex:1;" onclick="openStockModal(<?= $p['id'] ?>, '<?= addslashes(sanitize($p['name'])) ?>', 'stock_out')" title="Stock Out"><i class="fas fa-minus"></i></button>
         <button class="btn btn-sm btn-outline-primary grid-btn-edit" style="flex:1;" onclick='openEditProduct(<?= htmlspecialchars(json_encode($p), ENT_QUOTES, "UTF-8") ?>)' title="Edit"><i class="fas fa-edit"></i></button>
       </div>
+    </div>
   <?php endforeach; ?>
 </div>
 

@@ -139,6 +139,7 @@ $todayActiveCount = $todayCountStmt->fetch()['c'];
 $pendingCountStmt = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE status = 'pending' AND purpose != 'eyeglass_claim'");
 $pendingCountStmt->execute();
 $pendingCount = $pendingCountStmt->fetch()['c'];
+$activePurposes = getActiveConsultationPurposes($db);
 
 $extraHead = '<link rel="stylesheet" href="' . BASE_URL . 'assets/css/calendar.css?v=' . time() . '">';
 $extraHead .= '<link rel="stylesheet" href="'.BASE_URL.'assets/css/pages/dashboard.css?v='.time().'">';
@@ -729,10 +730,11 @@ include __DIR__ . '/../includes/header.php';
                 <div class="walkin-input-group">
                   <i class="fas fa-glasses walkin-input-icon"></i>
                   <select name="purpose" id="walkinInputPurpose" class="form-select">
-                    <option value="consultation" selected>Comprehensive Eye Examination / Refraction</option>
-                    <option value="follow_up">Follow-up Check</option>
-                    <option value="contact_lens_fitting">Contact Lens Assessment</option>
-                    <option value="other">Other Optical Concerns</option>
+                    <?php foreach ($activePurposes as $idx => $p): ?>
+                      <option value="<?= htmlspecialchars($p['category_key']) ?>" <?= ($p['category_key'] === 'consultation' || $idx === 0) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($p['name']) ?>
+                      </option>
+                    <?php endforeach; ?>
                   </select>
                 </div>
               </div>

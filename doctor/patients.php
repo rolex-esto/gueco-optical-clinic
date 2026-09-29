@@ -6,6 +6,7 @@ requireRole('doctor');
 $pageTitle  = 'Patient Records';
 $breadcrumb = ['Doctor', 'Patients'];
 $db = getDB();
+$activePurposes = getActiveConsultationPurposes($db);
 $msg = ''; $msgType = 'success';
 
 $search = sanitize($_GET['search'] ?? '');
@@ -359,10 +360,11 @@ include __DIR__ . '/../includes/header.php';
           <div class="col-md-6 mb-3">
             <label class="form-label fw-bold small text-uppercase">Consultation Purpose</label>
             <select name="purpose" class="form-select">
-              <option value="consultation" selected>Eye Examination / Refraction</option>
-              <option value="follow_up">Follow-up</option>
-              <option value="contact_lens_fitting">Contact Lens</option>
-              <option value="other">Other</option>
+              <?php foreach ($activePurposes as $idx => $p): ?>
+                <option value="<?= htmlspecialchars($p['category_key']) ?>" <?= ($p['category_key'] === 'consultation' || $idx === 0) ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($p['name']) ?>
+                </option>
+              <?php endforeach; ?>
             </select>
           </div>
           <div class="col-md-6 mb-3">

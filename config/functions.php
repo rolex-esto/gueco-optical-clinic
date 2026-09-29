@@ -202,6 +202,42 @@ function ensureAppointmentsSchema(?PDO $db = null): void {
                 $db->exec("ALTER TABLE appointments MODIFY COLUMN status ENUM('pending','confirmed','in_progress','completed','cancelled','no_show') DEFAULT 'pending'");
             }
         }
+        // Ensure appointments.purpose is VARCHAR(100) instead of ENUM so Admin-created purposes are accepted
+        $purposeStmt = $db->query("SHOW COLUMNS FROM appointments LIKE 'purpose'");
+        if ($purposeStmt) {
+            $pRow = $purposeStmt->fetch(PDO::FETCH_ASSOC);
+            $pType = strtolower($pRow['Type'] ?? '');
+            if (strpos($pType, 'enum') !== false) {
+                $db->exec("ALTER TABLE appointments MODIFY COLUMN purpose VARCHAR(100) NOT NULL DEFAULT 'consultation'");
+            }
+        }
+        // Ensure clinic_booking_categories table exists for dynamic Consultation Purposes
+        $db->exec("CREATE TABLE IF NOT EXISTS clinic_booking_categories (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            category_key VARCHAR(50) UNIQUE NOT NULL,
+            name VARCHAR(150) NOT NULL,
+            icon VARCHAR(60) DEFAULT 'fa-calendar-check',
+            description TEXT,
+            sort_order INT DEFAULT 0,
+            is_active TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // Seed default consultation purposes if table is empty
+        $cCount = (int)$db->query("SELECT COUNT(*) FROM clinic_booking_categories")->fetchColumn();
+        if ($cCount === 0) {
+            $defaultPurposes = [
+                ['consultation', 'Comprehensive Eye Examination / Refraction', 'fa-user-doctor', 'Comprehensive eye examination, visual acuity test, and digital refraction test.', 1],
+                ['eyeglass_claim', 'Eyeglass Claim / Fitting', 'fa-glasses', 'Prescription frame selection, lens upgrades, and claiming ready spectacles.', 2],
+                ['follow_up', 'Follow-up Check', 'fa-rotate-right', 'Post-examination check, lens adaptation review, and progress evaluation.', 3],
+                ['contact_lens_fitting', 'Contact Lens Assessment', 'fa-circle-dot', 'Cornea curvature measurement, trial lens fitting, and supply orders.', 4],
+                ['other', 'Other Optical Concerns', 'fa-screwdriver-wrench', 'Frame repairs, ultrasonic bath cleaning, screw adjustments, or inquiries.', 5],
+            ];
+            $cIns = $db->prepare("INSERT INTO clinic_booking_categories (category_key, name, icon, description, sort_order) VALUES (?,?,?,?,?)");
+            foreach ($defaultPurposes as $p) {
+                $cIns->execute($p);
+            }
+        }
         // Ensure patients table has middle_name
         $ptColStmt = $db->query("SHOW COLUMNS FROM patients");
         if ($ptColStmt) {
@@ -214,6 +250,33 @@ function ensureAppointmentsSchema(?PDO $db = null): void {
     } catch (Exception $e) {
         error_log("Failed to ensure appointments schema: " . $e->getMessage());
     }
+}
+
+/**
+ * Fetch all active consultation purposes from clinic_booking_categories dynamically
+ * @param PDO|null $db
+ * @return array
+ */
+function getActiveConsultationPurposes(?PDO $db = null): array {
+    try {
+        if (!$db) $db = getDB();
+        ensureAppointmentsSchema($db);
+        $stmt = $db->query("SELECT id, category_key, name, icon, description, sort_order FROM clinic_booking_categories WHERE is_active = 1 ORDER BY sort_order ASC, id ASC");
+        $results = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+        if (!empty($results)) {
+            return $results;
+        }
+    } catch (Exception $e) {
+        error_log("Failed to fetch active consultation purposes: " . $e->getMessage());
+    }
+    // Safe fallback if database is empty or connection error
+    return [
+        ['id' => 1, 'category_key' => 'consultation', 'name' => 'Comprehensive Eye Examination / Refraction', 'icon' => 'fa-user-doctor', 'description' => '', 'sort_order' => 1],
+        ['id' => 2, 'category_key' => 'eyeglass_claim', 'name' => 'Eyeglass Claim / Fitting', 'icon' => 'fa-glasses', 'description' => '', 'sort_order' => 2],
+        ['id' => 3, 'category_key' => 'follow_up', 'name' => 'Follow-up Check', 'icon' => 'fa-rotate-right', 'description' => '', 'sort_order' => 3],
+        ['id' => 4, 'category_key' => 'contact_lens_fitting', 'name' => 'Contact Lens Assessment', 'icon' => 'fa-circle-dot', 'description' => '', 'sort_order' => 4],
+        ['id' => 5, 'category_key' => 'other', 'name' => 'Other Optical Concerns', 'icon' => 'fa-screwdriver-wrench', 'description' => '', 'sort_order' => 5],
+    ];
 }
 
 function ensureFinancialComplianceSchema(?PDO $db = null): void {
@@ -672,9 +735,15 @@ function createWalkinAppointment(PDO $db, array $patientInput, string $initialSt
         $initialStatus = 'confirmed';
     }
 
-    $validPurposes = ['consultation', 'eyeglass_claim', 'follow_up', 'contact_lens_fitting', 'other'];
-    if (!in_array($purpose, $validPurposes, true)) {
-        $purpose = 'consultation';
+    // Dynamically validate purpose against active clinic purposes
+    $activePurposes = getActiveConsultationPurposes($db);
+    $activeKeys = array_column($activePurposes, 'category_key');
+    $fallbackKeys = ['consultation', 'eyeglass_claim', 'follow_up', 'contact_lens_fitting', 'other'];
+    $allowedKeys = array_unique(array_merge($activeKeys, $fallbackKeys));
+
+    $purpose = strtolower(trim($purpose));
+    if (!in_array($purpose, $allowedKeys, true)) {
+        $purpose = !empty($activeKeys) ? $activeKeys[0] : 'consultation';
     }
 
     $existingPatientId = (int)($patientInput['patient_id'] ?? 0);

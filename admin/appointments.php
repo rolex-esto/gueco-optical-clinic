@@ -264,8 +264,13 @@ include __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- View Toggles -->
-<div class="appt-ef4f51">
+<!-- View Toggles & Actions -->
+<div class="appt-ef4f51" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+  <div>
+    <a href="page_management.php?tab=services&sub_tab=cats" class="btn btn-sm btn-outline-primary shadow-sm" style="font-weight:600; border-radius:8px;">
+      <i class="fas fa-tags me-1"></i> Manage Consultation Purposes
+    </a>
+  </div>
   <div class="view-toggle-group" role="group" aria-label="View Toggle">
     <button type="button" class="view-toggle-btn active" id="btnListView">
       <i class="fas fa-list me-1"></i> List View

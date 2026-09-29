@@ -985,7 +985,7 @@ document.addEventListener("DOMContentLoaded", function() {
     <div class="pm-subnav-pills">
       <button type="button" class="pm-subnav-pill <?= $activeSvcSubTab === 'cats' ? 'active' : '' ?>" id="subBtnCats" onclick="switchSvcSub('cats')">
         <i class="fas fa-layer-group"></i>
-        <span>1. Booking Categories</span>
+        <span>1. Consultation Purposes & Categories</span>
         <span class="pm-subnav-counter" id="bookingCatCounter"><?= $activeBookingCats ?>/<?= $totalBookingCats ?></span>
       </button>
       <button type="button" class="pm-subnav-pill <?= $activeSvcSubTab === 'services' ? 'active' : '' ?>" id="subBtnServices" onclick="switchSvcSub('services')">
@@ -1001,8 +1001,8 @@ document.addEventListener("DOMContentLoaded", function() {
     <div class="pm-info-callout">
       <div class="pm-callout-icon"><i class="fas fa-layer-group"></i></div>
       <div class="pm-callout-content">
-        <h6>Step 1: Appointment Booking Categories</h6>
-        <p>These are the primary reason categories patients choose when booking an appointment. Add new booking categories or edit existing ones. You can link specific services (sub-categories) to any category.</p>
+        <h6>Consultation Purposes & Booking Categories</h6>
+        <p>These define the consultation purposes and booking categories used across the entire clinic system (Walk-in Patient registration for Saleslady and Doctor, and online patient booking). Add new purposes, edit names, customize icons/descriptions, reorder, or toggle active/hidden anytime.</p>
       </div>
     </div>
 

@@ -336,14 +336,14 @@ html:not([data-theme="dark"]) .cal-search-box input,
 }
 
 [data-theme="dark"] .cal-search-box input {
-  background: #ffffff !important;
-  border: 1.5px solid #cbd5e1 !important;
-  color: #0f172a !important;
+  background: #1a2642 !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
   font-weight: 600 !important;
 }
 
 [data-theme="dark"] .cal-search-box input::placeholder {
-  color: #64748b !important;
+  color: #cbd5e1 !important;
   opacity: 1 !important;
 }
 
@@ -354,6 +354,10 @@ html:not([data-theme="dark"]) .cal-search-box input,
   transform: translateY(-50%);
   color: #0284c7;
   font-size: 0.82rem;
+}
+
+[data-theme="dark"] .cal-search-box i {
+  color: #38bdf8 !important;
 }
 
 /* ── Month Grid View ─────────────────────────────────────── */
@@ -1847,23 +1851,26 @@ html:not([data-theme="dark"]) .cal-queue-tab-badge,
   transition: all 0.2s ease;
 }
 
-/* Dark Mode Data Inputs: Light surfaces with dark readable text */
-[data-theme="dark"] .walkin-input-group .form-control,
-[data-theme="dark"] .walkin-input-group .form-select,
-[data-theme="dark"] .walkin-input-group textarea.form-control {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border: 1.5px solid #cbd5e1 !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12) !important;
+/* Dark Mode Data Inputs: High-contrast, clear borders, readable placeholders, and elegant dark-slate surface */
+[data-theme="dark"] .walkin-modal .walkin-input-group .form-control,
+[data-theme="dark"] .walkin-modal .walkin-input-group input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+[data-theme="dark"] .walkin-modal .walkin-input-group .form-select,
+[data-theme="dark"] .walkin-modal .walkin-input-group textarea.form-control {
+  background-color: #1a2642 !important;
+  color: #ffffff !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25) !important;
   font-weight: 600 !important;
   font-size: 0.9rem !important;
 }
 
-[data-theme="dark"] .walkin-input-group .form-control::placeholder,
-[data-theme="dark"] .walkin-input-group textarea.form-control::placeholder {
-  color: #64748b !important;
-  opacity: 1 !important;
-  font-weight: 400 !important;
+/* High-visibility placeholders in dark mode */
+[data-theme="dark"] .walkin-modal .walkin-input-group .form-control::placeholder,
+[data-theme="dark"] .walkin-modal .walkin-input-group input::placeholder,
+[data-theme="dark"] .walkin-modal .walkin-input-group textarea.form-control::placeholder {
+  color: #e2e8f0 !important;
+  opacity: 0.9 !important;
+  font-weight: 500 !important;
 }
 
 .walkin-input-group .form-control:focus,
@@ -1874,18 +1881,28 @@ html:not([data-theme="dark"]) .cal-queue-tab-badge,
   color: #0f172a !important;
 }
 
-[data-theme="dark"] .walkin-input-group .form-control:focus,
-[data-theme="dark"] .walkin-input-group .form-select:focus,
-[data-theme="dark"] .walkin-input-group textarea.form-control:focus {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #00adef !important;
-  box-shadow: 0 0 0 3.5px rgba(0, 173, 239, 0.28), 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+[data-theme="dark"] .walkin-modal .walkin-input-group .form-control:focus,
+[data-theme="dark"] .walkin-modal .walkin-input-group input:focus,
+[data-theme="dark"] .walkin-modal .walkin-input-group .form-select:focus,
+[data-theme="dark"] .walkin-modal .walkin-input-group textarea.form-control:focus {
+  background-color: #213258 !important;
+  color: #ffffff !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 3.5px rgba(56, 189, 248, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2) !important;
 }
 
-[data-theme="dark"] .walkin-input-group .form-select option {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
+[data-theme="dark"] .walkin-modal .walkin-input-group .form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2338bdf8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+  background-position: right 14px center !important;
+  background-size: 16px 12px !important;
+  background-repeat: no-repeat !important;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .walkin-modal .walkin-input-group .form-select option {
+  background-color: #1a2642 !important;
+  color: #ffffff !important;
+  padding: 8px 12px;
 }
 
 .walkin-input-readonly {
@@ -1895,11 +1912,11 @@ html:not([data-theme="dark"]) .cal-queue-tab-badge,
   border-color: #cbd5e1 !important;
 }
 
-[data-theme="dark"] .walkin-input-readonly {
-  background-color: #e2e8f0 !important;
-  color: #0f172a !important;
+[data-theme="dark"] .walkin-modal .walkin-input-readonly {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #38bdf8 !important;
   font-weight: 800 !important;
-  border-color: #cbd5e1 !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.2) !important;
 }
 
 .walkin-input-group textarea.form-control {

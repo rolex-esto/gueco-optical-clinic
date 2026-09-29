@@ -11,7 +11,11 @@ if (!isLoggedIn()) {
 
 try {
     $db = getDB();
-    $userRole = $_SESSION['role'] ?? ($_GET['role'] ?? '');
+    $userRole = $_SESSION['user_role'] ?? ($_SESSION['role'] ?? ($_GET['role'] ?? ''));
+    if (empty($userRole) && isLoggedIn()) {
+        $u = getCurrentUser();
+        $userRole = $u['role'] ?? '';
+    }
     
     $purposeFilterCount = ($userRole === 'doctor') ? " AND purpose != 'eyeglass_claim'" : "";
     $purposeFilterJoin = ($userRole === 'doctor') ? " AND a.purpose != 'eyeglass_claim'" : "";

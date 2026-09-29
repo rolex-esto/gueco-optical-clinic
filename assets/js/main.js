@@ -525,11 +525,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const lowStock = data.low_stock_items || [];
         const role = data.role || '';
 
-        // Determine destination links
+        // Determine portal path safely from role with current URL directory fallback
+        let portalDir = 'admin';
+        if (window.location.pathname.includes('/saleslady/')) {
+          portalDir = 'saleslady';
+        } else if (window.location.pathname.includes('/doctor/')) {
+          portalDir = 'doctor';
+        }
+        const rolePath = (role === 'doctor' || role === 'saleslady' || role === 'admin') ? role : portalDir;
         const prefix = window.location.pathname.includes('gueco-optical') ? '/gueco-optical/' : '/';
-        const rolePath = role === 'doctor' ? 'doctor' : (role === 'saleslady' ? 'saleslady' : 'admin');
         const apptsLink = prefix + rolePath + '/appointments.php';
-        const invLink = prefix + (role === 'saleslady' ? 'saleslady' : 'admin') + '/inventory.php';
+        const invLink = prefix + (rolePath === 'saleslady' ? 'saleslady' : 'admin') + '/inventory.php';
 
         // 1. Process New Appointments
         if (knownApptIds !== null) {
@@ -543,7 +549,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // 2. Process New Low Stock Alerts
-        if (knownLowStockIds !== null && (role === 'admin' || role === 'saleslady')) {
+        if (knownLowStockIds !== null && (rolePath === 'admin' || rolePath === 'saleslady')) {
           lowStock.forEach(item => {
             const currentStockId = String(item.id);
             if (!knownLowStockIds.has(currentStockId)) {
@@ -594,7 +600,7 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
           } else {
             // Render Low Stock section if available
-            if (lowStock.length > 0 && (role === 'admin' || role === 'saleslady')) {
+            if (lowStock.length > 0 && (rolePath === 'admin' || rolePath === 'saleslady')) {
               html += `
                 <li class="dropdown-header text-uppercase text-danger fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
                   <span><i class="fas fa-boxes-stacked me-1"></i> Low Stock Alerts</span>
@@ -657,18 +663,105 @@ document.addEventListener('DOMContentLoaded', function () {
           html += `
             </div>
             <li class="p-2 border-top d-flex flex-column gap-1" style="background: var(--bg-table-head);">
-              <a class="dropdown-item text-center rounded py-1 fw-bold text-primary" style="font-size: 0.8rem; background: var(--bg-card);" href="${apptsLink}">
-                <i class="fas fa-calendar-alt me-1"></i> View All Appointments
-              </a>
-              ${(role === 'admin' || role === 'saleslady') ? `
-                <a class="dropdown-item text-center rounded py-1 fw-bold ${lowStock.length > 0 ? 'text-danger' : 'text-secondary'}" style="font-size: 0.8rem; background: var(--bg-card);" href="${invLink}">
-                  <i class="fas fa-boxes-stacked me-1"></i> View Inventory ${lowStock.length > 0 ? `(${data.low_stock_count || lowStock.length} Low Stock)` : ''}
+              <button type="button" class="dropdown-item text-center rounded py-2 fw-bold text-primary border-0 shadow-none" style="font-size: 0.82rem; background: var(--bg-card); cursor: pointer;" onclick="openModal('allNotificationsModal')">
+                <i class="fas fa-bell me-1"></i> View Notifications
+              </button>
+              <div class="d-flex justify-content-between px-1 pt-1" style="font-size: 0.74rem;">
+                <a class="text-muted text-decoration-none" href="${apptsLink}" title="Go to Appointments Queue">
+                  <i class="fas fa-calendar-alt me-1"></i> Appointments
                 </a>
-              ` : ''}
+                ${(rolePath === 'admin' || rolePath === 'saleslady') ? `
+                  <a class="${lowStock.length > 0 ? 'text-danger fw-semibold' : 'text-muted'} text-decoration-none" href="${invLink}" title="Go to Inventory">
+                    <i class="fas fa-boxes-stacked me-1"></i> Inventory ${lowStock.length > 0 ? `(${data.low_stock_count || lowStock.length})` : ''}
+                  </a>
+                ` : ''}
+              </div>
             </li>
           `;
 
           dropdownMenu.innerHTML = html;
+        }
+
+        // Live update All Notifications modal body if open or rendered
+        const modalBody = document.getElementById('allNotificationsModalBody');
+        if (modalBody) {
+          if (appts.length === 0 && lowStock.length === 0) {
+            modalBody.innerHTML = `
+              <div class="text-center py-5 text-muted">
+                <i class="fas fa-bell-slash mb-3" style="font-size: 2.5rem; opacity: 0.35;"></i>
+                <h6 class="fw-bold">No active notifications</h6>
+                <p class="small mb-0">All appointments are handled and inventory stock levels are healthy.</p>
+              </div>
+            `;
+          } else {
+            let mHtml = '';
+            if (lowStock.length > 0 && (rolePath === 'admin' || rolePath === 'saleslady')) {
+              mHtml += `
+                <div class="mb-4">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-danger text-uppercase small" style="letter-spacing: 0.5px;">
+                      <i class="fas fa-boxes-stacked me-1"></i> Low Stock Alerts (${data.low_stock_count || lowStock.length})
+                    </span>
+                    <a href="${invLink}" class="small text-danger fw-semibold text-decoration-none">Manage Inventory &rarr;</a>
+                  </div>
+                  <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+              `;
+              lowStock.forEach(item => {
+                const prodName = escapeHtml(item.name + (item.variant_name ? ' — ' + item.variant_name : ''));
+                mHtml += `
+                  <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                    <div class="d-flex align-items-center gap-2 text-truncate me-2">
+                      <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(239, 68, 68, 0.12); color: #EF4444; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem;">
+                        <i class="fas fa-triangle-exclamation"></i>
+                      </div>
+                      <div class="text-truncate">
+                        <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">${prodName}</div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Alert threshold: &le; ${item.low_stock_alert} units</small>
+                      </div>
+                    </div>
+                    <span class="badge bg-danger-soft text-danger fw-bold px-2 py-1" style="background: rgba(239, 68, 68, 0.12); font-size: 0.75rem; white-space: nowrap;">
+                      Only ${item.stock_quantity} left
+                    </span>
+                  </div>
+                `;
+              });
+              mHtml += `</div></div>`;
+            }
+
+            if (appts.length > 0) {
+              mHtml += `
+                <div class="mb-2">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-primary text-uppercase small" style="letter-spacing: 0.5px;">
+                      <i class="fas fa-calendar-check me-1"></i> Pending Appointments (${data.appt_count || appts.length})
+                    </span>
+                    <a href="${apptsLink}" class="small text-primary fw-semibold text-decoration-none">Open Queue &rarr;</a>
+                  </div>
+                  <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+              `;
+              appts.forEach(appt => {
+                mHtml += `
+                  <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                    <div class="d-flex align-items-center gap-2 text-truncate me-2">
+                      <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(0, 173, 239, 0.12); color: var(--clr-primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem;">
+                        <i class="fas fa-user-clock"></i>
+                      </div>
+                      <div class="text-truncate">
+                        <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">${escapeHtml(appt.patient_name)}</div>
+                        <small class="text-muted" style="font-size: 0.72rem;">
+                          ${formatDate(appt.appointment_date)} at ${formatTime(appt.appointment_time)}
+                          ${appt.purpose ? `&bull; <span class="text-capitalize">${escapeHtml(appt.purpose.replace(/_/g, ' '))}</span>` : ''}
+                        </small>
+                      </div>
+                    </div>
+                    <a href="${apptsLink}" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.74rem;">View</a>
+                  </div>
+                `;
+              });
+              mHtml += `</div></div>`;
+            }
+            modalBody.innerHTML = mHtml;
+          }
         }
       }
     } catch (e) {

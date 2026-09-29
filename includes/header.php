@@ -171,9 +171,16 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
             <?php
             try {
               $db = getDB();
-              $currentUserRole = $user['role'] ?? ($_SESSION['role'] ?? '');
-              $purposeWhere = ($currentUserRole === 'doctor') ? " AND purpose != 'eyeglass_claim'" : "";
-              $purposeWhereJoin = ($currentUserRole === 'doctor') ? " AND a.purpose != 'eyeglass_claim'" : "";
+              $currentUserRole = $user['role'] ?? ($_SESSION['user_role'] ?? ($_SESSION['role'] ?? ''));
+              if (empty($currentUserRole)) {
+                if (strpos($_SERVER['REQUEST_URI'] ?? '', '/saleslady/') !== false) {
+                  $currentUserRole = 'saleslady';
+                } elseif (strpos($_SERVER['REQUEST_URI'] ?? '', '/doctor/') !== false) {
+                  $currentUserRole = 'doctor';
+                } else {
+                  $currentUserRole = 'admin';
+                }
+              }
               $headerApptsLink = BASE_URL . ($currentUserRole === 'doctor' ? 'doctor' : ($currentUserRole === 'saleslady' ? 'saleslady' : 'admin')) . '/appointments.php';
               $headerInventoryLink = BASE_URL . ($currentUserRole === 'saleslady' ? 'saleslady' : 'admin') . '/inventory.php';
               
@@ -286,14 +293,19 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
             </div>
 
             <li class="p-2 border-top d-flex flex-column gap-1" style="background: var(--bg-table-head);">
-              <a class="dropdown-item text-center rounded py-1 fw-bold text-primary" style="font-size: 0.8rem; background: var(--bg-card);" href="<?= $headerApptsLink ?>">
-                <i class="fas fa-calendar-alt me-1"></i> View All Appointments
-              </a>
-              <?php if (in_array($currentUserRole, ['admin', 'saleslady'])): ?>
-                <a class="dropdown-item text-center rounded py-1 fw-bold <?= $lowStockCount > 0 ? 'text-danger' : 'text-secondary' ?>" style="font-size: 0.8rem; background: var(--bg-card);" href="<?= $headerInventoryLink ?>">
-                  <i class="fas fa-boxes-stacked me-1"></i> View Inventory <?= $lowStockCount > 0 ? "($lowStockCount Low Stock)" : "" ?>
+              <button type="button" class="dropdown-item text-center rounded py-2 fw-bold text-primary border-0 shadow-none" style="font-size: 0.82rem; background: var(--bg-card); cursor: pointer;" onclick="openModal('allNotificationsModal')">
+                <i class="fas fa-bell me-1"></i> View Notifications
+              </button>
+              <div class="d-flex justify-content-between px-1 pt-1" style="font-size: 0.74rem;">
+                <a class="text-muted text-decoration-none" href="<?= $headerApptsLink ?>" title="Go to Appointments Queue">
+                  <i class="fas fa-calendar-alt me-1"></i> Appointments
                 </a>
-              <?php endif; ?>
+                <?php if (in_array($currentUserRole, ['admin', 'saleslady'])): ?>
+                  <a class="<?= $lowStockCount > 0 ? 'text-danger fw-semibold' : 'text-muted' ?> text-decoration-none" href="<?= $headerInventoryLink ?>" title="Go to Inventory">
+                    <i class="fas fa-boxes-stacked me-1"></i> Inventory <?= $lowStockCount > 0 ? "($lowStockCount)" : "" ?>
+                  </a>
+                <?php endif; ?>
+              </div>
             </li>
           </ul>
         </div>
@@ -304,6 +316,113 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
         </div>
       </div>
     </header>
+
+    <!-- ── All Notifications Modal ────────────────────────────── -->
+    <div class="modal-overlay" id="allNotificationsModal" style="z-index: 105000;">
+      <div class="modal-box" style="max-width: 620px; max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-header d-flex align-items-center justify-content-between p-3 border-bottom" style="background: var(--bg-table-head);">
+          <div class="d-flex align-items-center gap-2">
+            <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(0, 173, 239, 0.12); color: var(--clr-primary); display: flex; align-items: center; justify-content: center; font-size: 1rem;">
+              <i class="fas fa-bell"></i>
+            </div>
+            <div>
+              <h6 class="mb-0 fw-bold" style="color: var(--text-primary);">Notifications Center</h6>
+              <small class="text-muted" style="font-size: 0.74rem;">All active appointments and inventory alerts</small>
+            </div>
+          </div>
+          <button type="button" class="btn-close" onclick="closeModal('allNotificationsModal')" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-3 custom-scroll" id="allNotificationsModalBody" style="overflow-y: auto; flex: 1;">
+          <?php if (empty($recentAppts) && empty($recentLowStock)): ?>
+            <div class="text-center py-5 text-muted">
+              <i class="fas fa-bell-slash mb-3" style="font-size: 2.5rem; opacity: 0.35;"></i>
+              <h6 class="fw-bold">No active notifications</h6>
+              <p class="small mb-0">All appointments are handled and inventory stock levels are healthy.</p>
+            </div>
+          <?php else: ?>
+            <?php if (!empty($recentLowStock)): ?>
+              <div class="mb-4">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <span class="fw-bold text-danger text-uppercase small" style="letter-spacing: 0.5px;">
+                    <i class="fas fa-boxes-stacked me-1"></i> Low Stock Alerts (<?= $lowStockCount ?>)
+                  </span>
+                  <a href="<?= $headerInventoryLink ?>" class="small text-danger fw-semibold text-decoration-none">Manage Inventory &rarr;</a>
+                </div>
+                <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+                  <?php foreach ($recentLowStock as $item): ?>
+                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                      <div class="d-flex align-items-center gap-2 text-truncate me-2">
+                        <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(239, 68, 68, 0.12); color: #EF4444; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem;">
+                          <i class="fas fa-triangle-exclamation"></i>
+                        </div>
+                        <div class="text-truncate">
+                          <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                            <?= sanitize($item['name'] . ($item['variant_name'] ? ' — ' . $item['variant_name'] : '')) ?>
+                          </div>
+                          <small class="text-muted" style="font-size: 0.72rem;">Alert threshold: &le; <?= (int)$item['low_stock_alert'] ?> units</small>
+                        </div>
+                      </div>
+                      <span class="badge bg-danger-soft text-danger fw-bold px-2 py-1" style="background: rgba(239, 68, 68, 0.12); font-size: 0.75rem; white-space: nowrap;">
+                        Only <?= (int)$item['stock_quantity'] ?> left
+                      </span>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            <?php endif; ?>
+
+            <?php if (!empty($recentAppts)): ?>
+              <div class="mb-2">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <span class="fw-bold text-primary text-uppercase small" style="letter-spacing: 0.5px;">
+                    <i class="fas fa-calendar-check me-1"></i> Pending Appointments (<?= $notifCount ?>)
+                  </span>
+                  <a href="<?= $headerApptsLink ?>" class="small text-primary fw-semibold text-decoration-none">Open Queue &rarr;</a>
+                </div>
+                <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+                  <?php foreach ($recentAppts as $appt): ?>
+                    <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                      <div class="d-flex align-items-center gap-2 text-truncate me-2">
+                        <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(0, 173, 239, 0.12); color: var(--clr-primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem;">
+                          <i class="fas fa-user-clock"></i>
+                        </div>
+                        <div class="text-truncate">
+                          <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                            <?= sanitize($appt['patient_name']) ?>
+                          </div>
+                          <small class="text-muted" style="font-size: 0.72rem;">
+                            <?= date('M d, Y', strtotime($appt['appointment_date'])) ?> at <?= date('h:i A', strtotime($appt['appointment_time'])) ?>
+                            <?php if (!empty($appt['purpose'])): ?>
+                              &bull; <span class="text-capitalize"><?= str_replace('_', ' ', sanitize($appt['purpose'])) ?></span>
+                            <?php endif; ?>
+                          </small>
+                        </div>
+                      </div>
+                      <a href="<?= $headerApptsLink ?>" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.74rem;">
+                        View
+                      </a>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+            <?php endif; ?>
+          <?php endif; ?>
+        </div>
+        <div class="modal-footer p-2 border-top d-flex align-items-center justify-content-between" style="background: var(--bg-table-head);">
+          <div class="d-flex gap-2">
+            <a href="<?= $headerApptsLink ?>" class="btn btn-sm btn-outline-primary" style="font-size: 0.78rem;">
+              <i class="fas fa-calendar-alt me-1"></i> Appointment Queue
+            </a>
+            <?php if (in_array($currentUserRole, ['admin', 'saleslady'])): ?>
+              <a href="<?= $headerInventoryLink ?>" class="btn btn-sm btn-outline-danger" style="font-size: 0.78rem;">
+                <i class="fas fa-boxes-stacked me-1"></i> Inventory
+              </a>
+            <?php endif; ?>
+          </div>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="closeModal('allNotificationsModal')">Close</button>
+        </div>
+      </div>
+    </div>
 
     <!-- PAGE CONTENT starts here -->
     <div class="page-content">

@@ -166,7 +166,7 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
 
         <!-- Notification Bell -->
         <div class="dropdown" id="notifDropdownWrap">
-          <button class="header-icon-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notifications">
+          <button class="header-icon-btn notif-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notifications">
             <i class="fas fa-bell"></i>
             <?php
             try {
@@ -175,45 +175,126 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
               $purposeWhere = ($currentUserRole === 'doctor') ? " AND purpose != 'eyeglass_claim'" : "";
               $purposeWhereJoin = ($currentUserRole === 'doctor') ? " AND a.purpose != 'eyeglass_claim'" : "";
               $headerApptsLink = BASE_URL . ($currentUserRole === 'doctor' ? 'doctor' : ($currentUserRole === 'saleslady' ? 'saleslady' : 'admin')) . '/appointments.php';
+              $headerInventoryLink = BASE_URL . ($currentUserRole === 'saleslady' ? 'saleslady' : 'admin') . '/inventory.php';
               
               $stmtCount = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE status = 'pending' AND appointment_date >= CURDATE()" . $purposeWhere);
               $stmtCount->execute();
-              $notifCount = $stmtCount->fetch()['c'];
+              $notifCount = (int)$stmtCount->fetch()['c'];
               
-              $stmtRecent = $db->prepare("SELECT p.full_name as patient_name, a.appointment_date, a.appointment_time FROM appointments a JOIN patients p ON a.patient_id = p.id WHERE a.status = 'pending' AND a.appointment_date >= CURDATE()" . $purposeWhereJoin . " ORDER BY a.created_at DESC LIMIT 5");
+              $stmtRecent = $db->prepare("SELECT a.id, p.full_name as patient_name, a.appointment_date, a.appointment_time, a.purpose FROM appointments a JOIN patients p ON a.patient_id = p.id WHERE a.status = 'pending' AND a.appointment_date >= CURDATE()" . $purposeWhereJoin . " ORDER BY a.created_at DESC LIMIT 5");
               $stmtRecent->execute();
               $recentAppts = $stmtRecent->fetchAll();
+
+              // Low Stock Inventory Notifications for Admin and Saleslady
+              $lowStockCount = 0;
+              $recentLowStock = [];
+              if (in_array($currentUserRole, ['admin', 'saleslady'])) {
+                $stmtLowCount = $db->query("SELECT COUNT(*) as c FROM products WHERE stock_quantity <= low_stock_alert AND status = 'active'");
+                $lowStockCount = (int)($stmtLowCount ? $stmtLowCount->fetch()['c'] : 0);
+
+                $stmtLowRecent = $db->query("
+                  SELECT p.id, p.name, p.base_model, p.variant_name, p.stock_quantity, p.low_stock_alert 
+                  FROM products p 
+                  WHERE p.stock_quantity <= p.low_stock_alert AND p.status = 'active' 
+                  ORDER BY p.stock_quantity ASC, p.id DESC 
+                  LIMIT 5
+                ");
+                $recentLowStock = $stmtLowRecent ? $stmtLowRecent->fetchAll(PDO::FETCH_ASSOC) : [];
+              }
+
+              $totalNotifCount = $notifCount + $lowStockCount;
             } catch(Exception $e) { 
               $notifCount = 0; 
               $recentAppts = []; 
+              $lowStockCount = 0;
+              $recentLowStock = [];
+              $totalNotifCount = 0;
               $headerApptsLink = BASE_URL . 'admin/appointments.php';
+              $headerInventoryLink = BASE_URL . 'admin/inventory.php';
             }
             ?>
-            <?php if ($notifCount > 0): ?>
-            <span class="notif-badge" id="notifBadgeEl"><?= min($notifCount, 99) ?></span>
+            <?php if ($totalNotifCount > 0): ?>
+            <span class="notif-badge" id="notifBadgeEl"><?= min($totalNotifCount, 99) ?></span>
             <?php endif; ?>
           </button>
-          <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width: 300px; border-radius: 16px; border: 1px solid var(--border-color); background: var(--bg-card);">
-            <li><h6 class="dropdown-header fw-bold">Notifications</h6></li>
-            <?php if (empty($recentAppts)): ?>
-              <li><span class="dropdown-item text-muted">No new notifications</span></li>
-            <?php else: ?>
-              <?php foreach($recentAppts as $appt): ?>
-                <li>
-                  <a class="dropdown-item py-2" href="<?= $headerApptsLink ?>">
-                    <div class="fw-bold text-truncate" style="max-width: 260px;">
-                      <?= sanitize($appt['patient_name']) ?>
-                    </div>
-                    <small class="text-muted">
-                      Requested for <?= date('M d, Y', strtotime($appt['appointment_date'])) ?> 
-                      at <?= date('h:i A', strtotime($appt['appointment_time'])) ?>
-                    </small>
-                  </a>
+          <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 320px; max-width: 360px; border-radius: 16px; border: 1px solid var(--border-color) !important; background: var(--bg-card); padding: 0; overflow: hidden;">
+            <li class="px-3 py-2 d-flex align-items-center justify-content-between border-bottom" style="background: var(--bg-table-head);">
+              <span class="fw-bold" style="font-size: 0.85rem; color: var(--text-primary);"><i class="fas fa-bell me-2" style="color: var(--clr-primary);"></i>Notifications</span>
+              <?php if ($totalNotifCount > 0): ?>
+                <span class="badge rounded-pill bg-danger" style="font-size: 0.68rem; font-weight: 700;"><?= $totalNotifCount ?> New</span>
+              <?php endif; ?>
+            </li>
+            
+            <div style="max-height: 380px; overflow-y: auto;" class="custom-scroll">
+              <?php if (empty($recentAppts) && empty($recentLowStock)): ?>
+                <li class="p-4 text-center text-muted" style="font-size: 0.86rem;">
+                  <i class="fas fa-bell-slash d-block mb-2 text-muted" style="font-size: 1.8rem; opacity: 0.4;"></i>
+                  <span>No new notifications</span>
                 </li>
-              <?php endforeach; ?>
-            <?php endif; ?>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item text-center fw-bold" style="color:var(--clr-bronze)" href="<?= $headerApptsLink ?>">View All Appointments</a></li>
+              <?php else: ?>
+                <?php if (!empty($recentLowStock)): ?>
+                  <li class="dropdown-header text-uppercase text-danger fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                    <span><i class="fas fa-boxes-stacked me-1"></i> Low Stock Alerts</span>
+                    <span class="badge bg-danger-soft text-danger" style="background: rgba(239,68,68,0.12);"><?= $lowStockCount ?></span>
+                  </li>
+                  <?php foreach ($recentLowStock as $item): ?>
+                    <li>
+                      <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="<?= $headerInventoryLink ?>">
+                        <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(239, 68, 68, 0.12); color: #EF4444; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
+                          <i class="fas fa-triangle-exclamation"></i>
+                        </div>
+                        <div class="flex-grow-1 text-truncate">
+                          <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                            <?= sanitize($item['name'] . ($item['variant_name'] ? ' — ' . $item['variant_name'] : '')) ?>
+                          </div>
+                          <div style="font-size: 0.74rem; color: #EF4444; font-weight: 600;">
+                            Only <?= (int)$item['stock_quantity'] ?> left <span class="text-muted fw-normal">(Threshold &le; <?= (int)$item['low_stock_alert'] ?>)</span>
+                          </div>
+                        </div>
+                      </a>
+                    </li>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+
+                <?php if (!empty($recentAppts)): ?>
+                  <li class="dropdown-header text-uppercase text-primary fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                    <span><i class="fas fa-calendar-check me-1"></i> Appointments</span>
+                    <span class="badge bg-primary-soft text-primary" style="background: rgba(0,173,239,0.12);"><?= $notifCount ?></span>
+                  </li>
+                  <?php foreach ($recentAppts as $appt): ?>
+                    <li>
+                      <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="<?= $headerApptsLink ?>">
+                        <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(0, 173, 239, 0.12); color: var(--clr-primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
+                          <i class="fas fa-user-clock"></i>
+                        </div>
+                        <div class="flex-grow-1 text-truncate">
+                          <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                            <?= sanitize($appt['patient_name']) ?>
+                          </div>
+                          <small class="text-muted d-block text-truncate" style="font-size: 0.74rem;">
+                            <?= date('M d, Y', strtotime($appt['appointment_date'])) ?> at <?= date('h:i A', strtotime($appt['appointment_time'])) ?>
+                            <?php if (!empty($appt['purpose'])): ?>
+                              &bull; <span class="text-capitalize"><?= str_replace('_', ' ', sanitize($appt['purpose'])) ?></span>
+                            <?php endif; ?>
+                          </small>
+                        </div>
+                      </a>
+                    </li>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              <?php endif; ?>
+            </div>
+
+            <li class="p-2 border-top d-flex flex-column gap-1" style="background: var(--bg-table-head);">
+              <a class="dropdown-item text-center rounded py-1 fw-bold text-primary" style="font-size: 0.8rem; background: var(--bg-card);" href="<?= $headerApptsLink ?>">
+                <i class="fas fa-calendar-alt me-1"></i> View All Appointments
+              </a>
+              <?php if (in_array($currentUserRole, ['admin', 'saleslady'])): ?>
+                <a class="dropdown-item text-center rounded py-1 fw-bold <?= $lowStockCount > 0 ? 'text-danger' : 'text-secondary' ?>" style="font-size: 0.8rem; background: var(--bg-card);" href="<?= $headerInventoryLink ?>">
+                  <i class="fas fa-boxes-stacked me-1"></i> View Inventory <?= $lowStockCount > 0 ? "($lowStockCount Low Stock)" : "" ?>
+                </a>
+              <?php endif; ?>
+            </li>
           </ul>
         </div>
 

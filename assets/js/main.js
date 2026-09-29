@@ -84,8 +84,95 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // ── Toast Notifications ────────────────────────────────
-  window.showToast = function (message, type = 'info', duration = 3500) {
+  // ── Web Audio API Notification Sound Effects ─────────────
+  let notifAudioCtx = null;
+  function getAudioContext() {
+    if (!notifAudioCtx) {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtxClass) {
+        notifAudioCtx = new AudioCtxClass();
+      }
+    }
+    if (notifAudioCtx && notifAudioCtx.state === 'suspended') {
+      notifAudioCtx.resume().catch(() => {});
+    }
+    return notifAudioCtx;
+  }
+
+  // Pre-unlock audio on user gesture
+  ['click', 'touchstart', 'keydown'].forEach(evt => {
+    document.addEventListener(evt, () => {
+      if (notifAudioCtx && notifAudioCtx.state === 'suspended') {
+        notifAudioCtx.resume().catch(() => {});
+      }
+    }, { once: true, passive: true });
+  });
+
+  window.playNotificationSound = function (type = 'default') {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+
+      if (type === 'warning' || type === 'low_stock') {
+        // Distinctive 2-tone warm alert chime for inventory low stock / warning
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(659.25, now); // E5
+        gain1.gain.setValueAtTime(0.20, now);
+        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.15);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, now + 0.12); // A5
+        gain2.gain.setValueAtTime(0.22, now + 0.12);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.44);
+      } else {
+        // Bright, pleasing optical clinic notification bell chime
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(880, now); // A5
+        gain1.gain.setValueAtTime(0.18, now);
+        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.13);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1318.51, now + 0.10); // E6
+        gain2.gain.setValueAtTime(0.20, now + 0.10);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.10);
+        osc2.stop(now + 0.46);
+      }
+    } catch (err) {
+      console.debug('[Audio] Notification sound failed:', err);
+    }
+  };
+
+  // ── Toast Notifications (3-Second Display & Audio) ─────────
+  window.showToast = function (message, type = 'info', duration = 3000, playSound = true) {
+    if (playSound) {
+      window.playNotificationSound(type);
+    }
+
     let container = document.querySelector('.toast-container');
     if (!container) {
       container = document.createElement('div');
@@ -93,25 +180,29 @@ document.addEventListener('DOMContentLoaded', function () {
       document.body.appendChild(container);
     }
 
-    const icons = { success: 'check-circle', error: 'times-circle', info: 'info-circle', warning: 'exclamation-triangle' };
+    const icons = {
+      success: 'check-circle',
+      error: 'times-circle',
+      danger: 'times-circle',
+      info: 'info-circle',
+      warning: 'triangle-exclamation'
+    };
     const icon = icons[type] || icons.info;
 
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.innerHTML = `
-      <i class="fas fa-${icon} toast-icon" style="font-size:1.1rem;flex-shrink:0"></i>
-      <span>${message}</span>
-      <button onclick="this.parentElement.remove()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:.9rem;padding:0 4px;">
+      <i class="fas fa-${icon} toast-icon" style="font-size:1.15rem;flex-shrink:0"></i>
+      <div style="flex:1;">${message}</div>
+      <button type="button" class="toast-close-btn" aria-label="Close" onclick="this.closest('.toast').remove()">
         <i class="fas fa-times"></i>
       </button>`;
 
     container.appendChild(toast);
     setTimeout(() => {
-      toast.style.animation = 'none';
       toast.style.opacity = '0';
-      toast.style.transform = 'translateX(40px)';
-      toast.style.transition = 'all .3s ease';
-      setTimeout(() => toast.remove(), 300);
+      toast.style.transform = 'translateY(-15px) scale(0.96)';
+      setTimeout(() => toast.remove(), 320);
     }, duration);
   };
 
@@ -389,11 +480,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  // ── Appointment Notification Polling ─────────────────────
+  // ── Notification Polling (Appointments & Inventory Low Stock) ──
   let knownApptIds = null;
-  const notifBtn = document.querySelector('.notif-btn');
+  let knownLowStockIds = null;
+  const notifBtn = document.querySelector('.notif-btn') || document.querySelector('#notifDropdownWrap .header-icon-btn');
 
   function formatTime(timeStr) {
+    if (!timeStr) return '';
     const [h, m] = timeStr.split(':');
     let hours = parseInt(h);
     const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -402,8 +495,19 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function formatDate(dateStr) {
+    if (!dateStr) return '';
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   async function checkAppointments() {
@@ -416,24 +520,45 @@ document.addEventListener('DOMContentLoaded', function () {
       const data = await res.json();
       
       if (data && typeof data.count !== 'undefined') {
-        const count = data.count;
+        const count = parseInt(data.count) || 0;
         const appts = data.appointments || [];
+        const lowStock = data.low_stock_items || [];
+        const role = data.role || '';
 
-        // Find new appointments
+        // Determine destination links
+        const prefix = window.location.pathname.includes('gueco-optical') ? '/gueco-optical/' : '/';
+        const rolePath = role === 'doctor' ? 'doctor' : (role === 'saleslady' ? 'saleslady' : 'admin');
+        const apptsLink = prefix + rolePath + '/appointments.php';
+        const invLink = prefix + (role === 'saleslady' ? 'saleslady' : 'admin') + '/inventory.php';
+
+        // 1. Process New Appointments
         if (knownApptIds !== null) {
           appts.forEach(appt => {
             const currentId = String(appt.id);
             if (!knownApptIds.has(currentId)) {
-              const msg = `<strong>${appt.patient_name}</strong> booked an appointment on <strong>${formatDate(appt.appointment_date)}</strong> at <strong>${formatTime(appt.appointment_time)}</strong> for <em>${appt.purpose}</em>.`;
-              showToast(msg, 'info', 7000); 
+              const msg = `<strong>${escapeHtml(appt.patient_name)}</strong> booked an appointment for <strong>${formatDate(appt.appointment_date)}</strong> at <strong>${formatTime(appt.appointment_time)}</strong>.`;
+              window.showToast(msg, 'info', 3000); 
+            }
+          });
+        }
+
+        // 2. Process New Low Stock Alerts
+        if (knownLowStockIds !== null && (role === 'admin' || role === 'saleslady')) {
+          lowStock.forEach(item => {
+            const currentStockId = String(item.id);
+            if (!knownLowStockIds.has(currentStockId)) {
+              const prodName = escapeHtml(item.name + (item.variant_name ? ' — ' + item.variant_name : ''));
+              const msg = `<strong>Low Stock Alert:</strong> ${prodName} has only <strong>${item.stock_quantity}</strong> remaining (Alert: &le; ${item.low_stock_alert}).`;
+              window.showToast(msg, 'warning', 3000);
             }
           });
         }
         
-        // Update known IDs
+        // Update tracked IDs
         knownApptIds = new Set(appts.map(a => String(a.id)));
+        knownLowStockIds = new Set(lowStock.map(p => String(p.id)));
         
-        // Update badge
+        // Update badge on bell
         let notifBadge = document.querySelector('.notif-badge');
         if (count > 0) {
           if (notifBadge) {
@@ -441,6 +566,7 @@ document.addEventListener('DOMContentLoaded', function () {
           } else if (notifBtn) {
             const badge = document.createElement('span');
             badge.className = 'notif-badge';
+            badge.id = 'notifBadgeEl';
             badge.textContent = count > 99 ? 99 : count;
             notifBtn.appendChild(badge);
           }
@@ -450,38 +576,108 @@ document.addEventListener('DOMContentLoaded', function () {
         
         // Dynamically update dropdown list if present
         const dropdownMenu = document.querySelector('#notifDropdownWrap .dropdown-menu');
-        if (dropdownMenu && knownApptIds !== null) {
-          let html = `<li><h6 class="dropdown-header">Notifications</h6></li>`;
-          if (appts.length === 0) {
-            html += `<li><span class="dropdown-item text-muted">No new notifications</span></li>`;
+        if (dropdownMenu) {
+          let html = `
+            <li class="px-3 py-2 d-flex align-items-center justify-content-between border-bottom" style="background: var(--bg-table-head);">
+              <span class="fw-bold" style="font-size: 0.85rem; color: var(--text-primary);"><i class="fas fa-bell me-2" style="color: var(--clr-primary);"></i>Notifications</span>
+              ${count > 0 ? `<span class="badge rounded-pill bg-danger" style="font-size: 0.68rem; font-weight: 700;">${count} New</span>` : ''}
+            </li>
+            <div style="max-height: 380px; overflow-y: auto;" class="custom-scroll">
+          `;
+
+          if (appts.length === 0 && lowStock.length === 0) {
+            html += `
+              <li class="p-4 text-center text-muted" style="font-size: 0.86rem;">
+                <i class="fas fa-bell-slash d-block mb-2 text-muted" style="font-size: 1.8rem; opacity: 0.4;"></i>
+                <span>No new notifications</span>
+              </li>
+            `;
           } else {
-            appts.slice(0, 5).forEach(appt => {
+            // Render Low Stock section if available
+            if (lowStock.length > 0 && (role === 'admin' || role === 'saleslady')) {
               html += `
-                <li>
-                  <a class="dropdown-item py-2" href="appointments.php">
-                    <div class="fw-bold text-truncate" style="max-width: 260px;">
-                      ${appt.patient_name}
-                    </div>
-                    <small class="text-muted">
-                      Requested for ${formatDate(appt.appointment_date)} at ${formatTime(appt.appointment_time)}
-                    </small>
-                  </a>
+                <li class="dropdown-header text-uppercase text-danger fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                  <span><i class="fas fa-boxes-stacked me-1"></i> Low Stock Alerts</span>
+                  <span class="badge bg-danger-soft text-danger" style="background: rgba(239,68,68,0.12);">${data.low_stock_count || lowStock.length}</span>
                 </li>
               `;
-            });
+              lowStock.slice(0, 5).forEach(item => {
+                const prodName = escapeHtml(item.name + (item.variant_name ? ' — ' + item.variant_name : ''));
+                html += `
+                  <li>
+                    <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="${invLink}">
+                      <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(239, 68, 68, 0.12); color: #EF4444; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
+                        <i class="fas fa-triangle-exclamation"></i>
+                      </div>
+                      <div class="flex-grow-1 text-truncate">
+                        <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                          ${prodName}
+                        </div>
+                        <div style="font-size: 0.74rem; color: #EF4444; font-weight: 600;">
+                          Only ${item.stock_quantity} left <span class="text-muted fw-normal">(Threshold &le; ${item.low_stock_alert})</span>
+                        </div>
+                      </div>
+                    </a>
+                  </li>
+                `;
+              });
+            }
+
+            // Render Appointments section if available
+            if (appts.length > 0) {
+              html += `
+                <li class="dropdown-header text-uppercase text-primary fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                  <span><i class="fas fa-calendar-check me-1"></i> Appointments</span>
+                  <span class="badge bg-primary-soft text-primary" style="background: rgba(0,173,239,0.12);">${data.appt_count || appts.length}</span>
+                </li>
+              `;
+              appts.slice(0, 5).forEach(appt => {
+                html += `
+                  <li>
+                    <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="${apptsLink}">
+                      <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(0, 173, 239, 0.12); color: var(--clr-primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
+                        <i class="fas fa-user-clock"></i>
+                      </div>
+                      <div class="flex-grow-1 text-truncate">
+                        <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                          ${escapeHtml(appt.patient_name)}
+                        </div>
+                        <small class="text-muted d-block text-truncate" style="font-size: 0.74rem;">
+                          ${formatDate(appt.appointment_date)} at ${formatTime(appt.appointment_time)}
+                          ${appt.purpose ? `&bull; <span class="text-capitalize">${escapeHtml(appt.purpose.replace(/_/g, ' '))}</span>` : ''}
+                        </small>
+                      </div>
+                    </a>
+                  </li>
+                `;
+              });
+            }
           }
-          html += `<li><hr class="dropdown-divider"></li>
-                   <li><a class="dropdown-item text-center text-primary fw-semibold" href="appointments.php">View All Appointments</a></li>`;
+
+          html += `
+            </div>
+            <li class="p-2 border-top d-flex flex-column gap-1" style="background: var(--bg-table-head);">
+              <a class="dropdown-item text-center rounded py-1 fw-bold text-primary" style="font-size: 0.8rem; background: var(--bg-card);" href="${apptsLink}">
+                <i class="fas fa-calendar-alt me-1"></i> View All Appointments
+              </a>
+              ${(role === 'admin' || role === 'saleslady') ? `
+                <a class="dropdown-item text-center rounded py-1 fw-bold ${lowStock.length > 0 ? 'text-danger' : 'text-secondary'}" style="font-size: 0.8rem; background: var(--bg-card);" href="${invLink}">
+                  <i class="fas fa-boxes-stacked me-1"></i> View Inventory ${lowStock.length > 0 ? `(${data.low_stock_count || lowStock.length} Low Stock)` : ''}
+                </a>
+              ` : ''}
+            </li>
+          `;
+
           dropdownMenu.innerHTML = html;
         }
       }
     } catch (e) {
-      console.error('[Appt Poll] Error:', e);
+      console.error('[Notification Poll] Error:', e);
     }
   }
 
-  // Check immediately if we have a notif btn, then every 10 seconds
-  if (notifBtn) {
+  // Check immediately if we have a notification bell or staff header, then poll every 10 seconds
+  if (notifBtn || document.getElementById('notifDropdownWrap')) {
     checkAppointments();
     setInterval(checkAppointments, 10000);
   }

@@ -589,112 +589,184 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <!-- ============================================================ -->
-<!-- REGISTER WALK-IN PATIENT MODAL                               -->
+<!-- REGISTER WALK-IN PATIENT MODAL (MODERN REDESIGN)             -->
 <!-- ============================================================ -->
 <div class="modal fade" id="registerWalkinModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content cal-modal">
-      <div class="modal-header">
-        <div class="d-flex align-items-center gap-2">
-          <div style="width:38px;height:38px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#f59e0b;">
-            <i class="fas fa-walking"></i>
+  <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 860px;">
+    <div class="modal-content walkin-modal">
+      
+      <!-- Modern Modal Header -->
+      <div class="modal-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+          <div class="walkin-header-icon shadow-sm">
+            <i class="fas fa-user-plus"></i>
           </div>
           <div>
-            <h5 class="modal-title fw-bold cal-modal-title mb-0">Register Walk-in Patient</h5>
-            <small class="text-muted">Direct Check-in &bull; Scheduled for Today</small>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <h5 class="modal-title fw-bold mb-0 text-white" style="font-size:1.15rem;">Register Walk-in Patient</h5>
+              <span class="badge bg-white text-primary fw-bold" style="font-size:0.72rem;">
+                <i class="fas fa-calendar-day me-1"></i> Today: <?= date('M d, Y') ?>
+              </span>
+              <span class="badge bg-warning text-dark fw-bold" style="font-size:0.72rem;">
+                <i class="fas fa-bolt me-1"></i> Direct Check-in
+              </span>
+            </div>
+            <small class="text-white-50">Create patient record and place directly into today's queue</small>
           </div>
         </div>
-        <button type="button" class="btn-close cal-modal-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
       <form id="formRegisterWalkin" autocomplete="off">
         <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
-        <div class="modal-body p-4">
-          <div id="walkinAlert" class="alert alert-danger py-2 px-3 mb-3 d-none" style="font-size:0.85rem;"></div>
+        <div class="modal-body p-4" style="max-height: calc(85vh - 140px); overflow-y: auto;">
+          <div id="walkinAlert" class="alert alert-danger py-2 px-3 mb-3 d-none" style="font-size:0.85rem; border-radius:10px;"></div>
 
-          <div class="row g-3">
-            <div class="col-md-4">
-              <label class="form-label small fw-bold text-muted text-uppercase">Last Name <span class="text-danger">*</span></label>
-              <input type="text" name="last_name" id="walkinInputLastName" class="form-control alpha-only" placeholder="e.g. Dela Cruz" required maxlength="50" autocomplete="off">
+          <!-- SECTION 1: Patient Identity & Demographics -->
+          <div class="walkin-card-box">
+            <div class="walkin-section-title">
+              <i class="fas fa-id-card"></i> 1. Patient Demographics &amp; Identity
             </div>
+            
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="walkin-field-label">Last Name <span class="text-danger">*</span></label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-user walkin-input-icon"></i>
+                  <input type="text" name="last_name" id="walkinInputLastName" class="form-control alpha-only" placeholder="e.g. Dela Cruz" required maxlength="50" autocomplete="off">
+                </div>
+              </div>
 
-            <div class="col-md-4">
-              <label class="form-label small fw-bold text-muted text-uppercase">First Name <span class="text-danger">*</span></label>
-              <input type="text" name="first_name" id="walkinInputFirstName" class="form-control alpha-only" placeholder="e.g. Juan" required maxlength="50" autocomplete="off">
-            </div>
+              <div class="col-md-4">
+                <label class="walkin-field-label">First Name <span class="text-danger">*</span></label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-user walkin-input-icon"></i>
+                  <input type="text" name="first_name" id="walkinInputFirstName" class="form-control alpha-only" placeholder="e.g. Juan" required maxlength="50" autocomplete="off">
+                </div>
+              </div>
 
-            <div class="col-md-4">
-              <label class="form-label small fw-bold text-muted text-uppercase">Middle Name</label>
-              <input type="text" name="middle_name" id="walkinInputMiddleName" class="form-control alpha-only" placeholder="e.g. Santos" maxlength="50" autocomplete="off">
-            </div>
+              <div class="col-md-4">
+                <label class="walkin-field-label">Middle Name <small class="text-muted fw-normal">(Optional)</small></label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-user-tag walkin-input-icon"></i>
+                  <input type="text" name="middle_name" id="walkinInputMiddleName" class="form-control alpha-only" placeholder="e.g. Santos" maxlength="50" autocomplete="off">
+                </div>
+              </div>
 
-            <div class="col-md-6">
-              <label class="form-label small fw-bold text-muted text-uppercase">Mobile Number (09XXXXXXXXX) <span class="text-danger">*</span></label>
-              <input type="tel" name="phone" id="walkinInputPhone" class="form-control numeric-only" placeholder="09XXXXXXXXX" required maxlength="11" inputmode="numeric" autocomplete="tel">
-            </div>
+              <div class="col-md-4">
+                <label class="walkin-field-label">Sex / Gender <span class="text-danger">*</span></label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-venus-mars walkin-input-icon"></i>
+                  <select name="gender" id="walkinInputGender" class="form-select" required>
+                    <option value="">Select Sex</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
 
-            <div class="col-md-6">
-              <label class="form-label small fw-bold text-muted text-uppercase">Email (Optional)</label>
-              <input type="email" name="email" id="walkinInputEmail" class="form-control" placeholder="Leave blank if none">
-            </div>
+              <div class="col-md-5">
+                <label class="walkin-field-label">Birthdate <span class="text-danger">*</span></label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-calendar-alt walkin-input-icon"></i>
+                  <input type="text" name="birthdate" id="walkinInputBirthdate" class="form-control modern-birthdate-picker" placeholder="Select birthdate" required autocomplete="off">
+                </div>
+              </div>
 
-            <div class="col-md-4">
-              <label class="form-label small fw-bold text-muted text-uppercase">Sex <span class="text-danger">*</span></label>
-              <select name="gender" id="walkinInputGender" class="form-select" required>
-                <option value="">Select Sex</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            <div class="col-md-5">
-              <label class="form-label small fw-bold text-muted text-uppercase">Birthdate <span class="text-danger">*</span></label>
-              <input type="text" name="birthdate" id="walkinInputBirthdate" class="form-control modern-birthdate-picker" placeholder="Select birthdate" required autocomplete="off">
-            </div>
-
-            <div class="col-md-3">
-              <label class="form-label small fw-bold text-muted text-uppercase">Age</label>
-              <div class="input-group">
-                <input type="text" id="walkinInputAge" class="form-control bg-light" placeholder="—" readonly style="font-weight:700; text-align:center;">
-                <span class="input-group-text small text-muted">yrs</span>
+              <div class="col-md-3">
+                <label class="walkin-field-label">Calculated Age</label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-hourglass-half walkin-input-icon"></i>
+                  <input type="text" id="walkinInputAge" class="form-control text-center fw-bold" placeholder="—" readonly style="letter-spacing: 0.5px;">
+                </div>
               </div>
             </div>
+          </div>
 
-            <div class="col-12">
-              <label class="form-label small fw-bold text-muted text-uppercase">Address <span class="text-danger">*</span></label>
-              <input type="text" name="address" id="walkinInputAddress" class="form-control" placeholder="Barangay, City / Municipality, Province" required maxlength="255">
+          <!-- SECTION 2: Contact & Address -->
+          <div class="walkin-card-box">
+            <div class="walkin-section-title text-success" style="color: #10B981 !important;">
+              <i class="fas fa-address-book"></i> 2. Contact Details &amp; Location
             </div>
 
-            <div class="col-md-6">
-              <label class="form-label small fw-bold text-muted text-uppercase">Consultation Purpose</label>
-              <select name="purpose" id="walkinInputPurpose" class="form-select">
-                <option value="consultation" selected>Comprehensive Eye Examination / Refraction</option>
-                <option value="follow_up">Follow-up Check</option>
-                <option value="contact_lens_fitting">Contact Lens Assessment</option>
-                <option value="other">Other Optical Concerns</option>
-              </select>
-            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="walkin-field-label">Mobile Number <span class="text-danger">*</span></label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-mobile-alt walkin-input-icon"></i>
+                  <input type="tel" name="phone" id="walkinInputPhone" class="form-control numeric-only" placeholder="09XXXXXXXXX (11 digits)" required maxlength="11" inputmode="numeric" autocomplete="tel">
+                </div>
+              </div>
 
-            <div class="col-md-6">
-              <label class="form-label small fw-bold text-muted text-uppercase">Initial Queue Status</label>
-              <select name="initial_status" id="walkinInputInitialStatus" class="form-select">
-                <option value="confirmed" selected>Waiting in Clinic (Confirmed)</option>
-                <option value="in_progress">Direct to Doctor (Examining Now / In-Progress)</option>
-              </select>
-            </div>
+              <div class="col-md-6">
+                <label class="walkin-field-label">Email Address <small class="text-muted fw-normal">(Optional)</small></label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-envelope walkin-input-icon"></i>
+                  <input type="email" name="email" id="walkinInputEmail" class="form-control" placeholder="patient@example.com (or leave blank)">
+                </div>
+              </div>
 
-            <div class="col-12">
-              <label class="form-label small fw-bold text-muted text-uppercase">Staff / Clinical Notes (Optional)</label>
-              <textarea name="notes" id="walkinInputNotes" class="form-control" rows="2" placeholder="e.g. Chief complaint, blurry vision, frame adjustment..."></textarea>
+              <div class="col-12">
+                <label class="walkin-field-label">Complete Home Address <span class="text-danger">*</span></label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-map-marker-alt walkin-input-icon"></i>
+                  <input type="text" name="address" id="walkinInputAddress" class="form-control" placeholder="House/Unit #, Street, Barangay, City / Municipality, Province" required maxlength="255">
+                </div>
+              </div>
             </div>
           </div>
+
+          <!-- SECTION 3: Visit Purpose & Queue Assignment -->
+          <div class="walkin-card-box mb-0">
+            <div class="walkin-section-title text-info" style="color: #0EA5E9 !important;">
+              <i class="fas fa-stethoscope"></i> 3. Clinical Service &amp; Queue Routing
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="walkin-field-label">Consultation Purpose</label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-glasses walkin-input-icon"></i>
+                  <select name="purpose" id="walkinInputPurpose" class="form-select">
+                    <option value="consultation" selected>Comprehensive Eye Examination / Refraction</option>
+                    <option value="follow_up">Follow-up Check</option>
+                    <option value="contact_lens_fitting">Contact Lens Assessment</option>
+                    <option value="other">Other Optical Concerns</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="walkin-field-label">Initial Queue Status</label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-clock walkin-input-icon"></i>
+                  <select name="initial_status" id="walkinInputInitialStatus" class="form-select">
+                    <option value="confirmed" selected>Waiting in Clinic (Confirmed)</option>
+                    <option value="in_progress">Direct to Doctor (Examining Now / In-Progress)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <label class="walkin-field-label">Staff Notes / Chief Complaints <small class="text-muted fw-normal">(Optional)</small></label>
+                <div class="walkin-input-group">
+                  <i class="fas fa-notes-medical walkin-input-icon" style="top: 18px;"></i>
+                  <textarea name="notes" id="walkinInputNotes" class="form-control" rows="2" placeholder="e.g. Chief complaint, blurry vision, frame adjustment..."></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
-        <div class="modal-footer d-flex justify-content-between">
-          <button type="button" class="btn btn-outline-secondary btn-sm px-4" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold" id="btnSubmitWalkin">
-            <i class="fas fa-check-circle me-1"></i> Register & Add to Queue
+        <!-- Modern Modal Footer -->
+        <div class="modal-footer d-flex justify-content-between align-items-center">
+          <button type="button" class="btn btn-light border px-4 py-2" data-bs-dismiss="modal" style="border-radius:10px; font-weight:600;">
+            <i class="fas fa-times me-1"></i> Cancel
+          </button>
+          <button type="submit" class="btn btn-walkin-submit shadow-sm" id="btnSubmitWalkin">
+            <i class="fas fa-check-circle me-1"></i> Register &amp; Add to Queue
           </button>
         </div>
       </form>

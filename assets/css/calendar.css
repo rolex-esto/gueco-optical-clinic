@@ -1574,68 +1574,211 @@ html:not([data-theme="dark"]) .cal-queue-tab-badge,
   font-family: 'Plus Jakarta Sans', 'Poppins', sans-serif;
 }
 
+[data-theme="dark"] .modal-content.walkin-modal {
+  background: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 25px 70px -10px rgba(0, 0, 0, 0.75);
+}
+
 .walkin-modal .modal-header {
-  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
   color: #ffffff;
-  padding: 18px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
   position: relative;
 }
 
 [data-theme="dark"] .walkin-modal .modal-header {
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  border-bottom: 1px solid rgba(0, 173, 239, 0.25);
+  background: linear-gradient(135deg, #090e1a 0%, #0f172a 60%, #1e293b 100%) !important;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.3) !important;
+  box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.15);
 }
 
 .walkin-header-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 1.35rem;
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+[data-theme="dark"] .walkin-header-icon {
+  background: rgba(14, 165, 233, 0.18) !important;
+  color: #38bdf8 !important;
+  border: 1.5px solid rgba(56, 189, 248, 0.45) !important;
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.25);
+}
+
+.walkin-modal-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffffff !important;
+  margin: 0;
+  letter-spacing: -0.2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.walkin-modal-subtitle {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92) !important;
+  margin: 3px 0 0 0;
+  display: block;
+}
+
+[data-theme="dark"] .walkin-modal-subtitle {
+  color: #cbd5e1 !important;
+  text-shadow: none;
+}
+
+/* Header Badges */
+.walkin-badge-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #ffffff !important;
+  color: #1e40af !important;
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+
+.walkin-badge-date i {
+  color: #2563eb;
+}
+
+[data-theme="dark"] .walkin-badge-date {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .walkin-badge-date i {
+  color: #38bdf8;
+}
+
+/* Direct Check-in Badge - ULTRA HIGH CONTRAST & VISIBILITY */
+.walkin-badge-direct {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.35px;
+  background: #fef08a !important; /* Radiant vivid yellow */
+  color: #78350f !important;     /* Deep rich amber-brown for maximum readability */
+  border: 1.5px solid #eab308 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  white-space: nowrap;
+}
+
+.walkin-badge-direct i {
+  color: #b45309 !important;
+  font-size: 0.8rem;
+}
+
+[data-theme="dark"] .walkin-badge-direct {
+  background: #fef08a !important; /* Radiant bright amber-yellow */
+  color: #713f12 !important;     /* Maximum contrast text */
+  border: 1.5px solid #facc15 !important;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.5) !important;
+}
+
+[data-theme="dark"] .walkin-badge-direct i {
+  color: #92400e !important;
+}
+
+.walkin-modal .btn-close {
+  opacity: 0.85;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.walkin-modal .btn-close:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* Card Sections Inside Modal */
 .walkin-card-box {
-  background: var(--bg-hover);
-  border: 1px solid var(--border-color);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 16px 18px;
   margin-bottom: 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .walkin-card-box {
+  background: rgba(30, 41, 59, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 .walkin-section-title {
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.65px;
-  color: var(--clr-primary);
+  color: #0d9488;
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px dashed var(--border-color);
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.walkin-section-title.title-contact {
+  color: #0284c7;
+}
+
+.walkin-section-title.title-clinical {
+  color: #2563eb;
+}
+
+[data-theme="dark"] .walkin-section-title {
+  color: #2dd4bf !important;
+  border-bottom-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-theme="dark"] .walkin-section-title.title-contact {
+  color: #38bdf8 !important;
+}
+
+[data-theme="dark"] .walkin-section-title.title-clinical {
+  color: #60a5fa !important;
 }
 
 .walkin-field-label {
-  font-size: 0.73rem;
+  font-size: 0.74rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: var(--text-muted);
-  margin-bottom: 5px;
+  color: #475569;
+  margin-bottom: 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+[data-theme="dark"] .walkin-field-label {
+  color: #cbd5e1 !important;
 }
 
 .walkin-input-group {
@@ -1650,41 +1793,131 @@ html:not([data-theme="dark"]) .cal-queue-tab-badge,
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 0.85rem;
+  color: #64748b;
+  font-size: 0.88rem;
   pointer-events: none;
   z-index: 4;
+  transition: color 0.2s ease;
+}
+
+[data-theme="dark"] .walkin-input-icon {
+  color: #94a3b8 !important;
+}
+
+.walkin-input-group:focus-within .walkin-input-icon {
+  color: #2563eb;
+}
+
+[data-theme="dark"] .walkin-input-group:focus-within .walkin-input-icon {
+  color: #38bdf8 !important;
 }
 
 .walkin-input-group .form-control,
 .walkin-input-group .form-select {
-  padding-left: 36px;
+  padding-left: 38px;
   border-radius: 10px !important;
   font-size: 0.88rem;
   font-family: inherit;
-  border: 1px solid var(--border-color);
-  background: var(--bg-card);
-  color: var(--text-primary);
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
   transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .walkin-input-group .form-control,
+[data-theme="dark"] .walkin-input-group .form-select {
+  background: #090e1a !important;
+  color: #ffffff !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
 }
 
 .walkin-input-group .form-control:focus,
 .walkin-input-group .form-select:focus {
-  border-color: var(--clr-primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-  background: var(--bg-card);
-  color: var(--text-primary);
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16) !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+[data-theme="dark"] .walkin-input-group .form-control:focus,
+[data-theme="dark"] .walkin-input-group .form-select:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25) !important;
+  background: #090e1a !important;
+  color: #ffffff !important;
+}
+
+.walkin-input-readonly {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  font-weight: 700 !important;
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .walkin-input-readonly {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #94a3b8 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 .walkin-input-group textarea.form-control {
-  padding-left: 36px;
+  padding-left: 38px;
   padding-top: 10px;
 }
 
+/* Eyeglass Claim Alert Notice */
+.walkin-purpose-alert {
+  font-size: 0.84rem;
+  border-radius: 12px;
+  border: 1.5px solid #93c5fd;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+[data-theme="dark"] .walkin-purpose-alert {
+  background: rgba(14, 165, 233, 0.15) !important;
+  border: 1.5px solid rgba(56, 189, 248, 0.45) !important;
+  color: #e0f2fe !important;
+}
+
+/* Modal Footer */
 .walkin-modal .modal-footer {
-  background: var(--bg-hover);
-  border-top: 1px solid var(--border-color);
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
   padding: 14px 24px;
+}
+
+[data-theme="dark"] .walkin-modal .modal-footer {
+  background: #090e1a !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.btn-walkin-cancel {
+  background: #ffffff;
+  color: #475569;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-weight: 600;
+  padding: 9px 20px;
+  transition: all 0.2s ease;
+}
+
+.btn-walkin-cancel:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #94a3b8;
+}
+
+[data-theme="dark"] .btn-walkin-cancel {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #cbd5e1 !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+[data-theme="dark"] .btn-walkin-cancel:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
 }
 
 .btn-walkin-submit {
@@ -1698,17 +1931,20 @@ html:not([data-theme="dark"]) .cal-queue-tab-badge,
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
   transition: all 0.2s ease;
 }
+
 .btn-walkin-submit:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
   color: #fff;
   background: linear-gradient(135deg, #1d4ed8, #1e40af);
 }
+
 .btn-walkin-submit:active {
   transform: translateY(0);
 }
+
 
 

@@ -536,16 +536,16 @@ include __DIR__ . '/../includes/header.php';
             <i class="fas fa-user-plus"></i>
           </div>
           <div>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-              <h5 class="modal-title fw-bold mb-0 text-white" style="font-size:1.15rem;">Register Walk-in Patient</h5>
-              <span class="badge bg-white text-primary fw-bold" style="font-size:0.72rem;">
-                <i class="fas fa-calendar-day me-1"></i> Today: <?= date('M d, Y') ?>
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+              <h5 class="walkin-modal-title">Register Walk-in Patient</h5>
+              <span class="walkin-badge-date">
+                <i class="fas fa-calendar-day"></i> Today: <?= date('M d, Y') ?>
               </span>
-              <span class="badge bg-warning text-dark fw-bold" style="font-size:0.72rem;">
-                <i class="fas fa-bolt me-1"></i> Direct Check-in
+              <span class="walkin-badge-direct">
+                <i class="fas fa-bolt"></i> Direct Check-in
               </span>
             </div>
-            <small class="text-white-50">Create patient record and place directly into today's queue</small>
+            <small class="walkin-modal-subtitle">Create patient record and place directly into today's queue</small>
           </div>
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -612,7 +612,7 @@ include __DIR__ . '/../includes/header.php';
                 <label class="walkin-field-label">Calculated Age</label>
                 <div class="walkin-input-group">
                   <i class="fas fa-hourglass-half walkin-input-icon"></i>
-                  <input type="text" id="walkinInputAge" class="form-control text-center fw-bold" placeholder="—" readonly style="letter-spacing: 0.5px;">
+                  <input type="text" id="walkinInputAge" class="form-control text-center fw-bold walkin-input-readonly" placeholder="—" readonly style="letter-spacing: 0.5px;">
                 </div>
               </div>
             </div>
@@ -620,7 +620,7 @@ include __DIR__ . '/../includes/header.php';
 
           <!-- SECTION 2: Contact & Address -->
           <div class="walkin-card-box">
-            <div class="walkin-section-title text-success" style="color: #10B981 !important;">
+            <div class="walkin-section-title title-contact">
               <i class="fas fa-address-book"></i> 2. Contact Details &amp; Location
             </div>
 
@@ -653,7 +653,7 @@ include __DIR__ . '/../includes/header.php';
 
           <!-- SECTION 3: Visit Purpose & Queue Assignment -->
           <div class="walkin-card-box mb-0">
-            <div class="walkin-section-title text-info" style="color: #0EA5E9 !important;">
+            <div class="walkin-section-title title-clinical">
               <i class="fas fa-stethoscope"></i> 3. Clinical Service &amp; Queue Routing
             </div>
 
@@ -684,8 +684,8 @@ include __DIR__ . '/../includes/header.php';
               </div>
 
               <div class="col-12" id="walkinPurposeNoticeWrap" style="display:none;">
-                <div class="alert alert-info py-2 px-3 mb-0 d-flex align-items-center gap-2" style="font-size:0.84rem; border-radius:12px; border:1.5px solid #0284c7; background:rgba(2,132,199,0.08);">
-                  <i class="fas fa-glasses text-info fa-lg flex-shrink-0"></i>
+                <div class="alert walkin-purpose-alert py-2 px-3 mb-0 d-flex align-items-center gap-2">
+                  <i class="fas fa-glasses fa-lg flex-shrink-0"></i>
                   <div><strong>Front Desk Service:</strong> Eyeglass Claim &amp; Fitting is handled directly by Saleslady. No Optometrist checkup required.</div>
                 </div>
               </div>
@@ -704,7 +704,7 @@ include __DIR__ . '/../includes/header.php';
 
         <!-- Modern Modal Footer -->
         <div class="modal-footer d-flex justify-content-between align-items-center">
-          <button type="button" class="btn btn-light border px-4 py-2" data-bs-dismiss="modal" style="border-radius:10px; font-weight:600;">
+          <button type="button" class="btn btn-walkin-cancel" data-bs-dismiss="modal">
             <i class="fas fa-times me-1"></i> Cancel
           </button>
           <button type="submit" class="btn btn-walkin-submit shadow-sm" id="btnSubmitWalkin">

@@ -611,7 +611,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const prodName = escapeHtml(item.name + (item.variant_name ? ' — ' + item.variant_name : ''));
                 html += `
                   <li>
-                    <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="${invLink}">
+                    <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="${invLink}?highlight=${item.id}">
                       <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(239, 68, 68, 0.12); color: #EF4444; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
                         <i class="fas fa-triangle-exclamation"></i>
                       </div>
@@ -640,7 +640,7 @@ document.addEventListener('DOMContentLoaded', function () {
               appts.slice(0, 5).forEach(appt => {
                 html += `
                   <li>
-                    <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="${apptsLink}">
+                    <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="${apptsLink}?highlight=${appt.id}">
                       <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(0, 173, 239, 0.12); color: var(--clr-primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
                         <i class="fas fa-user-clock"></i>
                       </div>
@@ -719,9 +719,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         <small class="text-muted" style="font-size: 0.72rem;">Alert threshold: &le; ${item.low_stock_alert} units</small>
                       </div>
                     </div>
-                    <span class="badge bg-danger-soft text-danger fw-bold px-2 py-1" style="background: rgba(239, 68, 68, 0.12); font-size: 0.75rem; white-space: nowrap;">
-                      Only ${item.stock_quantity} left
-                    </span>
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="badge bg-danger-soft text-danger fw-bold px-2 py-1" style="background: rgba(239, 68, 68, 0.12); font-size: 0.75rem; white-space: nowrap;">
+                        Only ${item.stock_quantity} left
+                      </span>
+                      <a href="${invLink}?highlight=${item.id}" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size: 0.74rem;">View</a>
+                    </div>
                   </div>
                 `;
               });
@@ -754,7 +757,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         </small>
                       </div>
                     </div>
-                    <a href="${apptsLink}" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.74rem;">View</a>
+                    <a href="${apptsLink}?highlight=${appt.id}" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.74rem;">View</a>
                   </div>
                 `;
               });
@@ -775,4 +778,36 @@ document.addEventListener('DOMContentLoaded', function () {
     setInterval(checkAppointments, 10000);
   }
 
+  // Universal highlight handler for rows directed from notifications (e.g. inventory or appointments)
+  function handleNotificationHighlight() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const highlightId = urlParams.get('highlight');
+    if (!highlightId) return;
+
+    // Check for appointment row or inventory row
+    const target = document.getElementById('appt-row-' + highlightId) ||
+                   document.getElementById('row-prod-' + highlightId) ||
+                   document.querySelector(`tr[data-variant-ids*="${highlightId}"]`);
+
+    if (target) {
+      target.classList.add('appt-highlight-pulse');
+      setTimeout(() => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 350);
+
+      // If it's a product variant in inventory, switch the variant dropdown to that item
+      const select = target.querySelector('.variant-picker-select');
+      if (select) {
+        for (let opt of select.options) {
+          if (opt.value === highlightId) {
+            select.value = highlightId;
+            select.dispatchEvent(new Event('change'));
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  handleNotificationHighlight();
 });

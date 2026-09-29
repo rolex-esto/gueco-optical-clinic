@@ -119,6 +119,7 @@ $search = sanitize($_GET['search'] ?? '');
 $catFilter = (int)($_GET['cat'] ?? 0);
 $tierFilter = sanitize($_GET['tier'] ?? '');
 $stockFilter = $_GET['stock'] ?? '';
+$highlightId = (int)($_GET['highlight'] ?? 0);
 $where = ['1=1']; $params = [];
 if ($search) { $where[] = '(p.name LIKE ? OR p.product_code LIKE ?)'; $params[] = "%$search%"; $params[] = "%$search%"; }
 if ($catFilter) { $where[] = 'p.category_id=?'; $params[] = $catFilter; }
@@ -232,8 +233,12 @@ document.addEventListener("DOMContentLoaded", function() {
           $isOut = $p['stock_quantity'] == 0; 
           $rowClass = $isOut ? 'table-row-out' : ($isLow ? 'table-row-low' : '');
           $totalModelStock = array_sum(array_column($item['variants'], 'stock_quantity'));
+          $isHighlighted = ($highlightId > 0 && ($highlightId === (int)$p['id'] || in_array($highlightId, array_column($item['variants'], 'id'))));
+          if ($isHighlighted) {
+              $rowClass .= ' appt-highlight-pulse';
+          }
         ?>
-        <tr class="<?= $rowClass ?>" id="row-prod-<?= $p['id'] ?>">
+        <tr class="<?= trim($rowClass) ?>" id="row-prod-<?= $p['id'] ?>" data-variant-ids="<?= implode(',', array_column($item['variants'], 'id')) ?>">
           <td class="inv-67fd48"><?= $rowCounter ?></td>
           <td class="cell-code" style="font-family:monospace; color:var(--text-primary); font-size:0.85rem; font-weight:600;"><?= sanitize($p['product_code'] ?: '—') ?></td>
           <td>
@@ -263,6 +268,7 @@ document.addEventListener("DOMContentLoaded", function() {
                           onchange="onVariantChange(this)">
                     <?php foreach ($item['variants'] as $v): ?>
                       <option value="<?= $v['id'] ?>"
+                              <?= ($highlightId === (int)$v['id']) ? 'selected' : '' ?>
                               data-code="<?= htmlspecialchars($v['product_code'] ?: '—') ?>"
                               data-name="<?= htmlspecialchars($v['name']) ?>"
                               data-variant="<?= htmlspecialchars($v['variant_name'] ?: $v['name']) ?>"

@@ -36,6 +36,7 @@ $search = sanitize($_GET['search'] ?? '');
 $catFilter = (int)($_GET['cat'] ?? 0);
 $tierFilter = sanitize($_GET['tier'] ?? '');
 $stockFilter = $_GET['stock'] ?? '';
+$highlightId = (int)($_GET['highlight'] ?? 0);
 $where = ['p.status = "active"']; $params = [];
 if ($search) { $where[] = '(p.name LIKE ? OR p.product_code LIKE ?)'; $params[] = "%$search%"; $params[] = "%$search%"; }
 if ($catFilter) { $where[] = 'p.category_id=?'; $params[] = $catFilter; }
@@ -140,8 +141,9 @@ document.addEventListener("DOMContentLoaded", function() {
               $isLow = $p['stock_quantity'] <= $p['low_stock_alert']; 
               $isOut = $p['stock_quantity'] == 0; 
               $totalModelStock = array_sum(array_column($item['variants'], 'stock_quantity'));
+              $isHighlighted = ($highlightId > 0 && ($highlightId === (int)$p['id'] || in_array($highlightId, array_column($item['variants'], 'id'))));
             ?>
-            <tr id="row-prod-<?= $p['id'] ?>">
+            <tr id="row-prod-<?= $p['id'] ?>" data-variant-ids="<?= implode(',', array_column($item['variants'], 'id')) ?>" class="<?= $isHighlighted ? 'appt-highlight-pulse' : '' ?>">
               <td>
                 <div style="font-weight:700;font-size:.9rem;display:flex;align-items:center;gap:6px;">
                   <?= sanitize($item['base_model']) ?>
@@ -163,6 +165,7 @@ document.addEventListener("DOMContentLoaded", function() {
                           onchange="onVariantChange(this)">
                     <?php foreach ($item['variants'] as $v): ?>
                       <option value="<?= $v['id'] ?>"
+                              <?= ($highlightId === (int)$v['id']) ? 'selected' : '' ?>
                               data-code="<?= htmlspecialchars($v['product_code'] ?: '') ?>"
                               data-name="<?= htmlspecialchars($v['name']) ?>"
                               data-variant="<?= htmlspecialchars($v['variant_name'] ?: $v['name']) ?>"

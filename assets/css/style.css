@@ -1937,3 +1937,46 @@ html:not([data-theme="dark"]) .badge-tier-high {
 #notifDropdownWrap .dropdown-item:hover {
   background-color: var(--bg-hover) !important;
 }
+
+/* ─── Notification Focus Highlight & Blinking Effect ─────────── */
+@keyframes notifBlinkPulse {
+  0% {
+    background-color: rgba(0, 173, 239, 0.35) !important;
+    box-shadow: 0 0 0 4px rgba(0, 173, 239, 0.45), inset 0 0 16px rgba(0, 173, 239, 0.25) !important;
+    transform: scale(1.008);
+  }
+  25% {
+    background-color: rgba(0, 173, 239, 0.08) !important;
+    box-shadow: 0 0 0 1px rgba(0, 173, 239, 0.2) !important;
+    transform: scale(1);
+  }
+  50% {
+    background-color: rgba(0, 173, 239, 0.45) !important;
+    box-shadow: 0 0 0 6px rgba(0, 173, 239, 0.55), inset 0 0 20px rgba(0, 173, 239, 0.35) !important;
+    transform: scale(1.012);
+  }
+  75% {
+    background-color: rgba(0, 173, 239, 0.12) !important;
+    box-shadow: 0 0 0 2px rgba(0, 173, 239, 0.25) !important;
+    transform: scale(1);
+  }
+  100% {
+    background-color: rgba(0, 173, 239, 0.30) !important;
+    box-shadow: 0 0 0 4px rgba(0, 173, 239, 0.4) !important;
+    transform: scale(1.006);
+  }
+}
+
+.appt-highlight-pulse {
+  animation: notifBlinkPulse 1.6s ease-in-out infinite alternate !important;
+  border-left: 6px solid var(--clr-primary, #00ADEF) !important;
+  border-right: 2px solid var(--clr-primary, #00ADEF) !important;
+  position: relative;
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+[data-theme="dark"] .appt-highlight-pulse {
+  background-color: rgba(0, 173, 239, 0.25) !important;
+  box-shadow: 0 0 20px rgba(0, 173, 239, 0.4) !important;
+}

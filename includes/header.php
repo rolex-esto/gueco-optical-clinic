@@ -246,7 +246,7 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
                   </li>
                   <?php foreach ($recentLowStock as $item): ?>
                     <li>
-                      <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="<?= $headerInventoryLink ?>">
+                      <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="<?= $headerInventoryLink ?>?highlight=<?= (int)$item['id'] ?>">
                         <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(239, 68, 68, 0.12); color: #EF4444; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
                           <i class="fas fa-triangle-exclamation"></i>
                         </div>
@@ -270,7 +270,7 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
                   </li>
                   <?php foreach ($recentAppts as $appt): ?>
                     <li>
-                      <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="<?= $headerApptsLink ?>">
+                      <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="<?= $headerApptsLink ?>?highlight=<?= (int)$appt['id'] ?>">
                         <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(0, 173, 239, 0.12); color: var(--clr-primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
                           <i class="fas fa-user-clock"></i>
                         </div>
@@ -362,9 +362,14 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
                           <small class="text-muted" style="font-size: 0.72rem;">Alert threshold: &le; <?= (int)$item['low_stock_alert'] ?> units</small>
                         </div>
                       </div>
-                      <span class="badge bg-danger-soft text-danger fw-bold px-2 py-1" style="background: rgba(239, 68, 68, 0.12); font-size: 0.75rem; white-space: nowrap;">
-                        Only <?= (int)$item['stock_quantity'] ?> left
-                      </span>
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-danger-soft text-danger fw-bold px-2 py-1" style="background: rgba(239, 68, 68, 0.12); font-size: 0.75rem; white-space: nowrap;">
+                          Only <?= (int)$item['stock_quantity'] ?> left
+                        </span>
+                        <a href="<?= $headerInventoryLink ?>?highlight=<?= (int)$item['id'] ?>" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size: 0.74rem;">
+                          View
+                        </a>
+                      </div>
                     </div>
                   <?php endforeach; ?>
                 </div>
@@ -398,7 +403,7 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
                           </small>
                         </div>
                       </div>
-                      <a href="<?= $headerApptsLink ?>" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.74rem;">
+                      <a href="<?= $headerApptsLink ?>?highlight=<?= (int)$appt['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.74rem;">
                         View
                       </a>
                     </div>

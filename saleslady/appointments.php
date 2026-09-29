@@ -734,6 +734,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let queueSegment = 'current'; // 'current', 'upcoming', 'history'
   let searchQuery = '';
   let selectedDateStr = initialDateStr || formatDateIso(new Date());
+  let highlightApptId = parseInt(new URLSearchParams(window.location.search).get('highlight') || '0', 10);
 
   // DOM Elements
   const calTitle = document.getElementById('calTitle');
@@ -1305,6 +1306,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const isPastDate = (appt.appointment_date < todayIso);
       const isUnfinishedPast = isPastDate && (appt.status !== 'completed' && appt.status !== 'cancelled' && appt.status !== 'no_show');
       const tr = document.createElement('tr');
+      tr.id = 'appt-row-' + appt.id;
+      tr.dataset.apptId = appt.id;
+      if (highlightApptId && parseInt(appt.id, 10) === highlightApptId) {
+        tr.classList.add('appt-highlight-pulse');
+      }
       const apptDateObj = new Date(appt.appointment_date + 'T00:00:00');
 
       tr.innerHTML = `
@@ -2056,11 +2062,46 @@ document.addEventListener('DOMContentLoaded', function() {
       .catch(() => {});
   }, 12000);
 
+  // Check URL params for highlight or auto-open
+  const urlParams = new URLSearchParams(window.location.search);
+  const highlightParam = parseInt(urlParams.get('highlight') || '0', 10);
+  if (highlightParam > 0) {
+    const target = rawAppointments.find(a => parseInt(a.id, 10) === highlightParam);
+    if (target) {
+      // Switch view to table queue
+      currentView = 'table';
+      allViewBtns.forEach(b => b.classList.toggle('active', b.dataset.view === 'table'));
+
+      const todayIso = formatDateIso(new Date());
+      const isPastDate = (target.appointment_date < todayIso);
+      const isToday = (target.appointment_date === todayIso);
+      const isFinished = (target.status === 'completed' || target.status === 'cancelled' || target.status === 'no_show');
+
+      if (isToday && !isFinished) {
+        queueSegment = 'current';
+      } else if (!isPastDate && !isFinished) {
+        queueSegment = 'upcoming';
+      } else {
+        queueSegment = 'history';
+      }
+      queueTabBtns.forEach(b => b.classList.toggle('active', b.dataset.segment === queueSegment));
+      currentFilter = 'all';
+      filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+    }
+  }
+
   // Initial render
   render();
 
-  // Check URL params for auto-open
-  const urlParams = new URLSearchParams(window.location.search);
+  if (highlightParam > 0) {
+    setTimeout(() => {
+      const row = document.getElementById('appt-row-' + highlightParam);
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 350);
+  }
+
   const autoApptId = parseInt(urlParams.get('manage') || urlParams.get('appt_id') || '0', 10);
   if (autoApptId > 0) {
     const targetAppt = rawAppointments.find(a => a.id === autoApptId);

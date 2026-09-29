@@ -89,6 +89,7 @@ $filterDate   = sanitize($_GET['date']   ?? '');
 $filterMonth  = sanitize($_GET['month']  ?? '');
 $filterStatus = sanitize($_GET['status'] ?? '');
 $search       = sanitize($_GET['search'] ?? '');
+$highlightId  = (int)($_GET['highlight'] ?? 0);
 $page         = max(1, (int)($_GET['page'] ?? 1));
 $perPage      = 15;
 
@@ -168,7 +169,7 @@ try {
         FROM appointments a
         LEFT JOIN patients p ON p.id = a.patient_id
         WHERE $whereStr
-        ORDER BY a.appointment_date DESC, a.appointment_time DESC, a.id DESC
+        ORDER BY " . ($highlightId > 0 ? "(a.id = $highlightId) DESC, " : "") . "a.appointment_date DESC, a.appointment_time DESC, a.id DESC
         LIMIT $limit OFFSET $offset
     ");
     $apptsStmt->execute($params);
@@ -337,7 +338,7 @@ include __DIR__ . '/../includes/header.php';
         </td></tr>
         <?php else: ?>
         <?php foreach ($appts as $i => $a): ?>
-        <tr>
+        <tr id="appt-row-<?= $a['id'] ?>" class="<?= ($highlightId === (int)$a['id']) ? 'appt-highlight-pulse' : '' ?>">
           <td class="appt-67fd48"><?= $pagination['offset'] + $i + 1 ?></td>
           <td>
             <div class="appt-736493"><?= sanitize($a['patient_name']) ?></div>
@@ -811,6 +812,17 @@ document.addEventListener('DOMContentLoaded', function() {
       calendar.render(); // Ensure it resizes correctly when unhidden
     }
   });
+
+  const urlHighlight = new URLSearchParams(window.location.search).get('highlight');
+  if (urlHighlight) {
+    if (btnListView) btnListView.click();
+    setTimeout(() => {
+      const targetRow = document.getElementById('appt-row-' + urlHighlight);
+      if (targetRow) {
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 250);
+  }
 
 });
 </script>

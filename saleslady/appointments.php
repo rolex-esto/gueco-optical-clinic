@@ -16,11 +16,54 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
     $apptId = (int)($_POST['appt_id'] ?? 0);
     $action = $_POST['action'] ?? '';
 
+    if ($action === 'schedule_claim') {
+        $patientId = (int)($_POST['patient_id'] ?? 0);
+        $claimDate = sanitize($_POST['claim_date'] ?? '');
+        $claimTime = sanitize($_POST['claim_time'] ?? '14:00:00');
+        $joNo      = sanitize($_POST['job_order_no'] ?? '');
+        $invNo     = sanitize($_POST['invoice_no'] ?? '');
+        $balDue    = (float)($_POST['balance_due'] ?? 0);
+        $notes     = sanitize($_POST['notes'] ?? '');
+
+        if ($patientId > 0 && !empty($claimDate)) {
+            $ptStmt = $db->prepare("SELECT full_name FROM patients WHERE id=?");
+            $ptStmt->execute([$patientId]);
+            $ptName = $ptStmt->fetchColumn() ?: ('Patient #' . $patientId);
+
+            $fullNotes = "Eyeglass Claim & Fitting";
+            if (!empty($joNo)) $fullNotes .= " for Job Order #$joNo";
+            if (!empty($invNo)) $fullNotes .= " (Invoice: $invNo)";
+            if ($balDue > 0) {
+                $fullNotes .= " | Balance Due: ₱" . number_format($balDue, 2);
+            } else {
+                $fullNotes .= " | Paid in Full";
+            }
+            if (!empty($notes)) $fullNotes .= " | Note: " . $notes;
+
+            $insStmt = $db->prepare("
+                INSERT INTO appointments (patient_id, appointment_date, appointment_time, appointment_type, purpose, status, notes, verified_by, created_at)
+                VALUES (?, ?, ?, 'SCHEDULED', 'eyeglass_claim', 'confirmed', ?, ?, NOW())
+            ");
+            $insStmt->execute([$patientId, $claimDate, $claimTime ?: '14:00:00', $fullNotes, $_SESSION['user_id']]);
+            
+            $_SESSION['flash_msg'] = "Eyeglass Claim scheduled for $ptName on " . date('M d, Y', strtotime($claimDate)) . ".";
+            $_SESSION['flash_type'] = "success";
+            logActivity("Scheduled Eyeglass Claim for $ptName on $claimDate ($fullNotes)", "Appointments", $_SESSION['user_id'], 'staff');
+        } else {
+            $_SESSION['flash_msg'] = "Please select a patient and valid claim date.";
+            $_SESSION['flash_type'] = "danger";
+        }
+        $redirectDate = !empty($claimDate) ? $claimDate : $today;
+        header('Location: appointments.php?date=' . urlencode($redirectDate));
+        exit;
+    }
+
     if ($apptId > 0) {
-        $ptStmt = $db->prepare("SELECT p.full_name, a.purpose, a.appointment_date FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE a.id=?");
+        $ptStmt = $db->prepare("SELECT p.full_name, a.purpose, a.appointment_date, a.patient_id FROM appointments a JOIN patients p ON p.id=a.patient_id WHERE a.id=?");
         $ptStmt->execute([$apptId]);
         $ptRow = $ptStmt->fetch();
         $ptName = $ptRow['full_name'] ?? ('Appointment #' . $apptId);
+        $patientId = (int)($ptRow['patient_id'] ?? 0);
         $isClaim = ($ptRow['purpose'] ?? '') === 'eyeglass_claim';
 
         if ($action === 'confirm') {
@@ -28,8 +71,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
             $_SESSION['flash_msg'] = $isClaim ? 'Eyeglass claim appointment accepted & confirmed.' : 'Appointment confirmed successfully.';
             $_SESSION['flash_type'] = 'success';
             logActivity("Confirmed " . ($isClaim ? 'Eyeglass Claim / Fitting' : 'appointment') . " #$apptId for patient: $ptName", "Appointments", $_SESSION['user_id'], 'staff');
+        } elseif ($action === 'ready_claim') {
+            if ($patientId > 0) {
+                $db->prepare("UPDATE sales SET order_status='ready_for_pickup' WHERE appointment_id=? OR patient_id=?")->execute([$apptId, $patientId]);
+            }
+            $_SESSION['flash_msg'] = 'Eyeglasses marked as Ready for Fitting & Pickup.';
+            $_SESSION['flash_type'] = 'success';
+            logActivity("Marked Eyeglasses Ready for Pickup for appointment #$apptId ($ptName)", "Appointments", $_SESSION['user_id'], 'staff');
         } elseif ($action === 'complete_claim') {
             $db->prepare("UPDATE appointments SET status='completed', verified_by=? WHERE id=?")->execute([$_SESSION['user_id'], $apptId]);
+            if ($patientId > 0) {
+                $db->prepare("UPDATE sales SET order_status='claimed' WHERE appointment_id=? OR patient_id=?")->execute([$apptId, $patientId]);
+            }
             $_SESSION['flash_msg'] = 'Eyeglass claim marked as completed & handed over to patient.';
             $_SESSION['flash_type'] = 'success';
             logActivity("Completed Eyeglass Claim / Fitting for appointment #$apptId ($ptName)", "Appointments", $_SESSION['user_id'], 'staff');
@@ -52,7 +105,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
     exit;
 }
 
-// Fetch all appointments for the calendar
+// Fetch all appointments with Job Order and sales context
 $apptsStmt = $db->query("
     SELECT a.*, 
            p.full_name as patient_name, 
@@ -69,12 +122,38 @@ $apptsStmt = $db->query("
            COALESCE(
                (SELECT s.invoice_no FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
                (SELECT s2.invoice_no FROM sales s2 WHERE s2.patient_id = a.patient_id AND (DATE(s2.created_at) = a.appointment_date OR a.status = 'completed') ORDER BY s2.id DESC LIMIT 1)
-           ) as invoice_no
+           ) as invoice_no,
+           COALESCE(
+               (SELECT s.job_order_no FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+               (SELECT s2.job_order_no FROM sales s2 WHERE s2.patient_id = a.patient_id ORDER BY s2.id DESC LIMIT 1)
+           ) as job_order_no,
+           COALESCE(
+               (SELECT s.order_status FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+               (SELECT s2.order_status FROM sales s2 WHERE s2.patient_id = a.patient_id ORDER BY s2.id DESC LIMIT 1)
+           ) as order_status,
+           COALESCE(
+               (SELECT s.balance_due FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+               (SELECT s2.balance_due FROM sales s2 WHERE s2.patient_id = a.patient_id ORDER BY s2.id DESC LIMIT 1)
+           ) as balance_due,
+           COALESCE(
+               (SELECT s.payment_type FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+               (SELECT s2.payment_type FROM sales s2 WHERE s2.patient_id = a.patient_id ORDER BY s2.id DESC LIMIT 1)
+           ) as payment_type
     FROM appointments a
     JOIN patients p ON p.id = a.patient_id
     ORDER BY a.appointment_date ASC, a.appointment_time ASC
 ");
 $allAppointments = $apptsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Fetch recent patients for "+ Schedule Eyeglass Claim" modal
+$recentPatients = $db->query("
+    SELECT p.id, p.full_name, p.phone,
+           (SELECT s.invoice_no FROM sales s WHERE s.patient_id = p.id ORDER BY s.id DESC LIMIT 1) as latest_invoice,
+           (SELECT s.job_order_no FROM sales s WHERE s.patient_id = p.id ORDER BY s.id DESC LIMIT 1) as latest_job_order,
+           (SELECT s.balance_due FROM sales s WHERE s.patient_id = p.id ORDER BY s.id DESC LIMIT 1) as latest_balance
+    FROM patients p
+    ORDER BY p.id DESC LIMIT 100
+")->fetchAll(PDO::FETCH_ASSOC);
 
 // Counts for stat cards
 $todayCountStmt = $db->prepare("SELECT COUNT(*) as c FROM appointments WHERE appointment_date = ? AND status NOT IN ('cancelled','no_show')");
@@ -94,10 +173,15 @@ include __DIR__ . '/../includes/header.php';
 ?>
 
 <style>
-/* Walk-in highlight styling */
+/* Walk-in and Eyeglass Claim Highlight Styling */
 .cal-event-card.is-walkin,
 .cal-week-card.is-walkin {
   border-left: 3px solid #f59e0b !important;
+}
+.cal-event-card.is-claim,
+.cal-week-card.is-claim {
+  border-left: 3px solid #10b981 !important;
+  background: rgba(16, 185, 129, 0.07) !important;
 }
 .cal-walkin-badge {
   background: rgba(245, 158, 11, 0.2);
@@ -111,6 +195,56 @@ include __DIR__ . '/../includes/header.php';
   letter-spacing: 0.3px;
   display: inline-block;
   line-height: 1.2;
+}
+.cal-claim-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: inline-block;
+  line-height: 1.2;
+}
+.cal-booking-badge {
+  background: rgba(14, 165, 233, 0.2);
+  color: #0ea5e9;
+  border: 1px solid rgba(14, 165, 233, 0.45);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: inline-block;
+  line-height: 1.2;
+}
+.cal-type-btn {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-muted, #64748b);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cal-type-btn:hover {
+  background: var(--bg-hover, #f1f5f9);
+  color: var(--text-primary, #0f172a);
+}
+.cal-type-btn.active {
+  background: var(--clr-primary, #00ADEF) !important;
+  border-color: var(--clr-primary, #00ADEF) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 173, 239, 0.3);
 }
 </style>
 
@@ -211,8 +345,11 @@ include __DIR__ . '/../includes/header.php';
       </div>
     </div>
 
-    <!-- Quick Sale Button & View Switcher -->
+    <!-- Quick Actions & View Switcher -->
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="btn btn-success btn-sm d-flex align-items-center gap-1 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#scheduleClaimModal" style="border:none;border-radius:8px;padding:6px 14px;font-size:0.8rem;background:#10B981;">
+        <i class="fas fa-glasses"></i> + Schedule Eyeglass Claim
+      </button>
       <button type="button" class="btn btn-warning btn-sm d-flex align-items-center gap-1 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#registerWalkinModal" style="border:none;border-radius:8px;padding:6px 14px;font-size:0.8rem;">
         <i class="fas fa-user-plus"></i> + Walk-in Patient
       </button>
@@ -237,34 +374,62 @@ include __DIR__ . '/../includes/header.php';
   </div>
 
   <!-- 2. Filter & Live Search Toolbar -->
-  <div class="cal-toolbar">
-    <div class="cal-status-filters" id="statusFilterContainer">
-      <button type="button" class="cal-filter-pill active" data-status="all">
-        <span class="cal-bullet bullet-all"></span> All (<span id="countAll">0</span>)
-      </button>
-      <button type="button" class="cal-filter-pill" data-status="confirmed">
-        <span class="cal-bullet bullet-confirmed"></span> Confirmed (<span id="countConfirmed">0</span>)
-      </button>
-      <button type="button" class="cal-filter-pill" data-status="in_progress">
-        <span class="cal-bullet" style="background:#0ea5e9;"></span> In-Progress (<span id="countInProgress">0</span>)
-      </button>
-      <button type="button" class="cal-filter-pill" data-status="pending">
-        <span class="cal-bullet bullet-pending"></span> Pending (<span id="countPending">0</span>)
-      </button>
-      <button type="button" class="cal-filter-pill" data-status="completed">
-        <span class="cal-bullet bullet-completed"></span> Done (<span id="countCompleted">0</span>)
-      </button>
-      <button type="button" class="cal-filter-pill" data-status="no_show">
-        <span class="cal-bullet bullet-no_show"></span> No-Show (<span id="countNoShow">0</span>)
-      </button>
-      <button type="button" class="cal-filter-pill" data-status="cancelled">
-        <span class="cal-bullet bullet-cancelled"></span> Cancelled (<span id="countCancelled">0</span>)
-      </button>
+  <div class="cal-toolbar d-flex flex-column gap-2 p-3">
+    <!-- Row 1: Booking / Purpose Segregation & Walk-in Toggle -->
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 w-100 pb-2 border-bottom border-light">
+      <div class="d-flex align-items-center gap-2 flex-wrap" id="typeFilterContainer">
+        <span class="text-uppercase fw-bold text-muted me-1" style="font-size:0.7rem; letter-spacing:0.5px;">
+          <i class="fas fa-filter me-1"></i>Calendar View:
+        </span>
+        <button type="button" class="cal-type-btn active" data-type="all" id="btnFilterAll">
+          <i class="fas fa-calendar-check"></i> All Bookings (<span id="countTypeAll">0</span>)
+        </button>
+        <button type="button" class="cal-type-btn" data-type="claims" id="btnFilterClaims">
+          <i class="fas fa-glasses text-success"></i> Eyeglass Claims (<span id="countTypeClaims">0</span>)
+        </button>
+        <button type="button" class="cal-type-btn" data-type="consultations" id="btnFilterConsults">
+          <i class="fas fa-user-doctor text-info"></i> Scheduled Checkups (<span id="countTypeConsults">0</span>)
+        </button>
+      </div>
+
+      <div class="form-check form-switch m-0 d-flex align-items-center gap-2" title="Keep unchecked to prevent 15-20 daily walk-in checkups from cluttering calendar squares">
+        <input class="form-check-input" type="checkbox" id="toggleIncludeWalkins" style="cursor:pointer;">
+        <label class="form-check-label text-muted" for="toggleIncludeWalkins" style="font-size:0.75rem; cursor:pointer;">
+          Include Same-Day Walk-ins on Calendar
+        </label>
+      </div>
     </div>
 
-    <div class="cal-search-box">
-      <i class="fas fa-search"></i>
-      <input type="text" id="calSearchInput" placeholder="Search patient name, phone...">
+    <!-- Row 2: Status Filters & Search Box -->
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 w-100">
+      <div class="cal-status-filters" id="statusFilterContainer">
+        <button type="button" class="cal-filter-pill active" data-status="all">
+          <span class="cal-bullet bullet-all"></span> All (<span id="countAll">0</span>)
+        </button>
+        <button type="button" class="cal-filter-pill" data-status="confirmed">
+          <span class="cal-bullet bullet-confirmed"></span> Confirmed (<span id="countConfirmed">0</span>)
+        </button>
+        <button type="button" class="cal-filter-pill" data-status="in_progress">
+          <span class="cal-bullet" style="background:#0ea5e9;"></span> In-Progress (<span id="countInProgress">0</span>)
+        </button>
+        <button type="button" class="cal-filter-pill" data-status="pending">
+          <span class="cal-bullet bullet-pending"></span> Pending (<span id="countPending">0</span>)
+        </button>
+        <button type="button" class="cal-filter-pill" data-status="completed">
+          <span class="cal-bullet bullet-completed"></span> Done (<span id="countCompleted">0</span>)
+        </button>
+        <button type="button" class="cal-filter-pill" data-status="no_show">
+          <span class="cal-bullet bullet-no_show"></span> No-Show (<span id="countNoShow">0</span>)
+        </button>
+        <button type="button" class="cal-filter-pill" data-status="cancelled">
+          <span class="cal-bullet bullet-cancelled"></span> Cancelled (<span id="countCancelled">0</span>)
+        </button>
+      </div>
+
+      <div class="cal-search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="calSearchInput" placeholder="Search patient, phone, Job Order #...">
+      </div>
     </div>
   </div>
 
@@ -299,19 +464,24 @@ include __DIR__ . '/../includes/header.php';
     <!-- Queue Segment Navigation Tabs -->
     <div class="cal-queue-nav-wrap">
       <div class="cal-queue-tabs" role="tablist">
-        <button type="button" class="cal-queue-tab-btn active" data-segment="current" id="queueTabCurrent">
-          <i class="fas fa-user-clock"></i>
-          <span>Current Appointments</span>
-          <span class="cal-queue-tab-badge" id="countSegmentCurrent">0</span>
+        <button type="button" class="cal-queue-tab-btn active" data-segment="walkin" id="queueTabWalkin">
+          <i class="fas fa-walking text-warning"></i>
+          <span>Today's Walk-in Queue</span>
+          <span class="cal-queue-tab-badge" id="countSegmentWalkin">0</span>
+        </button>
+        <button type="button" class="cal-queue-tab-btn" data-segment="claims" id="queueTabClaims">
+          <i class="fas fa-glasses text-success"></i>
+          <span>Eyeglass Claims Queue</span>
+          <span class="cal-queue-tab-badge" id="countSegmentClaims">0</span>
         </button>
         <button type="button" class="cal-queue-tab-btn" data-segment="upcoming" id="queueTabUpcoming">
-          <i class="fas fa-calendar-alt"></i>
-          <span>Upcoming Appointments</span>
+          <i class="fas fa-calendar-alt text-primary"></i>
+          <span>Upcoming Bookings</span>
           <span class="cal-queue-tab-badge" id="countSegmentUpcoming">0</span>
         </button>
         <button type="button" class="cal-queue-tab-btn" data-segment="history" id="queueTabHistory">
-          <i class="fas fa-history"></i>
-          <span>Past Due &amp; Done Appointments</span>
+          <i class="fas fa-history text-muted"></i>
+          <span>Past Due &amp; Completed</span>
           <span class="cal-queue-tab-badge" id="countSegmentHistory">0</span>
         </button>
       </div>
@@ -322,13 +492,12 @@ include __DIR__ . '/../includes/header.php';
         <thead>
           <tr>
             <th>#</th>
-            <th>Patient</th>
-            <th>Contact</th>
-            <th>Date</th>
-            <th>Time</th>
-            <th>Purpose</th>
-            <th>Notes</th>
-            <th>Status</th>
+            <th>Patient Details</th>
+            <th>Type / Purpose</th>
+            <th>Schedule</th>
+            <th>Job Order &amp; Invoice</th>
+            <th>Payment Status</th>
+            <th>Queue Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -419,14 +588,26 @@ include __DIR__ . '/../includes/header.php';
         </div>
 
         <!-- Eyeglass Claim & Fitting Dedicated Front Desk Action Card -->
-        <div id="modalClaimActionBox" class="p-3 mb-3 d-none" style="background:rgba(2,132,199,0.06); border:1.5px solid rgba(2,132,199,0.25); border-radius:12px;">
+        <div id="modalClaimActionBox" class="p-3 mb-3 d-none" style="background:rgba(16,185,129,0.06); border:1.5px solid rgba(16,185,129,0.25); border-radius:12px;">
           <div class="d-flex align-items-center justify-content-between mb-2">
             <div class="d-flex align-items-center gap-2">
-              <i class="fas fa-glasses text-info fa-lg"></i>
-              <strong class="small text-uppercase" style="letter-spacing:0.4px; color:#0284c7;">Eyeglass Claim &amp; Fitting Workflow</strong>
+              <i class="fas fa-glasses text-success fa-lg"></i>
+              <strong class="small text-uppercase" style="letter-spacing:0.4px; color:#10b981;">Eyeglass Claim &amp; Fitting Workflow</strong>
             </div>
             <span class="badge" id="modalClaimStatusBadge" style="font-size:0.75rem;">Claim Pending</span>
           </div>
+
+          <!-- Order & Balance Quick Info Bar -->
+          <div class="p-2 mb-2 rounded bg-light border d-flex justify-content-between align-items-center flex-wrap gap-2" id="modalClaimOrderSummary" style="font-size:0.8rem;">
+            <div>
+              <span class="text-muted">Job Order:</span> <strong id="modalClaimJoNo">—</strong> &middot;
+              <span class="text-muted">Invoice:</span> <strong id="modalClaimInvNo">—</strong>
+            </div>
+            <div id="modalClaimBalanceDueWrap">
+              <!-- Injected dynamically -->
+            </div>
+          </div>
+
           <p class="text-muted small mb-3" id="modalClaimNoticeText" style="line-height:1.45;">
             Optical dispensing service managed directly by front-desk Saleslady. No doctor examination or optometrist confirmation required.
           </p>
@@ -439,6 +620,17 @@ include __DIR__ . '/../includes/header.php';
               <input type="hidden" name="current_view_date" id="confirmClaimCurrentDate" value="">
               <button type="submit" class="btn btn-info btn-sm text-white px-3 py-2 shadow-sm fw-bold text-nowrap" id="modalBtnConfirmClaim">
                 <i class="fas fa-check-circle me-1"></i> Accept &amp; Confirm Booking
+              </button>
+            </form>
+
+            <!-- Form: Mark Ready for Pickup -->
+            <form method="POST" id="formReadyClaim" class="m-0" style="display:none;">
+              <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+              <input type="hidden" name="action" value="ready_claim">
+              <input type="hidden" name="appt_id" id="readyClaimApptId" value="">
+              <input type="hidden" name="current_view_date" id="readyClaimCurrentDate" value="">
+              <button type="submit" class="btn btn-outline-success btn-sm px-3 py-2 shadow-sm fw-bold text-nowrap" id="modalBtnReadyClaim">
+                <i class="fas fa-box-open me-1"></i> Mark Ready for Pickup
               </button>
             </form>
 
@@ -518,6 +710,111 @@ include __DIR__ . '/../includes/header.php';
       <div class="modal-body p-4" id="dayModalBody">
         <!-- Injected dynamically -->
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCHEDULE EYEGLASS CLAIM MODAL                                -->
+<!-- ============================================================ -->
+<div class="modal fade" id="scheduleClaimModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content walkin-modal">
+      <div class="modal-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #10b981, #059669); color: white;">
+        <div class="d-flex align-items-center gap-3">
+          <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+            <i class="fas fa-glasses"></i>
+          </div>
+          <div>
+            <h5 class="modal-title fw-bold mb-0 text-white">Schedule Eyeglass Claim &amp; Fitting</h5>
+            <small style="opacity: 0.9;">Set patient pickup date for fabricated custom spectacles</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+        <input type="hidden" name="action" value="schedule_claim">
+        <input type="hidden" name="current_view_date" value="<?= htmlspecialchars($_GET['date'] ?? $today) ?>">
+
+        <div class="modal-body p-4" style="max-height: calc(85vh - 140px); overflow-y: auto;">
+          <!-- 1. Patient Selector -->
+          <div class="walkin-card-box">
+            <div class="walkin-section-title">
+              <i class="fas fa-user"></i> 1. Select Patient
+            </div>
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="walkin-field-label">Patient <span class="text-danger">*</span></label>
+                <select name="patient_id" id="claimSelectPatient" class="form-select" required onchange="onClaimPatientSelect(this)">
+                  <option value="">-- Choose Existing Patient --</option>
+                  <?php foreach ($recentPatients as $rp): ?>
+                    <option value="<?= $rp['id'] ?>"
+                            data-invoice="<?= htmlspecialchars($rp['latest_invoice'] ?? '') ?>"
+                            data-jo="<?= htmlspecialchars($rp['latest_job_order'] ?? '') ?>"
+                            data-balance="<?= (float)($rp['latest_balance'] ?? 0) ?>">
+                      <?= htmlspecialchars($rp['full_name']) ?> (<?= htmlspecialchars($rp['phone'] ?: 'No phone recorded') ?>)
+                      <?= !empty($rp['latest_job_order']) ? ' — JO #' . htmlspecialchars($rp['latest_job_order']) : '' ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Target Claim Schedule -->
+          <div class="walkin-card-box">
+            <div class="walkin-section-title title-contact">
+              <i class="fas fa-calendar-alt"></i> 2. Target Pickup Date &amp; Time
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="walkin-field-label">Scheduled Claim Date <span class="text-danger">*</span></label>
+                <input type="date" name="claim_date" id="claimInputDate" class="form-control" required min="<?= $today ?>" value="<?= date('Y-m-d', strtotime('+3 days')) ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="walkin-field-label">Preferred Pickup Time</label>
+                <input type="time" name="claim_time" id="claimInputTime" class="form-control" value="14:00">
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Transaction & Job Order Linkage -->
+          <div class="walkin-card-box mb-0">
+            <div class="walkin-section-title title-clinical">
+              <i class="fas fa-receipt"></i> 3. Order Details &amp; Balance
+            </div>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="walkin-field-label">Job Order # <small class="text-muted">(Optional)</small></label>
+                <input type="text" name="job_order_no" id="claimInputJobOrder" class="form-control" placeholder="e.g. JO-20260930-0001">
+              </div>
+              <div class="col-md-4">
+                <label class="walkin-field-label">Invoice # <small class="text-muted">(Optional)</small></label>
+                <input type="text" name="invoice_no" id="claimInputInvoice" class="form-control" placeholder="e.g. GOC-20260930-0001">
+              </div>
+              <div class="col-md-4">
+                <label class="walkin-field-label">Balance Due (₱)</label>
+                <input type="number" step="0.01" min="0" name="balance_due" id="claimInputBalance" class="form-control" placeholder="0.00" value="0.00">
+              </div>
+              <div class="col-12">
+                <label class="walkin-field-label">Fabrication / Fitting Notes <small class="text-muted">(Optional)</small></label>
+                <textarea name="notes" class="form-control" rows="2" placeholder="e.g. Multicoated progressive lens, frame adjustment requested..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer d-flex justify-content-between align-items-center">
+          <button type="button" class="btn btn-walkin-cancel" data-bs-dismiss="modal">
+            <i class="fas fa-times me-1"></i> Cancel
+          </button>
+          <button type="submit" class="btn btn-success fw-bold px-4 py-2" style="background:#10b981; border:none; border-radius:8px;">
+            <i class="fas fa-calendar-check me-1"></i> Schedule Eyeglass Claim
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -721,6 +1018,22 @@ include __DIR__ . '/../includes/header.php';
 <!-- CALENDAR JAVASCRIPT LOGIC ENGINE                             -->
 <!-- ============================================================ -->
 <script>
+// Expose onClaimPatientSelect globally for the claim modal dropdown
+window.onClaimPatientSelect = function(selectEl) {
+  const selectedOpt = selectEl.options[selectEl.selectedIndex];
+  if (!selectedOpt) return;
+  const jo = selectedOpt.getAttribute('data-jo') || '';
+  const inv = selectedOpt.getAttribute('data-invoice') || '';
+  const bal = selectedOpt.getAttribute('data-balance') || '0.00';
+  
+  const joInput = document.getElementById('claimInputJobOrder');
+  const invInput = document.getElementById('claimInputInvoice');
+  const balInput = document.getElementById('claimInputBalance');
+  if (joInput && jo) joInput.value = jo;
+  if (invInput && inv) invInput.value = inv;
+  if (balInput && bal) balInput.value = parseFloat(bal).toFixed(2);
+};
+
 document.addEventListener('DOMContentLoaded', function() {
   const rawAppointments = <?= json_encode($allAppointments, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
   const initialDateStr = '<?= htmlspecialchars($_GET['date'] ?? $today) ?>';
@@ -730,8 +1043,10 @@ document.addEventListener('DOMContentLoaded', function() {
   if (isNaN(currentDate.getTime())) currentDate = new Date();
   
   let currentView = 'month'; // 'month', 'week', 'agenda', 'table'
-  let currentFilter = 'all';  // 'all', 'confirmed', 'pending', 'completed', 'no_show', 'cancelled'
-  let queueSegment = 'current'; // 'current', 'upcoming', 'history'
+  let currentFilter = 'all';  // 'all', 'confirmed', 'in_progress', 'pending', 'completed', 'no_show', 'cancelled'
+  let currentBookingType = 'all'; // 'all', 'claims', 'consultations'
+  let includeWalkinsInCalendar = false; // Exclude 15-20 daily walk-in checkups from calendar grid by default
+  let queueSegment = 'walkin'; // 'walkin', 'claims', 'upcoming', 'history'
   let searchQuery = '';
   let selectedDateStr = initialDateStr || formatDateIso(new Date());
   let highlightApptId = parseInt(new URLSearchParams(window.location.search).get('highlight') || '0', 10);
@@ -754,6 +1069,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const tableBody = document.getElementById('tableBody');
   const searchInput = document.getElementById('calSearchInput');
   const filterPills = document.querySelectorAll('.cal-filter-pill');
+  const typeFilterBtns = document.querySelectorAll('.cal-type-btn');
+  const toggleIncludeWalkins = document.getElementById('toggleIncludeWalkins');
 
   // Modals
   const appointmentModalEl = document.getElementById('appointmentModal');
@@ -786,6 +1103,11 @@ document.addEventListener('DOMContentLoaded', function() {
   function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function isApptClaim(appt) {
+    const p = (appt.purpose || '').toLowerCase();
+    return p === 'eyeglass_claim';
   }
 
   function parseApptNotes(rawNotes) {
@@ -821,17 +1143,34 @@ document.addEventListener('DOMContentLoaded', function() {
     return map[status] || `<span class="badge bg-secondary">${status}</span>`;
   }
 
-  // Filter Appointments
-  function getFilteredAppointments() {
+  // Filter appointments specifically for Calendar Grid (Month, Week, Agenda)
+  function getCalendarAppointments() {
     return rawAppointments.filter(appt => {
+      const isClaim = isApptClaim(appt);
+      const isWalkin = (appt.appointment_type === 'WALK_IN');
+
+      // Exclude same-day walk-in checkups by default so calendar isn't cluttered
+      if (!includeWalkinsInCalendar && isWalkin && !isClaim) {
+        return false;
+      }
+
+      // Booking Type Filter (All / Eyeglass Claims / Scheduled Checkups)
+      if (currentBookingType === 'claims' && !isClaim) return false;
+      if (currentBookingType === 'consultations' && isClaim) return false;
+
+      // Status filter
       if (currentFilter !== 'all' && appt.status !== currentFilter) return false;
+
+      // Live search query
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase();
         const patientName = (appt.patient_name || '').toLowerCase();
         const phone = (appt.patient_phone || '').toLowerCase();
         const purpose = (appt.purpose || '').toLowerCase();
         const notes = (appt.notes || '').toLowerCase();
-        if (!patientName.includes(q) && !phone.includes(q) && !purpose.includes(q) && !notes.includes(q)) {
+        const jo = (appt.job_order_no || '').toLowerCase();
+        const inv = (appt.invoice_no || '').toLowerCase();
+        if (!patientName.includes(q) && !phone.includes(q) && !purpose.includes(q) && !notes.includes(q) && !jo.includes(q) && !inv.includes(q)) {
           return false;
         }
       }
@@ -842,28 +1181,69 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateCounts() {
     const todayIso = formatDateIso(new Date());
 
-    // Update Segment Counts
-    const countCurrent = rawAppointments.filter(a => a.appointment_date === todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show')).length;
-    const countUpcoming = rawAppointments.filter(a => a.appointment_date > todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show')).length;
-    const countHistory = rawAppointments.filter(a => a.appointment_date < todayIso || (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show')).length;
+    // 1. Calendar View Type button counters
+    const countAllBookings = rawAppointments.filter(a => {
+      const isClaim = isApptClaim(a);
+      const isWalkin = (a.appointment_type === 'WALK_IN');
+      return includeWalkinsInCalendar || (!isWalkin || isClaim);
+    }).length;
 
-    const segCurrentEl = document.getElementById('countSegmentCurrent');
+    const countAllClaims = rawAppointments.filter(a => isApptClaim(a)).length;
+    const countAllConsults = rawAppointments.filter(a => !isApptClaim(a) && (includeWalkinsInCalendar || a.appointment_type !== 'WALK_IN')).length;
+
+    const cTypeAll = document.getElementById('countTypeAll');
+    const cTypeClaims = document.getElementById('countTypeClaims');
+    const cTypeConsults = document.getElementById('countTypeConsults');
+    if (cTypeAll) cTypeAll.textContent = countAllBookings;
+    if (cTypeClaims) cTypeClaims.textContent = countAllClaims;
+    if (cTypeConsults) cTypeConsults.textContent = countAllConsults;
+
+    // 2. Queue Segment tab counters
+    const countWalkin = rawAppointments.filter(a => {
+      const isWalkin = (a.appointment_type === 'WALK_IN');
+      const isFinished = (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
+      return a.appointment_date === todayIso && isWalkin && !isApptClaim(a) && !isFinished;
+    }).length;
+
+    const countClaims = rawAppointments.filter(a => {
+      const isFinished = (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
+      return isApptClaim(a) && !isFinished;
+    }).length;
+
+    const countUpcoming = rawAppointments.filter(a => {
+      const isFinished = (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
+      return a.appointment_date > todayIso && !isFinished;
+    }).length;
+
+    const countHistory = rawAppointments.filter(a => {
+      const isPastDate = (a.appointment_date < todayIso);
+      const isFinished = (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
+      return isPastDate || isFinished;
+    }).length;
+
+    const segWalkinEl = document.getElementById('countSegmentWalkin');
+    const segClaimsEl = document.getElementById('countSegmentClaims');
     const segUpcomingEl = document.getElementById('countSegmentUpcoming');
     const segHistoryEl = document.getElementById('countSegmentHistory');
-    if (segCurrentEl) segCurrentEl.textContent = countCurrent;
+    if (segWalkinEl) segWalkinEl.textContent = countWalkin;
+    if (segClaimsEl) segClaimsEl.textContent = countClaims;
     if (segUpcomingEl) segUpcomingEl.textContent = countUpcoming;
     if (segHistoryEl) segHistoryEl.textContent = countHistory;
 
-    // Status filter pill counts (context-aware in table view, clinic-wide in calendar views)
+    // 3. Status filter pill counts
     let baseList = rawAppointments;
     if (currentView === 'table') {
-      if (queueSegment === 'current') {
-        baseList = rawAppointments.filter(a => a.appointment_date === todayIso);
+      if (queueSegment === 'walkin') {
+        baseList = rawAppointments.filter(a => a.appointment_date === todayIso && a.appointment_type === 'WALK_IN' && !isApptClaim(a));
+      } else if (queueSegment === 'claims') {
+        baseList = rawAppointments.filter(a => isApptClaim(a));
       } else if (queueSegment === 'upcoming') {
         baseList = rawAppointments.filter(a => a.appointment_date > todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'));
       } else if (queueSegment === 'history') {
         baseList = rawAppointments.filter(a => a.appointment_date < todayIso || (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'));
       }
+    } else {
+      baseList = getCalendarAppointments();
     }
 
     const total = baseList.length;
@@ -874,15 +1254,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const noShow = baseList.filter(a => a.status === 'no_show').length;
     const cancelled = baseList.filter(a => a.status === 'cancelled').length;
 
-    document.getElementById('countAll').textContent = total;
-    document.getElementById('countConfirmed').textContent = confirmed;
-    const inProgEl = document.getElementById('countInProgress');
-    if (inProgEl) inProgEl.textContent = inProgress;
-    document.getElementById('countPending').textContent = pending;
-    document.getElementById('countCompleted').textContent = completed;
-    document.getElementById('countNoShow').textContent = noShow;
-    const cancEl = document.getElementById('countCancelled');
-    if (cancEl) cancEl.textContent = cancelled;
+    const cAll = document.getElementById('countAll');
+    if (cAll) cAll.textContent = total;
+    const cConf = document.getElementById('countConfirmed');
+    if (cConf) cConf.textContent = confirmed;
+    const cInProg = document.getElementById('countInProgress');
+    if (cInProg) cInProg.textContent = inProgress;
+    const cPend = document.getElementById('countPending');
+    if (cPend) cPend.textContent = pending;
+    const cComp = document.getElementById('countCompleted');
+    if (cComp) cComp.textContent = completed;
+    const cNoShow = document.getElementById('countNoShow');
+    if (cNoShow) cNoShow.textContent = noShow;
+    const cCanc = document.getElementById('countCancelled');
+    if (cCanc) cCanc.textContent = cancelled;
   }
 
   // ── 1. RENDER MONTH VIEW ───────────────────────────────────────
@@ -899,7 +1284,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const prevLastDay = new Date(year, month, 0).getDate();
 
     const todayIso = formatDateIso(new Date());
-    const filteredAppts = getFilteredAppointments();
+    const filteredAppts = getCalendarAppointments();
 
     const apptsByDate = {};
     filteredAppts.forEach(appt => {
@@ -945,7 +1330,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     cell.dataset.date = dateIso;
 
-    // Top Header in Cell with side-by-side indicator dots
+    // Top Header in Cell with claim counters & status dots
     const topWrap = document.createElement('div');
     topWrap.className = 'cal-day-cell-top';
 
@@ -957,12 +1342,24 @@ document.addEventListener('DOMContentLoaded', function() {
     numSpan.textContent = dayNum;
     numWrap.appendChild(numSpan);
 
+    const claimCount = appts.filter(a => isApptClaim(a)).length;
+    if (claimCount > 0) {
+      const claimPill = document.createElement('span');
+      claimPill.className = 'badge bg-success-subtle text-success border border-success-subtle px-1 py-0';
+      claimPill.style.fontSize = '0.62rem';
+      claimPill.title = `${claimCount} Eyeglass Claim(s)`;
+      claimPill.innerHTML = `<i class="fas fa-glasses me-1"></i>${claimCount}`;
+      numWrap.appendChild(claimPill);
+    }
+
     if (appts.length > 0) {
       const dotsRow = document.createElement('span');
       dotsRow.className = 'cal-day-dots-row';
-      appts.slice(0, 4).forEach(a => {
+      appts.slice(0, 3).forEach(a => {
         const dot = document.createElement('span');
-        dot.className = `cal-indicator-dot dot-${a.status}`;
+        const isClaim = isApptClaim(a);
+        dot.className = isClaim ? 'cal-indicator-dot' : `cal-indicator-dot dot-${a.status}`;
+        if (isClaim) dot.style.background = '#10B981';
         dotsRow.appendChild(dot);
       });
       numWrap.appendChild(dotsRow);
@@ -991,18 +1388,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const overflowCount = appts.length - maxVisible;
 
     visibleAppts.forEach(appt => {
+      const isClaim = isApptClaim(appt);
       const isWalkin = (appt.appointment_type === 'WALK_IN');
       const card = document.createElement('div');
-      card.className = `cal-event-card status-${appt.status}${isWalkin ? ' is-walkin' : ''}`;
+      card.className = `cal-event-card status-${appt.status}${isClaim ? ' is-claim' : ''}${isWalkin ? ' is-walkin' : ''}`;
       const timeStr = formatTime12(appt.appointment_time);
+
+      let subMeta = '';
+      if (isClaim) {
+        if (appt.job_order_no) {
+          subMeta = `<div class="cal-card-meta"><i class="fas fa-barcode me-1"></i>JO: ${escapeHtml(appt.job_order_no)}</div>`;
+        } else if (appt.invoice_no) {
+          subMeta = `<div class="cal-card-meta"><i class="fas fa-receipt me-1"></i>Inv: ${escapeHtml(appt.invoice_no)}</div>`;
+        }
+        if (parseFloat(appt.balance_due) > 0) {
+          subMeta += `<div class="text-warning fw-bold" style="font-size:0.65rem;">Bal: ₱${parseFloat(appt.balance_due).toLocaleString()}</div>`;
+        }
+      }
 
       card.innerHTML = `
         <div class="cal-card-chips-row">
           <span class="cal-event-time"><i class="far fa-clock"></i> ${timeStr}</span>
-          ${isWalkin ? '<span class="cal-walkin-badge">Walk-in</span>' : ''}
+          ${isClaim ? '<span class="cal-claim-badge"><i class="fas fa-glasses me-1"></i>CLAIM</span>' : (isWalkin ? '<span class="cal-walkin-badge">Walk-in</span>' : '<span class="cal-booking-badge">Book</span>')}
           <span class="cal-side-chip chip-${appt.status}">${appt.status.replace('_', ' ')}</span>
         </div>
         <div class="cal-event-title">${escapeHtml(appt.patient_name)}</div>
+        ${subMeta}
       `;
 
       card.addEventListener('click', (e) => {
@@ -1043,7 +1454,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function renderWeek() {
     weekViewContainer.innerHTML = '';
     const todayIso = formatDateIso(new Date());
-    const filteredAppts = getFilteredAppointments();
+    const filteredAppts = getCalendarAppointments();
 
     const curr = new Date(currentDate);
     const dayOfWeek = curr.getDay();
@@ -1087,20 +1498,32 @@ document.addEventListener('DOMContentLoaded', function() {
         eventsList.innerHTML = `<div class="text-center text-muted small py-4" style="opacity:0.5;">No appts</div>`;
       } else {
         dayAppts.forEach(appt => {
+          const isClaim = isApptClaim(appt);
           const isWalkin = (appt.appointment_type === 'WALK_IN');
           const card = document.createElement('div');
-          card.className = `cal-week-card status-${appt.status}${isWalkin ? ' is-walkin' : ''}`;
+          card.className = `cal-week-card status-${appt.status}${isClaim ? ' is-claim' : ''}${isWalkin ? ' is-walkin' : ''}`;
           
+          let chipTypeBadge = isClaim 
+            ? '<span class="cal-claim-badge"><i class="fas fa-glasses me-1"></i>CLAIM</span>'
+            : (isWalkin ? '<span class="cal-walkin-badge">Walk-in</span>' : '<span class="cal-booking-badge">Book</span>');
+
+          let extraJo = '';
+          if (isClaim && appt.job_order_no) {
+            extraJo = `<span class="badge bg-dark-subtle text-info small" style="font-size:0.68rem;"><i class="fas fa-barcode me-1"></i>${escapeHtml(appt.job_order_no)}</span>`;
+          } else {
+            extraJo = `<span class="badge bg-dark-subtle text-info small" style="font-size:0.68rem;"><i class="fas fa-tag me-1"></i>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>`;
+          }
+
           card.innerHTML = `
             <div class="cal-card-chips-row">
               <span class="cal-event-time"><i class="far fa-clock me-1"></i>${formatTime12(appt.appointment_time)}</span>
-              ${isWalkin ? '<span class="cal-walkin-badge">Walk-in</span>' : ''}
+              ${chipTypeBadge}
               <span class="cal-side-chip chip-${appt.status}">${appt.status.replace('_', ' ')}</span>
             </div>
             <div class="cal-week-card-name">${escapeHtml(appt.patient_name)}</div>
             <div class="d-flex justify-content-between align-items-center mt-2">
-              <span class="badge bg-dark-subtle text-info small" style="font-size:0.68rem;"><i class="fas fa-tag me-1"></i>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>
-              <span class="badge bg-dark-subtle text-muted small" style="font-size:0.68rem;">Rx: ${appt.rx_count || 0}</span>
+              ${extraJo}
+              ${isClaim && parseFloat(appt.balance_due) > 0 ? `<span class="badge bg-warning-subtle text-warning small" style="font-size:0.68rem;">Bal: ₱${parseFloat(appt.balance_due).toLocaleString()}</span>` : `<span class="badge bg-dark-subtle text-muted small" style="font-size:0.68rem;">Rx: ${appt.rx_count || 0}</span>`}
             </div>
           `;
 
@@ -1117,7 +1540,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // ── 3. RENDER AGENDA VIEW ──────────────────────────────────────
   function renderAgenda() {
     agendaViewContainer.innerHTML = '';
-    const filteredAppts = getFilteredAppointments();
+    const filteredAppts = getCalendarAppointments();
 
     calTitle.textContent = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     calSubtitle.textContent = 'Agenda Timeline &middot; Chronological Patient List';
@@ -1127,7 +1550,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="text-center py-5">
           <i class="fas fa-calendar-times fa-3x text-muted mb-3" style="opacity:0.4;"></i>
           <h6 class="text-white">No Appointments Found</h6>
-          <p class="text-muted small">Try switching filters or searching with different terms.</p>
+          <p class="text-muted small">Try switching filters or toggling walk-ins.</p>
         </div>
       `;
       return;
@@ -1164,9 +1587,14 @@ document.addEventListener('DOMContentLoaded', function() {
       itemsWrap.className = 'cal-agenda-items';
 
       appts.forEach(appt => {
+        const isClaim = isApptClaim(appt);
         const isWalkin = (appt.appointment_type === 'WALK_IN');
         const item = document.createElement('div');
         item.className = 'cal-agenda-item';
+
+        let badgeTypeHtml = isClaim
+          ? '<span class="cal-claim-badge ms-1"><i class="fas fa-glasses me-1"></i>CLAIM</span>'
+          : (isWalkin ? '<span class="cal-walkin-badge ms-1">Walk-in</span>' : '<span class="cal-booking-badge ms-1">Booking</span>');
 
         item.innerHTML = `
           <div class="cal-agenda-left">
@@ -1174,10 +1602,11 @@ document.addEventListener('DOMContentLoaded', function() {
               <i class="far fa-clock me-1"></i>${formatTime12(appt.appointment_time)}
             </div>
             <div class="cal-agenda-patient-info">
-              <h6>${escapeHtml(appt.patient_name)}${isWalkin ? ' <span class="cal-walkin-badge ms-1">Walk-in</span>' : ''}</h6>
-              <div class="d-flex align-items-center gap-2 mt-1">
+              <h6>${escapeHtml(appt.patient_name)} ${badgeTypeHtml}</h6>
+              <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
                 <span class="cal-side-chip chip-${appt.status}">${appt.status.replace('_', ' ')}</span>
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle small"><i class="fas fa-tag me-1"></i>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>
+                ${isClaim && appt.job_order_no ? `<span class="badge bg-dark-subtle text-info small"><i class="fas fa-barcode me-1"></i>JO: ${escapeHtml(appt.job_order_no)}</span>` : `<span class="badge bg-primary-subtle text-primary border border-primary-subtle small"><i class="fas fa-tag me-1"></i>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>`}
+                ${isClaim && parseFloat(appt.balance_due) > 0 ? `<span class="badge bg-warning-subtle text-warning border border-warning-subtle small">Bal: ₱${parseFloat(appt.balance_due).toLocaleString()}</span>` : ''}
                 <span class="text-muted small"><i class="fas fa-phone-alt me-1"></i>${escapeHtml(appt.patient_phone || 'No phone')}</span>
               </div>
             </div>
@@ -1185,7 +1614,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="d-flex align-items-center gap-2">
             ${getStatusBadgeHtml(appt.status)}
             <button type="button" class="btn btn-outline-primary btn-sm px-3 py-1 btn-view-appt">
-              <i class="fas fa-eye me-1"></i> Check-in
+              <i class="fas fa-eye me-1"></i> Manage
             </button>
           </div>
         `;
@@ -1211,22 +1640,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 1. Filter by Queue Segment
     let segmentAppts = rawAppointments.filter(appt => {
+      const isClaim = isApptClaim(appt);
+      const isWalkin = (appt.appointment_type === 'WALK_IN');
       const isPastDate = (appt.appointment_date < todayIso);
       const isToday = (appt.appointment_date === todayIso);
       const isFutureDate = (appt.appointment_date > todayIso);
       const isFinished = (appt.status === 'completed' || appt.status === 'cancelled' || appt.status === 'no_show');
 
-      if (queueSegment === 'current') {
+      if (queueSegment === 'walkin') {
+        // Today's Walk-in checkup queue
         if (currentFilter !== 'all') {
-          return isToday && (appt.status === currentFilter);
+          return isToday && isWalkin && !isClaim && (appt.status === currentFilter);
         }
-        return isToday && !isFinished;
+        return isToday && isWalkin && !isClaim && !isFinished;
+      } else if (queueSegment === 'claims') {
+        // Eyeglass claims queue (all active or pending pickup)
+        if (currentFilter !== 'all') {
+          return isClaim && (appt.status === currentFilter);
+        }
+        return isClaim && !isFinished;
       } else if (queueSegment === 'upcoming') {
+        // Future scheduled bookings & pickups
         if (currentFilter !== 'all') {
           return isFutureDate && (appt.status === currentFilter);
         }
         return isFutureDate && !isFinished;
       } else if (queueSegment === 'history') {
+        // Past due & completed records
         if (currentFilter !== 'all') {
           return (isPastDate || isFinished) && (appt.status === currentFilter);
         }
@@ -1243,20 +1683,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const phone = (appt.patient_phone || '').toLowerCase();
         const purpose = (appt.purpose || '').toLowerCase();
         const notes = (appt.notes || '').toLowerCase();
-        return patientName.includes(q) || phone.includes(q) || purpose.includes(q) || notes.includes(q);
+        const jo = (appt.job_order_no || '').toLowerCase();
+        const inv = (appt.invoice_no || '').toLowerCase();
+        return patientName.includes(q) || phone.includes(q) || purpose.includes(q) || notes.includes(q) || jo.includes(q) || inv.includes(q);
       });
     }
 
     // 3. Dynamic Title & Subtitle based on Queue Segment
-    if (queueSegment === 'current') {
-      calTitle.textContent = 'Current Appointments';
-      calSubtitle.innerHTML = `Today's Active Queue &middot; ${segmentAppts.length} record(s)`;
+    if (queueSegment === 'walkin') {
+      calTitle.textContent = "Today's Walk-in Queue";
+      calSubtitle.innerHTML = `Live Walk-in Checkup Queue for Dr. Exam &amp; Fitting &middot; ${segmentAppts.length} patient(s)`;
+    } else if (queueSegment === 'claims') {
+      calTitle.textContent = "Eyeglass Claims & Fitting Queue";
+      calSubtitle.innerHTML = `Patients scheduled to claim fabricated eyeglasses &middot; ${segmentAppts.length} record(s)`;
     } else if (queueSegment === 'upcoming') {
-      calTitle.textContent = 'Upcoming Appointments';
+      calTitle.textContent = "Upcoming Advance Bookings";
       calSubtitle.innerHTML = `Future Scheduled Appointments &middot; ${segmentAppts.length} record(s)`;
     } else if (queueSegment === 'history') {
-      calTitle.textContent = 'Past Due & Done Appointments';
-      calSubtitle.innerHTML = `Past Due &amp; Completed Records &middot; ${segmentAppts.length} record(s)`;
+      calTitle.textContent = "Past Due & Completed Records";
+      calSubtitle.innerHTML = `Fulfilled claims, finished checkups, and past records &middot; ${segmentAppts.length} record(s)`;
     }
 
     // 4. Sort order tailored to segment
@@ -1278,11 +1723,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (segmentAppts.length === 0) {
       let emptyMsg = 'No matching appointments in this queue.';
       let emptyIcon = 'fa-search';
-      if (queueSegment === 'current') {
-        emptyMsg = 'No active appointments in queue for today.';
-        emptyIcon = 'fa-user-clock';
+      if (queueSegment === 'walkin') {
+        emptyMsg = 'No active walk-in patients in queue for today.';
+        emptyIcon = 'fa-walking';
+      } else if (queueSegment === 'claims') {
+        emptyMsg = 'No pending eyeglass claims in queue.';
+        emptyIcon = 'fa-glasses';
       } else if (queueSegment === 'upcoming') {
-        emptyMsg = 'No upcoming appointments scheduled.';
+        emptyMsg = 'No upcoming bookings scheduled.';
         emptyIcon = 'fa-calendar-alt';
       } else if (queueSegment === 'history') {
         emptyMsg = 'No past due or completed appointments found.';
@@ -1291,7 +1739,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       tableBody.innerHTML = `
         <tr>
-          <td colspan="9" class="text-center py-5 text-muted">
+          <td colspan="8" class="text-center py-5 text-muted">
             <div class="mb-2"><i class="fas ${emptyIcon} fa-2x opacity-50"></i></div>
             <div class="fw-semibold">${emptyMsg}</div>
           </td>
@@ -1302,6 +1750,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 6. Render Rows
     segmentAppts.forEach((appt, idx) => {
+      const isClaim = isApptClaim(appt);
       const isWalkin = (appt.appointment_type === 'WALK_IN');
       const isPastDate = (appt.appointment_date < todayIso);
       const isUnfinishedPast = isPastDate && (appt.status !== 'completed' && appt.status !== 'cancelled' && appt.status !== 'no_show');
@@ -1313,54 +1762,113 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       const apptDateObj = new Date(appt.appointment_date + 'T00:00:00');
 
+      // Type Badge
+      let typeBadge = '';
+      if (isClaim) {
+        typeBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-glasses me-1"></i>Eyeglass Claim</span>';
+      } else if (isWalkin) {
+        typeBadge = '<span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1"><i class="fas fa-walking me-1"></i>Walk-in Checkup</span>';
+      } else {
+        typeBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1"><i class="fas fa-calendar-check me-1"></i>Scheduled Exam</span>';
+      }
+
+      // Job Order / Invoice info
+      let joInvHtml = '<span class="text-muted small">—</span>';
+      if (appt.job_order_no || appt.invoice_no) {
+        joInvHtml = `
+          <div>${appt.job_order_no ? `<span class="badge bg-light text-dark border"><i class="fas fa-barcode me-1"></i>${escapeHtml(appt.job_order_no)}</span>` : ''}</div>
+          ${appt.invoice_no ? `<small class="text-muted"><i class="fas fa-receipt me-1"></i>${escapeHtml(appt.invoice_no)}</small>` : ''}
+        `;
+      }
+
+      // Payment Status
+      let paymentHtml = '<span class="text-muted small">—</span>';
+      const bal = parseFloat(appt.balance_due || 0);
+      if (bal > 0) {
+        paymentHtml = `<span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1"><i class="fas fa-exclamation-circle me-1"></i>Bal: ₱${bal.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>`;
+      } else if (appt.order_status === 'paid' || appt.sale_id) {
+        paymentHtml = '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-check-circle me-1"></i>Paid</span>';
+      } else if (appt.payment_type) {
+        paymentHtml = `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1">${escapeHtml(appt.payment_type.replace('_', ' '))}</span>`;
+      }
+
+      // Action buttons
+      let actionButtons = `
+        <div class="d-flex gap-1 flex-wrap">
+          <button type="button" class="btn btn-outline-primary btn-sm px-2 py-1 btn-open-table-modal" title="Manage / View Details">
+            <i class="fas fa-eye"></i>
+          </button>
+      `;
+
+      if (isClaim) {
+        if (appt.status !== 'completed' && appt.status !== 'cancelled' && appt.status !== 'no_show') {
+          actionButtons += `
+            <button type="button" class="btn btn-success btn-sm px-2 py-1 btn-quick-claim" data-id="${appt.id}" title="Complete Claim & Handover Eyeglasses">
+              <i class="fas fa-check-double me-1"></i> Claim Done
+            </button>
+          `;
+        }
+        if (bal > 0 || !appt.sale_id) {
+          actionButtons += `
+            <a href="pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}" class="btn btn-primary btn-sm px-2 py-1" title="POS Collect / Billing">
+              <i class="fas fa-cash-register"></i>
+            </a>
+          `;
+        } else if (appt.sale_id) {
+          actionButtons += `
+            <a href="receipt.php?id=${appt.sale_id}" target="_blank" class="btn btn-outline-secondary btn-sm px-2 py-1" title="View Receipt">
+              <i class="fas fa-file-invoice"></i>
+            </a>
+          `;
+        }
+      } else {
+        actionButtons += `
+          <a href="pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}" class="btn btn-primary btn-sm px-2 py-1" title="POS Checkout">
+            <i class="fas fa-shopping-cart"></i>
+          </a>
+        `;
+      }
+      actionButtons += '</div>';
+
       tr.innerHTML = `
         <td class="text-muted fw-bold">${idx + 1}</td>
         <td>
-          <div class="fw-bold cal-modal-title">
-            ${escapeHtml(appt.patient_name)}
-            ${isWalkin ? '<span class="cal-walkin-badge ms-1">Walk-in</span>' : ''}
-          </div>
-          <small class="text-muted">${escapeHtml(appt.patient_phone || '')}</small>
+          <div class="fw-bold cal-modal-title">${escapeHtml(appt.patient_name)}</div>
+          <small class="text-muted">${escapeHtml(appt.patient_phone || 'No phone')}</small>
         </td>
-        <td>${escapeHtml(appt.patient_phone || '—')}</td>
+        <td>${typeBadge}</td>
         <td>
-          ${formatDisplayDate(apptDateObj)}
+          <div>${formatDisplayDate(apptDateObj)}</div>
+          <small class="fw-bold text-primary">${formatTime12(appt.appointment_time)}</small>
           ${isUnfinishedPast ? '<span class="cal-past-due-badge ms-1"><i class="fas fa-exclamation-circle"></i> Past Due</span>' : ''}
         </td>
-        <td class="fw-bold text-primary">${formatTime12(appt.appointment_time)}</td>
-        <td>
-          <div>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</div>
-          ${(() => {
-            const pNotes = parseApptNotes(appt.notes);
-            return pNotes.service
-              ? `<small class="text-muted fst-italic">${escapeHtml(pNotes.service)}</small>`
-              : '';
-          })()}
-        </td>
-        <td class="text-muted small">
-          ${(() => {
-            const pNotes = parseApptNotes(appt.notes);
-            return pNotes.hasUserNotes
-              ? escapeHtml(pNotes.userNotes)
-              : '<span class="text-muted opacity-50">—</span>';
-          })()}
-        </td>
+        <td>${joInvHtml}</td>
+        <td>${paymentHtml}</td>
         <td>${getStatusBadgeHtml(appt.status)}</td>
-        <td>
-          <div class="d-flex gap-1">
-            <button type="button" class="btn btn-outline-primary btn-sm px-2 py-1 btn-open-table-modal">
-              <i class="fas fa-eye"></i> Manage
-            </button>
-            <a href="pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}" class="btn btn-primary btn-sm px-2 py-1" title="POS Checkout">
-              <i class="fas fa-shopping-cart"></i>
-            </a>
-          </div>
-        </td>
+        <td>${actionButtons}</td>
       `;
 
       tr.querySelector('.btn-open-table-modal').addEventListener('click', () => {
         openAppointmentModal(appt);
       });
+
+      const quickClaimBtn = tr.querySelector('.btn-quick-claim');
+      if (quickClaimBtn) {
+        quickClaimBtn.addEventListener('click', () => {
+          if (confirm(`Confirm handover and complete eyeglass claim for ${appt.patient_name}?`)) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.innerHTML = `
+              <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
+              <input type="hidden" name="action" value="complete_claim">
+              <input type="hidden" name="appt_id" value="${appt.id}">
+              <input type="hidden" name="current_view_date" value="${appt.appointment_date || ''}">
+            `;
+            document.body.appendChild(form);
+            form.submit();
+          }
+        });
+      }
 
       tableBody.appendChild(tr);
     });
@@ -1378,6 +1886,25 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (currentView === 'week') renderWeek();
     else if (currentView === 'agenda') renderAgenda();
     else if (currentView === 'table') renderTable();
+  }
+
+  // ── Type Filter Buttons (All / Eyeglass Claims / Scheduled Checkups) ──
+  typeFilterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      typeFilterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentBookingType = btn.dataset.type || 'all';
+      render();
+    });
+  });
+
+  // ── Toggle Include Same-Day Walk-ins on Calendar ────────────────
+  if (toggleIncludeWalkins) {
+    toggleIncludeWalkins.checked = includeWalkinsInCalendar;
+    toggleIncludeWalkins.addEventListener('change', function() {
+      includeWalkinsInCalendar = this.checked;
+      render();
+    });
   }
 
   // ── Queue Segment Tabs ─────────────────────────────────────────
@@ -1399,8 +1926,8 @@ document.addEventListener('DOMContentLoaded', function() {
     currentDate = new Date();
     selectedDateStr = formatDateIso(new Date());
     if (currentView === 'table') {
-      queueSegment = 'current';
-      queueTabBtns.forEach(b => b.classList.toggle('active', b.dataset.segment === 'current'));
+      queueSegment = 'walkin';
+      queueTabBtns.forEach(b => b.classList.toggle('active', b.dataset.segment === 'walkin'));
       currentFilter = 'all';
       filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
     }
@@ -1464,13 +1991,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('modalStatusBadge').innerHTML = getStatusBadgeHtml(appt.status);
 
+    const isClaim = isApptClaim(appt);
     const isWalkin = (appt.appointment_type === 'WALK_IN');
     const walkinBadge = document.getElementById('modalWalkinBadge');
     if (walkinBadge) {
-      if (isWalkin) {
+      if (isClaim) {
+        walkinBadge.innerHTML = '<span class="badge bg-success text-white px-2 py-1"><i class="fas fa-glasses me-1"></i>Eyeglass Claim</span>';
+      } else if (isWalkin) {
         walkinBadge.innerHTML = '<span class="badge bg-warning text-dark px-2 py-1"><i class="fas fa-walking me-1"></i>Walk-in</span>';
       } else {
-        walkinBadge.innerHTML = '';
+        walkinBadge.innerHTML = '<span class="badge bg-primary text-white px-2 py-1"><i class="fas fa-calendar-check me-1"></i>Scheduled Booking</span>';
       }
     }
 
@@ -1499,7 +2029,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     document.getElementById('modalNotes').innerHTML = modalNotesHtml;
 
-    // Saleslady Shortcuts & Claim Workflow Elements
+    // Eyeglass Claim Quick Order Summary Bar
+    const claimOrderSummary = document.getElementById('modalClaimOrderSummary');
+    const modalClaimJoNo = document.getElementById('modalClaimJoNo');
+    const modalClaimInvNo = document.getElementById('modalClaimInvNo');
+    const modalClaimBalanceDueWrap = document.getElementById('modalClaimBalanceDueWrap');
+
+    // Claim Workflow Buttons & Actions
     const btnPos = document.getElementById('modalBtnPos');
     const lockAlert = document.getElementById('modalConsultationLockAlert');
     const claimActionBox = document.getElementById('modalClaimActionBox');
@@ -1508,6 +2044,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const formConfirmClaim = document.getElementById('formConfirmClaim');
     const confirmClaimApptId = document.getElementById('confirmClaimApptId');
     const confirmClaimCurrentDate = document.getElementById('confirmClaimCurrentDate');
+    const formReadyClaim = document.getElementById('formReadyClaim');
+    const readyClaimApptId = document.getElementById('readyClaimApptId');
+    const readyClaimCurrentDate = document.getElementById('readyClaimCurrentDate');
     const formCompleteClaim = document.getElementById('formCompleteClaim');
     const completeClaimApptId = document.getElementById('completeClaimApptId');
     const completeClaimCurrentDate = document.getElementById('completeClaimCurrentDate');
@@ -1515,9 +2054,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const cancelClaimApptId = document.getElementById('cancelClaimApptId');
     const cancelClaimCurrentDate = document.getElementById('cancelClaimCurrentDate');
 
-    const purpose = (appt.purpose || 'consultation').toLowerCase();
-    const isClaim = (purpose === 'eyeglass_claim');
-    const isConsultation = !isClaim && (purpose.includes('consultation') || purpose.includes('eye_exam') || purpose.includes('checkup'));
+    const isConsultation = !isClaim && ((appt.purpose||'').toLowerCase().includes('consultation') || (appt.purpose||'').toLowerCase().includes('eye_exam') || (appt.purpose||'').toLowerCase().includes('checkup'));
     const isExamCompleted = appt.status === 'completed' || (parseInt(appt.rx_count, 10) > 0 && appt.status !== 'pending' && appt.status !== 'in_progress');
     const isCancelledOrNoShow = appt.status === 'cancelled' || appt.status === 'no_show';
     const hasSale = !!appt.sale_id;
@@ -1528,9 +2065,25 @@ document.addEventListener('DOMContentLoaded', function() {
         claimActionBox.classList.remove('d-none');
         claimActionBox.classList.add('d-block');
 
+        if (claimOrderSummary) claimOrderSummary.style.display = 'flex';
+        if (modalClaimJoNo) modalClaimJoNo.textContent = appt.job_order_no || '—';
+        if (modalClaimInvNo) modalClaimInvNo.textContent = appt.invoice_no || '—';
+        if (modalClaimBalanceDueWrap) {
+          const bal = parseFloat(appt.balance_due || 0);
+          if (bal > 0) {
+            modalClaimBalanceDueWrap.innerHTML = `<span class="badge bg-warning text-dark px-2 py-1"><i class="fas fa-exclamation-circle me-1"></i> Balance Due: ₱${bal.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>`;
+          } else if (appt.order_status === 'paid') {
+            modalClaimBalanceDueWrap.innerHTML = `<span class="badge bg-success text-white px-2 py-1"><i class="fas fa-check-circle me-1"></i> Fully Paid</span>`;
+          } else {
+            modalClaimBalanceDueWrap.innerHTML = `<span class="text-muted small">No balance due</span>`;
+          }
+        }
+
         // Populate Form IDs and current dates
         if (confirmClaimApptId) confirmClaimApptId.value = appt.id;
         if (confirmClaimCurrentDate) confirmClaimCurrentDate.value = appt.appointment_date || '';
+        if (readyClaimApptId) readyClaimApptId.value = appt.id;
+        if (readyClaimCurrentDate) readyClaimCurrentDate.value = appt.appointment_date || '';
         if (completeClaimApptId) completeClaimApptId.value = appt.id;
         if (completeClaimCurrentDate) completeClaimCurrentDate.value = appt.appointment_date || '';
         if (cancelClaimApptId) cancelClaimApptId.value = appt.id;
@@ -1539,15 +2092,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (appt.status === 'pending') {
           claimStatusBadge.className = 'badge bg-warning text-dark px-2 py-1';
           claimStatusBadge.innerHTML = '<i class="fas fa-clock me-1"></i> Waiting Confirmation';
-          claimNoticeText.innerHTML = 'This booking was scheduled for an eyeglass claim or fitting. No eye checkup or doctor confirmation is required. You can <strong>Accept &amp; Confirm</strong> this booking right now.';
+          claimNoticeText.innerHTML = 'This booking was scheduled for an eyeglass claim or fitting. No doctor checkup required. You can <strong>Accept &amp; Confirm</strong> this booking right now.';
           if (formConfirmClaim) formConfirmClaim.style.display = 'inline-block';
+          if (formReadyClaim) formReadyClaim.style.display = 'none';
           if (formCompleteClaim) formCompleteClaim.style.display = 'inline-block';
           if (formCancelClaim) formCancelClaim.style.display = 'inline-block';
         } else if (appt.status === 'confirmed') {
           claimStatusBadge.className = 'badge bg-info text-white px-2 py-1';
           claimStatusBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i> Ready for Fitting / Pickup';
-          claimNoticeText.innerHTML = 'Eyeglasses are ready for fitting and handover. Once the patient has received the glasses, click <strong>Mark as Claimed / Done</strong> below.';
+          claimNoticeText.innerHTML = 'Eyeglasses are scheduled for pickup &amp; fitting. If fabricated glasses are now available in the cabinet, mark <strong>Ready for Pickup</strong>. Once handed over, click <strong>Mark as Claimed / Done</strong>.';
           if (formConfirmClaim) formConfirmClaim.style.display = 'none';
+          if (formReadyClaim) formReadyClaim.style.display = (appt.order_status !== 'ready_for_pickup') ? 'inline-block' : 'none';
           if (formCompleteClaim) formCompleteClaim.style.display = 'inline-block';
           if (formCancelClaim) formCancelClaim.style.display = 'inline-block';
         } else if (appt.status === 'completed') {
@@ -1555,6 +2110,7 @@ document.addEventListener('DOMContentLoaded', function() {
           claimStatusBadge.innerHTML = '<i class="fas fa-check-double me-1"></i> Claim Completed';
           claimNoticeText.innerHTML = '<span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i> Eyeglasses have been handed over to the patient and claim is marked completed.</span>';
           if (formConfirmClaim) formConfirmClaim.style.display = 'none';
+          if (formReadyClaim) formReadyClaim.style.display = 'none';
           if (formCompleteClaim) formCompleteClaim.style.display = 'none';
           if (formCancelClaim) formCancelClaim.style.display = 'none';
         } else {
@@ -1562,13 +2118,16 @@ document.addEventListener('DOMContentLoaded', function() {
           claimStatusBadge.innerHTML = appt.status === 'cancelled' ? 'Booking Cancelled' : 'No-Show Recorded';
           claimNoticeText.innerHTML = `This eyeglass claim appointment was marked as ${appt.status === 'cancelled' ? 'cancelled' : 'no-show'}.`;
           if (formConfirmClaim) formConfirmClaim.style.display = 'none';
+          if (formReadyClaim) formReadyClaim.style.display = 'none';
           if (formCompleteClaim) formCompleteClaim.style.display = 'none';
           if (formCancelClaim) formCancelClaim.style.display = 'none';
         }
       } else {
         claimActionBox.classList.remove('d-block');
         claimActionBox.classList.add('d-none');
+        if (claimOrderSummary) claimOrderSummary.style.display = 'none';
         if (formConfirmClaim) formConfirmClaim.style.display = 'none';
+        if (formReadyClaim) formReadyClaim.style.display = 'none';
         if (formCompleteClaim) formCompleteClaim.style.display = 'none';
         if (formCancelClaim) formCancelClaim.style.display = 'none';
       }
@@ -1576,7 +2135,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // POS & Consultation Lock Management
     if (isClaim) {
-      // NEVER show doctor examination alert for eyeglass claims
       if (lockAlert) {
         lockAlert.classList.remove('d-flex');
         lockAlert.classList.add('d-none');
@@ -1722,9 +2280,8 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       let html = '<div class="d-flex flex-column gap-3">';
       dayAppts.forEach(appt => {
-        const p = (appt.purpose || 'consultation').toLowerCase();
-        const isClaimAppt = (p === 'eyeglass_claim');
-        const isConsult = !isClaimAppt && (p.includes('consultation') || p.includes('eye_exam') || p.includes('checkup'));
+        const isClaimAppt = isApptClaim(appt);
+        const isConsult = !isClaimAppt && ((appt.purpose||'').toLowerCase().includes('consultation') || (appt.purpose||'').toLowerCase().includes('eye_exam') || (appt.purpose||'').toLowerCase().includes('checkup'));
         const isDone = appt.status === 'completed' || (parseInt(appt.rx_count, 10) > 0 && appt.status !== 'pending');
 
         let actionBtn = '';
@@ -1747,10 +2304,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 ${formatTime12(appt.appointment_time)}
               </div>
               <div>
-                <h6 class="cal-modal-title fw-bold mb-1">${escapeHtml(appt.patient_name)}</h6>
+                <h6 class="cal-modal-title fw-bold mb-1">
+                  ${escapeHtml(appt.patient_name)}
+                  ${isClaimAppt ? '<span class="cal-claim-badge ms-1"><i class="fas fa-glasses me-1"></i>CLAIM</span>' : ''}
+                </h6>
                 <small class="text-muted">
                   ${escapeHtml((appt.purpose||'').replace(/_/g, ' '))} &middot; 
                   ${escapeHtml(appt.patient_phone || 'No phone')}
+                  ${isClaimAppt && appt.job_order_no ? ` &middot; <strong class="text-primary">JO #${escapeHtml(appt.job_order_no)}</strong>` : ''}
                 </small>
               </div>
             </div>
@@ -1894,7 +2455,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
 
-    // Strict Alphabetical-Only restriction for Name fields (no numbers or special chars)
+    // Strict Alphabetical-Only restriction for Name fields
     const alphaInputs = formRegisterWalkin.querySelectorAll('.alpha-only');
     alphaInputs.forEach(input => {
       input.addEventListener('input', function() {
@@ -2077,8 +2638,10 @@ document.addEventListener('DOMContentLoaded', function() {
       const isToday = (target.appointment_date === todayIso);
       const isFinished = (target.status === 'completed' || target.status === 'cancelled' || target.status === 'no_show');
 
-      if (isToday && !isFinished) {
-        queueSegment = 'current';
+      if (isApptClaim(target)) {
+        queueSegment = isFinished ? 'history' : 'claims';
+      } else if (isToday && !isFinished) {
+        queueSegment = (target.appointment_type === 'WALK_IN') ? 'walkin' : 'upcoming';
       } else if (!isPastDate && !isFinished) {
         queueSegment = 'upcoming';
       } else {

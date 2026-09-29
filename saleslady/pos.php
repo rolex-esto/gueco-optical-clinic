@@ -265,6 +265,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
             $upAppt->closeCursor();
         }
 
+        // Auto-create future Eyeglass Claim appointment on target pickup date
+        if (!empty($targetPickupDate) && $patientId > 0) {
+            $claimNotes = "Eyeglass Claim & Fitting for Job Order #" . ($jobOrderNo ?: $invoiceNo) . " (Invoice: $invoiceNo).";
+            if ($balanceDue > 0) {
+                $claimNotes .= " Balance Due to collect: ₱" . number_format($balanceDue, 2);
+            } else {
+                $claimNotes .= " Paid in Full.";
+            }
+            $insClaim = $db->prepare("
+                INSERT INTO appointments (patient_id, appointment_date, appointment_time, appointment_type, purpose, status, notes, verified_by, created_at)
+                VALUES (?, ?, '14:00:00', 'SCHEDULED', 'eyeglass_claim', 'confirmed', ?, ?, NOW())
+            ");
+            $insClaim->execute([$patientId, $targetPickupDate, $claimNotes, $_SESSION['user_id']]);
+        }
+
         $db->commit();
 
         $logMsg = "Completed sale $invoiceNo for $patientName (Total: " . formatCurrency($total) . ", Type: " . strtoupper($paymentType);

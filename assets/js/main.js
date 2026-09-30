@@ -85,6 +85,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // ── Web Audio API Notification Sound Effects ─────────────
+  // ── Web Audio API Notification Sound Effects ─────────────
   let notifAudioCtx = null;
   function getAudioContext() {
     if (!notifAudioCtx) {
@@ -100,12 +101,13 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Pre-unlock audio on user gesture
-  ['click', 'touchstart', 'keydown'].forEach(evt => {
+  ['click', 'touchstart', 'keydown', 'mousedown'].forEach(evt => {
     document.addEventListener(evt, () => {
-      if (notifAudioCtx && notifAudioCtx.state === 'suspended') {
-        notifAudioCtx.resume().catch(() => {});
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
       }
-    }, { once: true, passive: true });
+    }, { passive: true });
   });
 
   window.playNotificationSound = function (type = 'default') {
@@ -113,62 +115,69 @@ document.addEventListener('DOMContentLoaded', function () {
       const ctx = getAudioContext();
       if (!ctx) return;
 
-      const now = ctx.currentTime;
+      const triggerChime = () => {
+        const now = ctx.currentTime;
+        if (type === 'warning' || type === 'low_stock') {
+          // Distinctive 2-tone warm alert chime for inventory low stock / walk-in waiting
+          const osc1 = ctx.createOscillator();
+          const gain1 = ctx.createGain();
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(659.25, now); // E5
+          gain1.gain.setValueAtTime(0.35, now);
+          gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
+          osc1.connect(gain1);
+          gain1.connect(ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.18);
 
-      if (type === 'warning' || type === 'low_stock') {
-        // Distinctive 2-tone warm alert chime for inventory low stock / warning
-        const osc1 = ctx.createOscillator();
-        const gain1 = ctx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(659.25, now); // E5
-        gain1.gain.setValueAtTime(0.20, now);
-        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
-        osc1.connect(gain1);
-        gain1.connect(ctx.destination);
-        osc1.start(now);
-        osc1.stop(now + 0.15);
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(880, now + 0.14); // A5
+          gain2.gain.setValueAtTime(0.38, now + 0.14);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.start(now + 0.14);
+          osc2.stop(now + 0.50);
+        } else {
+          // Bright, pleasing optical clinic notification bell chime (Ready for POS / new appointment)
+          const osc1 = ctx.createOscillator();
+          const gain1 = ctx.createGain();
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(880, now); // A5
+          gain1.gain.setValueAtTime(0.32, now);
+          gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+          osc1.connect(gain1);
+          gain1.connect(ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.15);
 
-        const osc2 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(880, now + 0.12); // A5
-        gain2.gain.setValueAtTime(0.22, now + 0.12);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
-        osc2.connect(gain2);
-        gain2.connect(ctx.destination);
-        osc2.start(now + 0.12);
-        osc2.stop(now + 0.44);
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(1318.51, now + 0.11); // E6
+          gain2.gain.setValueAtTime(0.35, now + 0.11);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.start(now + 0.11);
+          osc2.stop(now + 0.50);
+        }
+      };
+
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(triggerChime).catch(triggerChime);
       } else {
-        // Bright, pleasing optical clinic notification bell chime
-        const osc1 = ctx.createOscillator();
-        const gain1 = ctx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(880, now); // A5
-        gain1.gain.setValueAtTime(0.18, now);
-        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
-        osc1.connect(gain1);
-        gain1.connect(ctx.destination);
-        osc1.start(now);
-        osc1.stop(now + 0.13);
-
-        const osc2 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(1318.51, now + 0.10); // E6
-        gain2.gain.setValueAtTime(0.20, now + 0.10);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-        osc2.connect(gain2);
-        gain2.connect(ctx.destination);
-        osc2.start(now + 0.10);
-        osc2.stop(now + 0.46);
+        triggerChime();
       }
     } catch (err) {
       console.debug('[Audio] Notification sound failed:', err);
     }
   };
 
-  // ── Toast Notifications (3-Second Display & Audio) ─────────
-  window.showToast = function (message, type = 'info', duration = 3000, playSound = true) {
+  // ── Toast Notifications (Multi-Second Display & Audio) ─────────
+  window.showToast = function (message, type = 'info', duration = 4000, playSound = true) {
     if (playSound) {
       window.playNotificationSound(type);
     }
@@ -179,6 +188,11 @@ document.addEventListener('DOMContentLoaded', function () {
       container.className = 'toast-container';
       document.body.appendChild(container);
     }
+    container.style.position = 'fixed';
+    container.style.top = '24px';
+    container.style.right = '24px';
+    container.style.zIndex = '999999';
+    container.style.pointerEvents = 'none';
 
     const icons = {
       success: 'check-circle',
@@ -190,7 +204,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const icon = icons[type] || icons.info;
 
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
+    toast.className = `toast ${type} show`;
+    toast.style.display = 'flex';
+    toast.style.pointerEvents = 'auto';
+    toast.style.opacity = '1';
+    toast.style.visibility = 'visible';
     toast.innerHTML = `
       <i class="fas fa-${icon} toast-icon" style="font-size:1.15rem;flex-shrink:0"></i>
       <div style="flex:1;">${message}</div>
@@ -202,7 +220,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(() => {
       toast.style.opacity = '0';
       toast.style.transform = 'translateY(-15px) scale(0.96)';
-      setTimeout(() => toast.remove(), 320);
+      setTimeout(() => toast.remove(), 350);
     }, duration);
   };
 
@@ -483,9 +501,24 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Notification Polling (Appointments & Inventory Low Stock) ──
   let knownApptIds = null;
   let knownLowStockIds = null;
-  let knownWalkinIds = null;
-  let knownReadyPosIds = null;
   const notifBtn = document.querySelector('.notif-btn') || document.querySelector('#notifDropdownWrap .header-icon-btn');
+
+  function getAlertedIds(storageKey) {
+    try {
+      const stored = sessionStorage.getItem(storageKey);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch(e) {
+      return new Set();
+    }
+  }
+
+  function addAlertedId(storageKey, id) {
+    try {
+      const set = getAlertedIds(storageKey);
+      set.add(String(id));
+      sessionStorage.setItem(storageKey, JSON.stringify([...set]));
+    } catch(e) {}
+  }
 
   function formatTime(timeStr) {
     if (!timeStr) return '';
@@ -553,10 +586,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // 2. Process Doctor Walk-in Waiting Alerts (Clickable popup with chime)
-        if (knownWalkinIds !== null && (rolePath === 'doctor' || rolePath === 'admin')) {
+        if (rolePath === 'doctor' || rolePath === 'admin') {
+          const alertedWalkins = getAlertedIds('goc_alerted_walkins');
           walkins.forEach(walkin => {
             const currentId = String(walkin.id);
-            if (!knownWalkinIds.has(currentId)) {
+            if (!alertedWalkins.has(currentId)) {
+              addAlertedId('goc_alerted_walkins', currentId);
               const walkinUrl = prefix + 'doctor/appointments.php?highlight=' + walkin.id;
               const msg = `
                 <a href="${walkinUrl}" style="text-decoration:none; color:inherit; display:flex; align-items:flex-start; gap:8px;">
@@ -572,10 +607,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // 3. Process Saleslady Ready for POS Alerts (Clickable popup with chime)
-        if (knownReadyPosIds !== null && (rolePath === 'saleslady' || rolePath === 'admin')) {
+        if (rolePath === 'saleslady' || rolePath === 'admin') {
+          const alertedReadyPos = getAlertedIds('goc_alerted_ready_pos');
           readyPos.forEach(item => {
             const currentId = String(item.id);
-            if (!knownReadyPosIds.has(currentId)) {
+            if (!alertedReadyPos.has(currentId)) {
+              addAlertedId('goc_alerted_ready_pos', currentId);
               const posUrl = prefix + 'saleslady/pos.php?patient_id=' + item.patient_id + '&appt_id=' + item.id;
               const msg = `
                 <a href="${posUrl}" style="text-decoration:none; color:inherit; display:flex; align-items:flex-start; gap:8px;">
@@ -604,8 +641,6 @@ document.addEventListener('DOMContentLoaded', function () {
         
         // Update tracked IDs
         knownApptIds = new Set(appts.map(a => String(a.id)));
-        knownWalkinIds = new Set(walkins.map(w => String(w.id)));
-        knownReadyPosIds = new Set(readyPos.map(r => String(r.id)));
         knownLowStockIds = new Set(lowStock.map(p => String(p.id)));
         
         // Update badge on bell

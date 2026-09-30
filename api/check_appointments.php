@@ -69,8 +69,12 @@ try {
             FROM appointments a
             JOIN patients p ON a.patient_id = p.id
             WHERE a.appointment_date = CURDATE()
-              AND a.sale_id IS NULL
               AND a.status NOT IN ('cancelled', 'no_show')
+              AND NOT EXISTS (
+                  SELECT 1 FROM sales s 
+                  WHERE s.appointment_id = a.id 
+                     OR (s.patient_id = a.patient_id AND DATE(s.created_at) = a.appointment_date)
+              )
               AND (
                   a.status = 'completed'
                   OR EXISTS (

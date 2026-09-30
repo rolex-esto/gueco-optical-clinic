@@ -10,6 +10,22 @@ ensureJobOrderSchema($db);
 ensureAppointmentsSchema($db);
 ensureFinancialComplianceSchema($db);
 
+// AJAX: Check taken slots for appointment date
+if (isset($_GET['check_date'])) {
+    $chkDate = sanitize($_GET['check_date']);
+    $check = $db->prepare("SELECT DATE_FORMAT(appointment_time, '%H:%i') AS appt_time FROM appointments WHERE appointment_date=? AND status NOT IN ('cancelled','no_show')");
+    $check->execute([$chkDate]);
+    header('Content-Type: application/json');
+    $allSlots = explode(',', getSetting('appointment_slots') ?? '09:00,09:30,10:00,10:30,11:00,11:30,13:00,13:30,14:00,14:30,15:00,15:30,16:00,16:30');
+    echo json_encode([
+        'success'   => true,
+        'date'      => $chkDate,
+        'taken'     => $check->fetchAll(PDO::FETCH_COLUMN) ?: [],
+        'all_slots' => $allSlots
+    ]);
+    exit;
+}
+
 // Process sale submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'process_sale') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -498,6 +514,76 @@ include __DIR__ . '/../includes/header.php';
 ?>
 
 <style>
+/* Product Claim Slot Picker Styles (Matches Appointment System) */
+.slot-section-title {
+  font-size: .75rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--clr-primary, #0284c7); margin: 12px 0 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.slot-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border-color, #e2e8f0); }
+.slot-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px;
+}
+.slot-btn {
+  padding: 10px 4px; border-radius: 10px;
+  border: 1.5px solid #CBD5E1;
+  background: #FFFFFF; color: #0F172A;
+  font-family: inherit; font-size: .84rem; font-weight: 800;
+  cursor: pointer; transition: all .15s ease; text-align: center; line-height: 1.2;
+  box-shadow: 0 2px 0 #CBD5E1, 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+.slot-btn .slot-period { font-size: .65rem; color: #64748b; display: block; margin-top: 3px; font-weight: 700; }
+.slot-btn:hover:not(:disabled) {
+  border-color: #0284c7; color: #0284c7;
+  background: #F0F9FF; transform: translateY(-1px);
+  box-shadow: 0 3px 0 #CBD5E1, 0 4px 10px rgba(2, 132, 199, 0.15);
+}
+.slot-btn:active:not(:disabled) {
+  transform: translateY(1px); box-shadow: 0 1px 0 #CBD5E1;
+}
+.slot-btn.selected {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9) !important;
+  color: #fff !important; border-color: transparent !important;
+  box-shadow: 0 3px 0 #0369a1, 0 6px 14px rgba(14, 165, 233, 0.3) !important;
+  transform: translateY(-1px);
+}
+.slot-btn.selected .slot-period { color: #FFFFFF !important; }
+.slot-btn:disabled,
+.slot-btn.is-taken {
+  opacity: .55 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  background: #F8FAFC !important;
+  color: #94A3B8 !important;
+  border: 1.5px dashed #CBD5E1 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  user-select: none !important;
+  text-decoration: line-through;
+}
+.slot-btn:disabled .slot-period.booked,
+.slot-btn.is-taken .slot-period.booked {
+  color: #DC2626 !important;
+  background: rgba(239, 68, 68, 0.12);
+  padding: 1px 4px; border-radius: 4px;
+  margin-top: 2px; display: inline-block;
+  text-decoration: none !important;
+  font-weight: 800;
+}
+.slot-avail-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.slot-avail-bar .badge-avail {
+  font-size: 0.74rem; font-weight: 700; color: #059669;
+  background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 4px 8px; border-radius: 6px;
+}
+.slot-avail-bar .badge-taken {
+  font-size: 0.74rem; font-weight: 700; color: #dc2626;
+  background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 4px 8px; border-radius: 6px;
+}
+
 .pos-layout {
   display: grid;
   grid-template-columns: 1fr 420px;
@@ -1256,38 +1342,45 @@ include __DIR__ . '/../includes/header.php';
           <div id="claimSchedulerContainer" class="p-3 mt-2 rounded border bg-white" style="display:none;">
             <div class="alert alert-info py-2 px-3 small mb-3">
               <i class="fas fa-info-circle me-1"></i>
-              <strong>Schedule Eyeglass Claim:</strong> This patient will be added to the Eyeglass Claims queue on the chosen date, with their full list of purchased items included for staff reference.
+              <strong>Schedule Eyeglass Claim:</strong> Choose a claiming date to check real-time slot availability. Pick an available slot to save the patient's claim in the calendar.
             </div>
+
+            <!-- Validation Alert if no date or time chosen -->
+            <div id="claimValidationAlert" class="alert alert-warning py-2 px-3 small mb-3 d-none">
+              <i class="fas fa-exclamation-triangle me-1"></i> <strong>Please choose a claiming date and time slot first.</strong>
+            </div>
+
             <div class="row g-2 mb-3">
               <div class="col-md-6">
                 <label class="form-label small fw-bold text-muted mb-1">Claiming Date <span class="text-danger">*</span></label>
-                <input type="date" id="claimScheduleDate" class="form-control form-control-sm" min="<?= date('Y-m-d') ?>">
+                <input type="date" id="claimScheduleDate" class="form-control form-control-sm" min="<?= date('Y-m-d') ?>" onchange="loadClaimSlotsForDate()">
               </div>
-              <div class="col-md-6">
-                <label class="form-label small fw-bold text-muted mb-1">Preferred Time Slot</label>
-                <select id="claimScheduleTime" class="form-select form-select-sm">
-                  <option value="09:00">09:00 AM</option>
-                  <option value="09:30">09:30 AM</option>
-                  <option value="10:00">10:00 AM</option>
-                  <option value="10:30">10:30 AM</option>
-                  <option value="11:00">11:00 AM</option>
-                  <option value="11:30">11:30 AM</option>
-                  <option value="13:00">01:00 PM</option>
-                  <option value="13:30">01:30 PM</option>
-                  <option value="14:00" selected>02:00 PM (Default)</option>
-                  <option value="14:30">02:30 PM</option>
-                  <option value="15:00">03:00 PM</option>
-                  <option value="15:30">03:30 PM</option>
-                  <option value="16:00">04:00 PM</option>
-                  <option value="16:30">04:30 PM</option>
-                </select>
+              <div class="col-md-6 d-flex flex-column justify-content-end">
+                <div class="d-flex align-items-center justify-content-between p-2 rounded border bg-light">
+                  <span class="small text-muted fw-bold">Selected Time:</span>
+                  <span id="claimSelectedTimeBadge" class="badge bg-secondary px-2 py-1 fs-7">None Selected</span>
+                  <input type="hidden" id="claimScheduleTime" value="">
+                </div>
               </div>
             </div>
+
+            <!-- Dynamic Slot Availability Grid -->
+            <div class="mb-3">
+              <label class="form-label small fw-bold text-muted mb-1">
+                <i class="fas fa-clock text-primary me-1"></i> Available Slot Time for Selected Date:
+              </label>
+              <div id="claimSlotsContainer" class="p-2 rounded border bg-light">
+                <div class="text-center py-3 text-muted small">
+                  <span class="spinner-border spinner-border-sm me-1"></span> Checking slot availability...
+                </div>
+              </div>
+            </div>
+
             <div class="d-flex justify-content-end gap-2">
               <button type="button" class="btn btn-secondary btn-sm px-3" onclick="toggleClaimScheduler()">
                 Cancel
               </button>
-              <button type="button" class="btn btn-success btn-sm px-4 fw-bold" id="btnSubmitClaimAppt" onclick="submitClaimAppointment()">
+              <button type="button" class="btn btn-success btn-sm px-4 fw-bold shadow-sm" id="btnSubmitClaimAppt" onclick="submitClaimAppointment()">
                 <i class="fas fa-calendar-check me-1"></i> Confirm &amp; Save Claim Appointment
               </button>
             </div>
@@ -2252,6 +2345,18 @@ function showBillingSummaryModal(data) {
     relSuccess.innerHTML = '';
   }
 
+  const valAlert = document.getElementById('claimValidationAlert');
+  if (valAlert) valAlert.classList.add('d-none');
+
+  const timeInput = document.getElementById('claimScheduleTime');
+  if (timeInput) timeInput.value = '';
+
+  const timeBadge = document.getElementById('claimSelectedTimeBadge');
+  if (timeBadge) {
+    timeBadge.className = 'badge bg-secondary px-2 py-1 fs-7';
+    timeBadge.textContent = 'None Selected';
+  }
+
   const choiceRow = document.getElementById('claimActionChoiceRow');
   if (choiceRow) choiceRow.style.display = 'flex';
 
@@ -2299,9 +2404,123 @@ function toggleClaimScheduler() {
   if (!container) return;
   if (container.style.display === 'none' || !container.style.display) {
     container.style.display = 'block';
+    loadClaimSlotsForDate();
     container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } else {
     container.style.display = 'none';
+  }
+}
+
+async function loadClaimSlotsForDate() {
+  const dateInput = document.getElementById('claimScheduleDate');
+  const container = document.getElementById('claimSlotsContainer');
+  const timeInput = document.getElementById('claimScheduleTime');
+  const timeBadge = document.getElementById('claimSelectedTimeBadge');
+  const validationAlert = document.getElementById('claimValidationAlert');
+  if (validationAlert) validationAlert.classList.add('d-none');
+
+  if (!dateInput || !container) return;
+  const chosenDate = dateInput.value;
+  if (!chosenDate) {
+    container.innerHTML = '<div class="text-muted small py-2">Please select a valid date first.</div>';
+    return;
+  }
+
+  // Reset selected time
+  if (timeInput) timeInput.value = '';
+  if (timeBadge) {
+    timeBadge.className = 'badge bg-secondary px-2 py-1 fs-7';
+    timeBadge.textContent = 'None Selected';
+  }
+
+  container.innerHTML = '<div class="text-center py-3 text-muted small"><span class="spinner-border spinner-border-sm me-1"></span> Checking available time slots...</div>';
+
+  try {
+    const res = await fetch(`pos.php?check_date=${encodeURIComponent(chosenDate)}`);
+    const data = await res.json();
+
+    if (!data.success) {
+      container.innerHTML = `<div class="alert alert-danger py-2 px-3 small mb-0">Error loading slots: ${data.error || 'Server error'}</div>`;
+      return;
+    }
+
+    const allSlots = data.all_slots || ['09:00','09:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30'];
+    const taken = data.taken || [];
+    const availableSlots = allSlots.filter(s => !taken.includes(s));
+
+    container.innerHTML = '';
+
+    // Availability summary banner
+    const availBar = document.createElement('div');
+    availBar.className = 'slot-avail-bar mb-2';
+    availBar.innerHTML = `
+      <span class="badge-avail"><i class="fas fa-circle-check me-1"></i>${availableSlots.length} of ${allSlots.length} slots available</span>
+      ${taken.length > 0 ? `<span class="badge-taken"><i class="fas fa-lock me-1"></i>${taken.length} slot${taken.length > 1 ? 's' : ''} taken</span>` : ''}
+    `;
+    container.appendChild(availBar);
+
+    if (availableSlots.length === 0) {
+      const fullAlert = document.createElement('div');
+      fullAlert.className = 'alert alert-danger py-2 px-3 small mb-0';
+      fullAlert.innerHTML = '<i class="fas fa-calendar-times me-1"></i> All slots for this date are fully booked. Please select another date.';
+      container.appendChild(fullAlert);
+      return;
+    }
+
+    const amSlots = allSlots.filter(s => parseInt(s.split(':')[0], 10) < 12);
+    const pmSlots = allSlots.filter(s => parseInt(s.split(':')[0], 10) >= 12);
+
+    const renderSlotSection = (titleText, iconClass, slots) => {
+      if (!slots.length) return;
+      const secHdr = document.createElement('div');
+      secHdr.className = 'slot-section-title';
+      secHdr.innerHTML = `<i class="${iconClass}"></i> ${titleText}`;
+      container.appendChild(secHdr);
+
+      const grid = document.createElement('div');
+      grid.className = 'slot-grid mb-2';
+
+      slots.forEach(slot => {
+        const isTaken = taken.includes(slot);
+        const [h, m] = slot.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        const timeFormatted = `${h12}:${String(m).padStart(2, '0')}`;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slot-btn' + (isTaken ? ' is-taken' : '');
+        btn.disabled = isTaken;
+        btn.title = isTaken ? 'This time slot is taken' : `Select ${timeFormatted} ${ampm}`;
+        btn.innerHTML = `
+          ${timeFormatted}
+          <span class="slot-period ${isTaken ? 'booked' : ''}">
+            ${isTaken ? '<i class="fas fa-lock me-1"></i>Booked' : ampm}
+          </span>
+        `;
+
+        if (!isTaken) {
+          btn.addEventListener('click', () => {
+            container.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            if (timeInput) timeInput.value = slot;
+            if (timeBadge) {
+              timeBadge.className = 'badge bg-success text-white px-2 py-1 fs-7 shadow-sm';
+              timeBadge.innerHTML = `<i class="fas fa-check-circle me-1"></i>${timeFormatted} ${ampm}`;
+            }
+            if (validationAlert) validationAlert.classList.add('d-none');
+          });
+        }
+        grid.appendChild(btn);
+      });
+      container.appendChild(grid);
+    };
+
+    renderSlotSection('Morning Slots', 'fas fa-sun text-warning', amSlots);
+    renderSlotSection('Afternoon Slots', 'fas fa-cloud-sun text-info', pmSlots);
+
+  } catch(e) {
+    container.innerHTML = '<div class="alert alert-danger py-2 px-3 small mb-0">Failed to load available slots. Please try again.</div>';
   }
 }
 
@@ -2354,11 +2573,20 @@ async function releaseProductsToday() {
 async function submitClaimAppointment() {
   if (!currentSummaryData || !currentSummaryData.sale_id) return;
   const claimDate = document.getElementById('claimScheduleDate')?.value;
-  const claimTime = document.getElementById('claimScheduleTime')?.value || '14:00';
+  const claimTime = document.getElementById('claimScheduleTime')?.value;
+  const validationAlert = document.getElementById('claimValidationAlert');
 
-  if (!claimDate) {
-    alert('Please select a claiming date.');
+  if (!claimDate || !claimTime) {
+    if (validationAlert) {
+      validationAlert.classList.remove('d-none');
+      validationAlert.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> <strong>Please choose a claiming date and time slot first.</strong>';
+      validationAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    showToast('Please choose a claiming date and time slot first.', 'warning');
     return;
+  }
+  if (validationAlert) {
+    validationAlert.classList.add('d-none');
   }
 
   const btn = document.getElementById('btnSubmitClaimAppt');

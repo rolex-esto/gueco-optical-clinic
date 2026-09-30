@@ -114,30 +114,31 @@ $apptsStmt = $db->query("
            p.gender as patient_gender,
            p.birthdate as patient_birthdate,
            (SELECT COUNT(*) FROM prescriptions rx WHERE rx.patient_id = a.patient_id) as rx_count,
+           (SELECT COUNT(*) FROM prescriptions rx WHERE rx.appointment_id = a.id OR (rx.patient_id = a.patient_id AND DATE(rx.created_at) = a.appointment_date)) as today_rx_count,
            (SELECT COUNT(*) FROM appointments a2 WHERE a2.patient_id = a.patient_id AND a2.status = 'completed') as completed_visits,
            COALESCE(
                (SELECT s.id FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
-               (SELECT s2.id FROM sales s2 WHERE s2.patient_id = a.patient_id AND (DATE(s2.created_at) = a.appointment_date OR a.status = 'completed') ORDER BY s2.id DESC LIMIT 1)
+               (SELECT s2.id FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
            ) as sale_id,
            COALESCE(
                (SELECT s.invoice_no FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
-               (SELECT s2.invoice_no FROM sales s2 WHERE s2.patient_id = a.patient_id AND (DATE(s2.created_at) = a.appointment_date OR a.status = 'completed') ORDER BY s2.id DESC LIMIT 1)
+               (SELECT s2.invoice_no FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
            ) as invoice_no,
            COALESCE(
                (SELECT s.job_order_no FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
-               (SELECT s2.job_order_no FROM sales s2 WHERE s2.patient_id = a.patient_id ORDER BY s2.id DESC LIMIT 1)
+               (SELECT s2.job_order_no FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
            ) as job_order_no,
            COALESCE(
                (SELECT s.order_status FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
-               (SELECT s2.order_status FROM sales s2 WHERE s2.patient_id = a.patient_id ORDER BY s2.id DESC LIMIT 1)
+               (SELECT s2.order_status FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
            ) as order_status,
            COALESCE(
                (SELECT s.balance_due FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
-               (SELECT s2.balance_due FROM sales s2 WHERE s2.patient_id = a.patient_id ORDER BY s2.id DESC LIMIT 1)
+               (SELECT s2.balance_due FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
            ) as balance_due,
            COALESCE(
                (SELECT s.payment_type FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
-               (SELECT s2.payment_type FROM sales s2 WHERE s2.patient_id = a.patient_id ORDER BY s2.id DESC LIMIT 1)
+               (SELECT s2.payment_type FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
            ) as payment_type
     FROM appointments a
     JOIN patients p ON p.id = a.patient_id
@@ -245,6 +246,13 @@ include __DIR__ . '/../includes/header.php';
   border-color: var(--clr-primary, #00ADEF) !important;
   color: #ffffff !important;
   box-shadow: 0 2px 8px rgba(0, 173, 239, 0.3);
+}
+.rx-ready-row {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-left: 4px solid #10b981 !important;
+}
+.rx-ready-row td {
+  background: transparent !important;
 }
 </style>
 
@@ -373,62 +381,36 @@ include __DIR__ . '/../includes/header.php';
     </div>
   </div>
 
-  <!-- 2. Filter & Live Search Toolbar -->
-  <div class="cal-toolbar d-flex flex-column gap-2 p-3">
-    <!-- Row 1: Booking / Purpose Segregation & Walk-in Toggle -->
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 w-100 pb-2 border-bottom border-light">
-      <div class="d-flex align-items-center gap-2 flex-wrap" id="typeFilterContainer">
-        <span class="text-uppercase fw-bold text-muted me-1" style="font-size:0.7rem; letter-spacing:0.5px;">
-          <i class="fas fa-filter me-1"></i>Calendar View:
-        </span>
-        <button type="button" class="cal-type-btn active" data-type="all" id="btnFilterAll">
-          <i class="fas fa-calendar-check"></i> All Bookings (<span id="countTypeAll">0</span>)
-        </button>
-        <button type="button" class="cal-type-btn" data-type="claims" id="btnFilterClaims">
-          <i class="fas fa-glasses text-success"></i> Eyeglass Claims (<span id="countTypeClaims">0</span>)
-        </button>
-        <button type="button" class="cal-type-btn" data-type="consultations" id="btnFilterConsults">
-          <i class="fas fa-user-doctor text-info"></i> Scheduled Checkups (<span id="countTypeConsults">0</span>)
-        </button>
-      </div>
-
-      <div class="form-check form-switch m-0 d-flex align-items-center gap-2" title="Keep unchecked to prevent 15-20 daily walk-in checkups from cluttering calendar squares">
-        <input class="form-check-input" type="checkbox" id="toggleIncludeWalkins" style="cursor:pointer;">
-        <label class="form-check-label text-muted" for="toggleIncludeWalkins" style="font-size:0.75rem; cursor:pointer;">
-          Include Same-Day Walk-ins on Calendar
-        </label>
-      </div>
+  <!-- 2. Clean, Streamlined Single-Row Toolbar -->
+  <div class="cal-toolbar d-flex align-items-center justify-content-between flex-wrap gap-3 p-3">
+    <!-- Left: Purpose Filter Buttons (All Bookings, Eyeglass Claims, Scheduled Checkups) -->
+    <div class="d-flex align-items-center gap-2 flex-wrap" id="typeFilterContainer">
+      <button type="button" class="cal-type-btn active" data-type="all" id="btnFilterAll">
+        <i class="fas fa-calendar-check"></i> All Bookings (<span id="countTypeAll">0</span>)
+      </button>
+      <button type="button" class="cal-type-btn" data-type="claims" id="btnFilterClaims">
+        <i class="fas fa-glasses text-success"></i> Eyeglass Claims (<span id="countTypeClaims">0</span>)
+      </button>
+      <button type="button" class="cal-type-btn" data-type="consultations" id="btnFilterConsults">
+        <i class="fas fa-user-md text-info"></i> Scheduled Checkups (<span id="countTypeConsults">0</span>)
+      </button>
     </div>
 
-    <!-- Row 2: Status Filters & Search Box -->
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 w-100">
-      <div class="cal-status-filters" id="statusFilterContainer">
-        <button type="button" class="cal-filter-pill active" data-status="all">
-          <span class="cal-bullet bullet-all"></span> All (<span id="countAll">0</span>)
-        </button>
-        <button type="button" class="cal-filter-pill" data-status="confirmed">
-          <span class="cal-bullet bullet-confirmed"></span> Confirmed (<span id="countConfirmed">0</span>)
-        </button>
-        <button type="button" class="cal-filter-pill" data-status="in_progress">
-          <span class="cal-bullet" style="background:#0ea5e9;"></span> In-Progress (<span id="countInProgress">0</span>)
-        </button>
-        <button type="button" class="cal-filter-pill" data-status="pending">
-          <span class="cal-bullet bullet-pending"></span> Pending (<span id="countPending">0</span>)
-        </button>
-        <button type="button" class="cal-filter-pill" data-status="completed">
-          <span class="cal-bullet bullet-completed"></span> Done (<span id="countCompleted">0</span>)
-        </button>
-        <button type="button" class="cal-filter-pill" data-status="no_show">
-          <span class="cal-bullet bullet-no_show"></span> No-Show (<span id="countNoShow">0</span>)
-        </button>
-        <button type="button" class="cal-filter-pill" data-status="cancelled">
-          <span class="cal-bullet bullet-cancelled"></span> Cancelled (<span id="countCancelled">0</span>)
-        </button>
-      </div>
+    <!-- Right: Status Dropdown & Search Box -->
+    <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-end" style="max-width: 480px;">
+      <select id="calStatusSelect" class="form-select form-select-sm shadow-none" style="font-size: 0.82rem; border-radius: 8px; font-weight: 500; width: 145px; padding: 6px 12px; cursor: pointer; border-color: var(--border-color, #e2e8f0);">
+        <option value="all">All Statuses</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="in_progress">In-Progress</option>
+        <option value="pending">Pending</option>
+        <option value="completed">Done</option>
+        <option value="no_show">No-Show</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
 
-      <div class="cal-search-box">
+      <div class="cal-search-box flex-grow-1" style="margin: 0;">
         <i class="fas fa-search"></i>
-        <input type="text" id="calSearchInput" placeholder="Search patient, phone, Job Order #...">
+        <input type="text" id="calSearchInput" placeholder="Search patient, phone...">
       </div>
     </div>
   </div>
@@ -1068,9 +1050,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const monthGrid = document.getElementById('monthGrid');
   const tableBody = document.getElementById('tableBody');
   const searchInput = document.getElementById('calSearchInput');
-  const filterPills = document.querySelectorAll('.cal-filter-pill');
+  const calStatusSelect = document.getElementById('calStatusSelect');
   const typeFilterBtns = document.querySelectorAll('.cal-type-btn');
-  const toggleIncludeWalkins = document.getElementById('toggleIncludeWalkins');
 
   // Modals
   const appointmentModalEl = document.getElementById('appointmentModal');
@@ -1150,7 +1131,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const isWalkin = (appt.appointment_type === 'WALK_IN');
 
       // Exclude same-day walk-in checkups by default so calendar isn't cluttered
-      if (!includeWalkinsInCalendar && isWalkin && !isClaim) {
+      // But if user typed a search query, include all matching patients (including walk-ins) so search always finds them
+      if (searchQuery.trim() === '' && isWalkin && !isClaim) {
         return false;
       }
 
@@ -1181,15 +1163,15 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateCounts() {
     const todayIso = formatDateIso(new Date());
 
-    // 1. Calendar View Type button counters
+    // 1. Calendar View Type button counters (All Bookings, Eyeglass Claims, Scheduled Checkups)
     const countAllBookings = rawAppointments.filter(a => {
       const isClaim = isApptClaim(a);
       const isWalkin = (a.appointment_type === 'WALK_IN');
-      return includeWalkinsInCalendar || (!isWalkin || isClaim);
+      return !isWalkin || isClaim;
     }).length;
 
     const countAllClaims = rawAppointments.filter(a => isApptClaim(a)).length;
-    const countAllConsults = rawAppointments.filter(a => !isApptClaim(a) && (includeWalkinsInCalendar || a.appointment_type !== 'WALK_IN')).length;
+    const countAllConsults = rawAppointments.filter(a => !isApptClaim(a) && a.appointment_type !== 'WALK_IN').length;
 
     const cTypeAll = document.getElementById('countTypeAll');
     const cTypeClaims = document.getElementById('countTypeClaims');
@@ -1199,25 +1181,29 @@ document.addEventListener('DOMContentLoaded', function() {
     if (cTypeConsults) cTypeConsults.textContent = countAllConsults;
 
     // 2. Queue Segment tab counters
+    // Today's Walk-in Queue: All active walk-in patients today who have NOT had a sale completed and are not cancelled/no-show
     const countWalkin = rawAppointments.filter(a => {
       const isWalkin = (a.appointment_type === 'WALK_IN');
-      const isFinished = (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
+      const isFinished = !!a.sale_id || (a.status === 'cancelled' || a.status === 'no_show');
       return a.appointment_date === todayIso && isWalkin && !isApptClaim(a) && !isFinished;
     }).length;
 
+    // Eyeglass claims queue: All claims that are pending or confirmed (not finished with handover)
     const countClaims = rawAppointments.filter(a => {
       const isFinished = (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
       return isApptClaim(a) && !isFinished;
     }).length;
 
+    // Upcoming: Future bookings (non-walkin or future claims) that are not finished
     const countUpcoming = rawAppointments.filter(a => {
       const isFinished = (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
       return a.appointment_date > todayIso && !isFinished;
     }).length;
 
+    // History: Past dates or finished transactions
     const countHistory = rawAppointments.filter(a => {
       const isPastDate = (a.appointment_date < todayIso);
-      const isFinished = (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
+      const isFinished = (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show' || !!a.sale_id);
       return isPastDate || isFinished;
     }).length;
 
@@ -1229,45 +1215,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (segClaimsEl) segClaimsEl.textContent = countClaims;
     if (segUpcomingEl) segUpcomingEl.textContent = countUpcoming;
     if (segHistoryEl) segHistoryEl.textContent = countHistory;
-
-    // 3. Status filter pill counts
-    let baseList = rawAppointments;
-    if (currentView === 'table') {
-      if (queueSegment === 'walkin') {
-        baseList = rawAppointments.filter(a => a.appointment_date === todayIso && a.appointment_type === 'WALK_IN' && !isApptClaim(a));
-      } else if (queueSegment === 'claims') {
-        baseList = rawAppointments.filter(a => isApptClaim(a));
-      } else if (queueSegment === 'upcoming') {
-        baseList = rawAppointments.filter(a => a.appointment_date > todayIso && !(a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'));
-      } else if (queueSegment === 'history') {
-        baseList = rawAppointments.filter(a => a.appointment_date < todayIso || (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'));
-      }
-    } else {
-      baseList = getCalendarAppointments();
-    }
-
-    const total = baseList.length;
-    const confirmed = baseList.filter(a => a.status === 'confirmed').length;
-    const inProgress = baseList.filter(a => a.status === 'in_progress').length;
-    const pending = baseList.filter(a => a.status === 'pending').length;
-    const completed = baseList.filter(a => a.status === 'completed').length;
-    const noShow = baseList.filter(a => a.status === 'no_show').length;
-    const cancelled = baseList.filter(a => a.status === 'cancelled').length;
-
-    const cAll = document.getElementById('countAll');
-    if (cAll) cAll.textContent = total;
-    const cConf = document.getElementById('countConfirmed');
-    if (cConf) cConf.textContent = confirmed;
-    const cInProg = document.getElementById('countInProgress');
-    if (cInProg) cInProg.textContent = inProgress;
-    const cPend = document.getElementById('countPending');
-    if (cPend) cPend.textContent = pending;
-    const cComp = document.getElementById('countCompleted');
-    if (cComp) cComp.textContent = completed;
-    const cNoShow = document.getElementById('countNoShow');
-    if (cNoShow) cNoShow.textContent = noShow;
-    const cCanc = document.getElementById('countCancelled');
-    if (cCanc) cCanc.textContent = cancelled;
   }
 
   // ── 1. RENDER MONTH VIEW ───────────────────────────────────────
@@ -1352,6 +1299,30 @@ document.addEventListener('DOMContentLoaded', function() {
       numWrap.appendChild(claimPill);
     }
 
+    if (dateIso === todayIso) {
+      const todayWalkinsCount = rawAppointments.filter(a => a.appointment_date === todayIso && a.appointment_type === 'WALK_IN' && !isApptClaim(a) && !a.sale_id && a.status !== 'cancelled' && a.status !== 'no_show').length;
+      if (todayWalkinsCount > 0) {
+        const walkinPill = document.createElement('span');
+        walkinPill.className = 'badge bg-warning-subtle text-dark border border-warning-subtle px-1 py-0';
+        walkinPill.style.fontSize = '0.62rem';
+        walkinPill.style.cursor = 'pointer';
+        walkinPill.title = `${todayWalkinsCount} Walk-in Patient(s) in Queue Today - Click to view`;
+        walkinPill.innerHTML = `<i class="fas fa-walking me-1"></i>${todayWalkinsCount}`;
+        walkinPill.addEventListener('click', (e) => {
+          e.stopPropagation();
+          currentView = 'table';
+          allViewBtns.forEach(b => b.classList.toggle('active', b.dataset.view === 'table'));
+          queueSegment = 'walkin';
+          const queueTabBtns = document.querySelectorAll('.cal-queue-tab-btn');
+          queueTabBtns.forEach(b => b.classList.toggle('active', b.dataset.segment === 'walkin'));
+          currentFilter = 'all';
+          if (calStatusSelect) calStatusSelect.value = 'all';
+          render();
+        });
+        numWrap.appendChild(walkinPill);
+      }
+    }
+
     if (appts.length > 0) {
       const dotsRow = document.createElement('span');
       dotsRow.className = 'cal-day-dots-row';
@@ -1395,15 +1366,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const timeStr = formatTime12(appt.appointment_time);
 
       let subMeta = '';
-      if (isClaim) {
-        if (appt.job_order_no) {
-          subMeta = `<div class="cal-card-meta"><i class="fas fa-barcode me-1"></i>JO: ${escapeHtml(appt.job_order_no)}</div>`;
-        } else if (appt.invoice_no) {
-          subMeta = `<div class="cal-card-meta"><i class="fas fa-receipt me-1"></i>Inv: ${escapeHtml(appt.invoice_no)}</div>`;
-        }
-        if (parseFloat(appt.balance_due) > 0) {
-          subMeta += `<div class="text-warning fw-bold" style="font-size:0.65rem;">Bal: ₱${parseFloat(appt.balance_due).toLocaleString()}</div>`;
-        }
+      if (isClaim && parseFloat(appt.balance_due) > 0) {
+        subMeta = `<div class="text-warning fw-bold" style="font-size:0.65rem;"><i class="fas fa-coins me-1"></i>Bal: ₱${parseFloat(appt.balance_due).toLocaleString()}</div>`;
       }
 
       card.innerHTML = `
@@ -1507,12 +1471,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ? '<span class="cal-claim-badge"><i class="fas fa-glasses me-1"></i>CLAIM</span>'
             : (isWalkin ? '<span class="cal-walkin-badge">Walk-in</span>' : '<span class="cal-booking-badge">Book</span>');
 
-          let extraJo = '';
-          if (isClaim && appt.job_order_no) {
-            extraJo = `<span class="badge bg-dark-subtle text-info small" style="font-size:0.68rem;"><i class="fas fa-barcode me-1"></i>${escapeHtml(appt.job_order_no)}</span>`;
-          } else {
-            extraJo = `<span class="badge bg-dark-subtle text-info small" style="font-size:0.68rem;"><i class="fas fa-tag me-1"></i>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>`;
-          }
+          let extraMeta = `<span class="badge bg-dark-subtle text-muted small" style="font-size:0.68rem;"><i class="fas fa-tag me-1"></i>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>`;
 
           card.innerHTML = `
             <div class="cal-card-chips-row">
@@ -1522,7 +1481,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="cal-week-card-name">${escapeHtml(appt.patient_name)}</div>
             <div class="d-flex justify-content-between align-items-center mt-2">
-              ${extraJo}
+              ${extraMeta}
               ${isClaim && parseFloat(appt.balance_due) > 0 ? `<span class="badge bg-warning-subtle text-warning small" style="font-size:0.68rem;">Bal: ₱${parseFloat(appt.balance_due).toLocaleString()}</span>` : `<span class="badge bg-dark-subtle text-muted small" style="font-size:0.68rem;">Rx: ${appt.rx_count || 0}</span>`}
             </div>
           `;
@@ -1605,7 +1564,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <h6>${escapeHtml(appt.patient_name)} ${badgeTypeHtml}</h6>
               <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
                 <span class="cal-side-chip chip-${appt.status}">${appt.status.replace('_', ' ')}</span>
-                ${isClaim && appt.job_order_no ? `<span class="badge bg-dark-subtle text-info small"><i class="fas fa-barcode me-1"></i>JO: ${escapeHtml(appt.job_order_no)}</span>` : `<span class="badge bg-primary-subtle text-primary border border-primary-subtle small"><i class="fas fa-tag me-1"></i>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>`}
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle small"><i class="fas fa-tag me-1"></i>${escapeHtml((appt.purpose||'').replace(/_/g, ' '))}</span>
                 ${isClaim && parseFloat(appt.balance_due) > 0 ? `<span class="badge bg-warning-subtle text-warning border border-warning-subtle small">Bal: ₱${parseFloat(appt.balance_due).toLocaleString()}</span>` : ''}
                 <span class="text-muted small"><i class="fas fa-phone-alt me-1"></i>${escapeHtml(appt.patient_phone || 'No phone')}</span>
               </div>
@@ -1649,10 +1608,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
       if (queueSegment === 'walkin') {
         // Today's Walk-in checkup queue
+        // A walk-in patient is active until POS checkout is completed (appt.sale_id exists) or cancelled/no-show
         if (currentFilter !== 'all') {
           return isToday && isWalkin && !isClaim && (appt.status === currentFilter);
         }
-        return isToday && isWalkin && !isClaim && !isFinished;
+        const isBilled = !!appt.sale_id;
+        const isDropped = (appt.status === 'cancelled' || appt.status === 'no_show');
+        return isToday && isWalkin && !isClaim && !isBilled && !isDropped;
       } else if (queueSegment === 'claims') {
         // Eyeglass claims queue (all active or pending pickup)
         if (currentFilter !== 'all') {
@@ -1668,9 +1630,9 @@ document.addEventListener('DOMContentLoaded', function() {
       } else if (queueSegment === 'history') {
         // Past due & completed records
         if (currentFilter !== 'all') {
-          return (isPastDate || isFinished) && (appt.status === currentFilter);
+          return (isPastDate || isFinished || !!appt.sale_id) && (appt.status === currentFilter);
         }
-        return isPastDate || isFinished;
+        return isPastDate || isFinished || !!appt.sale_id;
       }
       return true;
     });
@@ -1706,7 +1668,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 4. Sort order tailored to segment
     segmentAppts.sort((a, b) => {
-      if (queueSegment === 'history') {
+      if (queueSegment === 'walkin') {
+        const aRxDone = (a.status === 'completed' || parseInt(a.today_rx_count || a.rx_count || 0, 10) > 0) && !a.sale_id;
+        const bRxDone = (b.status === 'completed' || parseInt(b.today_rx_count || b.rx_count || 0, 10) > 0) && !b.sale_id;
+        if (aRxDone && !bRxDone) return -1;
+        if (!aRxDone && bRxDone) return 1;
+        return (a.appointment_time || '').localeCompare(b.appointment_time || '');
+      } else if (queueSegment === 'history') {
         if (a.appointment_date !== b.appointment_date) {
           return b.appointment_date.localeCompare(a.appointment_date);
         }
@@ -1754,11 +1722,16 @@ document.addEventListener('DOMContentLoaded', function() {
       const isWalkin = (appt.appointment_type === 'WALK_IN');
       const isPastDate = (appt.appointment_date < todayIso);
       const isUnfinishedPast = isPastDate && (appt.status !== 'completed' && appt.status !== 'cancelled' && appt.status !== 'no_show');
+      const isRxReadyForPos = !isClaim && !appt.sale_id && (appt.status === 'completed' || parseInt(appt.today_rx_count || appt.rx_count || 0, 10) > 0) && appt.status !== 'cancelled' && appt.status !== 'no_show';
+
       const tr = document.createElement('tr');
       tr.id = 'appt-row-' + appt.id;
       tr.dataset.apptId = appt.id;
       if (highlightApptId && parseInt(appt.id, 10) === highlightApptId) {
         tr.classList.add('appt-highlight-pulse');
+      }
+      if (isRxReadyForPos) {
+        tr.classList.add('rx-ready-row');
       }
       const apptDateObj = new Date(appt.appointment_date + 'T00:00:00');
 
@@ -1792,9 +1765,15 @@ document.addEventListener('DOMContentLoaded', function() {
         paymentHtml = `<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1">${escapeHtml(appt.payment_type.replace('_', ' '))}</span>`;
       }
 
+      // Status column with Rx Ready highlight
+      let statusBadgeHtml = getStatusBadgeHtml(appt.status);
+      if (isRxReadyForPos) {
+        statusBadgeHtml = '<span class="badge bg-success text-white py-1 px-2 shadow-sm"><i class="fas fa-check-circle me-1"></i>Prescription Ready · Ready for POS</span>';
+      }
+
       // Action buttons
       let actionButtons = `
-        <div class="d-flex gap-1 flex-wrap">
+        <div class="d-flex gap-1 flex-wrap align-items-center">
           <button type="button" class="btn btn-outline-primary btn-sm px-2 py-1 btn-open-table-modal" title="Manage / View Details">
             <i class="fas fa-eye"></i>
           </button>
@@ -1822,11 +1801,33 @@ document.addEventListener('DOMContentLoaded', function() {
           `;
         }
       } else {
-        actionButtons += `
-          <a href="pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}" class="btn btn-primary btn-sm px-2 py-1" title="POS Checkout">
-            <i class="fas fa-shopping-cart"></i>
-          </a>
-        `;
+        if (appt.sale_id) {
+          actionButtons += `
+            <a href="receipt.php?id=${appt.sale_id}" target="_blank" class="btn btn-outline-secondary btn-sm px-2 py-1" title="View Receipt">
+              <i class="fas fa-file-invoice me-1"></i> Receipt
+            </a>
+          `;
+        } else if (isRxReadyForPos) {
+          actionButtons += `
+            <a href="pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}" class="btn btn-success btn-sm px-2 py-1 fw-bold shadow-sm" title="Doctor Exam Complete: Proceed to Frame Selection & POS Checkout">
+              <i class="fas fa-shopping-cart me-1"></i> POS Checkout
+            </a>
+          `;
+        } else if (appt.status === 'in_progress') {
+          actionButtons += `
+            <button type="button" class="btn btn-secondary btn-sm px-2 py-1 disabled" style="opacity:0.75;" title="Exam in progress with Doctor">
+              <i class="fas fa-stethoscope me-1"></i> In Exam
+            </button>
+          `;
+        } else if (appt.status === 'cancelled' || appt.status === 'no_show') {
+          // No action
+        } else {
+          actionButtons += `
+            <a href="pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}" class="btn btn-primary btn-sm px-2 py-1" title="POS Checkout">
+              <i class="fas fa-shopping-cart me-1"></i> POS
+            </a>
+          `;
+        }
       }
       actionButtons += '</div>';
 
@@ -1844,7 +1845,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </td>
         <td>${joInvHtml}</td>
         <td>${paymentHtml}</td>
-        <td>${getStatusBadgeHtml(appt.status)}</td>
+        <td>${statusBadgeHtml}</td>
         <td>${actionButtons}</td>
       `;
 
@@ -1898,15 +1899,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // ── Toggle Include Same-Day Walk-ins on Calendar ────────────────
-  if (toggleIncludeWalkins) {
-    toggleIncludeWalkins.checked = includeWalkinsInCalendar;
-    toggleIncludeWalkins.addEventListener('change', function() {
-      includeWalkinsInCalendar = this.checked;
-      render();
-    });
-  }
-
   // ── Queue Segment Tabs ─────────────────────────────────────────
   const queueTabBtns = document.querySelectorAll('.cal-queue-tab-btn');
   queueTabBtns.forEach(btn => {
@@ -1916,7 +1908,7 @@ document.addEventListener('DOMContentLoaded', function() {
       queueSegment = btn.dataset.segment;
       // Reset status filter to 'all' so user sees full segment list
       currentFilter = 'all';
-      filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+      if (calStatusSelect) calStatusSelect.value = 'all';
       render();
     });
   });
@@ -1929,7 +1921,7 @@ document.addEventListener('DOMContentLoaded', function() {
       queueSegment = 'walkin';
       queueTabBtns.forEach(b => b.classList.toggle('active', b.dataset.segment === 'walkin'));
       currentFilter = 'all';
-      filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+      if (calStatusSelect) calStatusSelect.value = 'all';
     }
     render();
   });
@@ -1961,21 +1953,20 @@ document.addEventListener('DOMContentLoaded', function() {
       currentView = btn.dataset.view;
       if (currentView === 'table') {
         currentFilter = 'all';
-        filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+        if (calStatusSelect) calStatusSelect.value = 'all';
       }
       render();
     });
   });
 
-  // Filter Buttons
-  filterPills.forEach(pill => {
-    pill.addEventListener('click', () => {
-      filterPills.forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      currentFilter = pill.dataset.status;
+  // Status Filter Dropdown
+  if (calStatusSelect) {
+    calStatusSelect.value = currentFilter;
+    calStatusSelect.addEventListener('change', () => {
+      currentFilter = calStatusSelect.value;
       render();
     });
-  });
+  }
 
   // Search Input
   searchInput.addEventListener('input', (e) => {
@@ -2055,7 +2046,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const cancelClaimCurrentDate = document.getElementById('cancelClaimCurrentDate');
 
     const isConsultation = !isClaim && ((appt.purpose||'').toLowerCase().includes('consultation') || (appt.purpose||'').toLowerCase().includes('eye_exam') || (appt.purpose||'').toLowerCase().includes('checkup'));
-    const isExamCompleted = appt.status === 'completed' || (parseInt(appt.rx_count, 10) > 0 && appt.status !== 'pending' && appt.status !== 'in_progress');
+    const isExamCompleted = appt.status === 'completed' || (parseInt(appt.today_rx_count || appt.rx_count || 0, 10) > 0 && appt.status !== 'pending' && appt.status !== 'in_progress');
     const isCancelledOrNoShow = appt.status === 'cancelled' || appt.status === 'no_show';
     const hasSale = !!appt.sale_id;
 
@@ -2184,18 +2175,6 @@ document.addEventListener('DOMContentLoaded', function() {
         btnPos.style.pointerEvents = '';
         btnPos.style.opacity = '1';
         btnPos.innerHTML = `<i class="fas fa-file-invoice me-1"></i> View Receipt (${escapeHtml(appt.invoice_no || '#' + appt.sale_id)})`;
-      } else if (appt.status === 'completed') {
-        if (lockAlert) {
-          lockAlert.classList.remove('d-flex');
-          lockAlert.classList.add('d-none');
-          lockAlert.style.display = 'none';
-        }
-        btnPos.removeAttribute('href');
-        btnPos.target = '_self';
-        btnPos.className = 'btn btn-success btn-sm w-100 py-2 text-nowrap disabled text-center d-inline-flex align-items-center justify-content-center';
-        btnPos.style.pointerEvents = 'none';
-        btnPos.style.opacity = '0.95';
-        btnPos.innerHTML = `<i class="fas fa-check-double me-1"></i> Completed (Consultation &amp; Checkout Done)`;
       } else if (isCancelledOrNoShow) {
         if (lockAlert) {
           lockAlert.classList.remove('d-flex');
@@ -2208,6 +2187,23 @@ document.addEventListener('DOMContentLoaded', function() {
         btnPos.style.pointerEvents = 'none';
         btnPos.style.opacity = '0.65';
         btnPos.innerHTML = `<i class="fas fa-ban me-1"></i> ${appt.status === 'cancelled' ? 'Appointment Cancelled' : 'No-Show Recorded'}`;
+      } else if (appt.status === 'completed' || isExamCompleted) {
+        // Doctor Exam Completed! Prescription ready, awaiting frame/lens selection & POS checkout!
+        if (lockAlert) {
+          lockAlert.className = 'alert alert-success py-2 px-3 mb-3 d-flex align-items-center gap-2';
+          lockAlert.style.border = '1.5px solid #10b981';
+          lockAlert.style.background = 'rgba(16, 185, 129, 0.08)';
+          lockAlert.innerHTML = '<i class="fas fa-check-circle fa-lg text-success flex-shrink-0"></i><div><strong>Doctor Exam Completed:</strong> Prescription is ready. Patient is ready for Frame &amp; Lens Selection and POS Checkout.</div>';
+          lockAlert.classList.remove('d-none');
+          lockAlert.classList.add('d-flex');
+          lockAlert.style.display = 'flex';
+        }
+        btnPos.href = `pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}`;
+        btnPos.target = '_self';
+        btnPos.className = 'btn btn-success btn-sm w-100 py-2 text-nowrap shadow-sm text-center d-inline-flex align-items-center justify-content-center fw-bold';
+        btnPos.style.pointerEvents = '';
+        btnPos.style.opacity = '1';
+        btnPos.innerHTML = `<i class="fas fa-shopping-cart me-1"></i> Proceed to POS Checkout (Prescription Ready)`;
       } else if (appt.status === 'in_progress') {
         if (lockAlert) {
           lockAlert.className = 'alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2';
@@ -2224,27 +2220,15 @@ document.addEventListener('DOMContentLoaded', function() {
         btnPos.style.pointerEvents = 'none';
         btnPos.style.opacity = '0.85';
         btnPos.innerHTML = `<i class="fas fa-stethoscope me-1"></i> In Consultation with Doctor`;
-      } else if (isConsultation && !isExamCompleted) {
+      } else {
         if (lockAlert) {
           lockAlert.className = 'alert alert-warning py-2 px-3 mb-3 d-flex align-items-center gap-2';
           lockAlert.style.border = '1.5px solid #f59e0b';
           lockAlert.style.background = 'rgba(245, 158, 11, 0.08)';
-          lockAlert.innerHTML = '<i class="fas fa-lock fa-lg text-warning flex-shrink-0"></i><div><strong>Awaiting Doctor Examination:</strong> POS checkout unlocks automatically once Optometrist inputs prescription and completes consultation.</div>';
+          lockAlert.innerHTML = '<i class="fas fa-clock fa-lg text-warning flex-shrink-0"></i><div><strong>Awaiting Doctor Examination:</strong> Patient is in queue for doctor checkup. You can still open POS if availing accessories/services directly.</div>';
           lockAlert.classList.remove('d-none');
           lockAlert.classList.add('d-flex');
           lockAlert.style.display = 'flex';
-        }
-        btnPos.removeAttribute('href');
-        btnPos.target = '_self';
-        btnPos.className = 'btn btn-secondary btn-sm w-100 py-2 text-nowrap disabled text-center d-inline-flex align-items-center justify-content-center';
-        btnPos.style.pointerEvents = 'none';
-        btnPos.style.opacity = '0.85';
-        btnPos.innerHTML = `<i class="fas fa-lock me-1"></i> POS Locked (Awaiting Doctor Exam)`;
-      } else {
-        if (lockAlert) {
-          lockAlert.classList.remove('d-flex');
-          lockAlert.classList.add('d-none');
-          lockAlert.style.display = 'none';
         }
         btnPos.href = `pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}`;
         btnPos.target = '_self';
@@ -2282,17 +2266,17 @@ document.addEventListener('DOMContentLoaded', function() {
       dayAppts.forEach(appt => {
         const isClaimAppt = isApptClaim(appt);
         const isConsult = !isClaimAppt && ((appt.purpose||'').toLowerCase().includes('consultation') || (appt.purpose||'').toLowerCase().includes('eye_exam') || (appt.purpose||'').toLowerCase().includes('checkup'));
-        const isDone = appt.status === 'completed' || (parseInt(appt.rx_count, 10) > 0 && appt.status !== 'pending');
+        const isDone = appt.status === 'completed' || (parseInt(appt.today_rx_count || appt.rx_count || 0, 10) > 0 && appt.status !== 'pending');
 
         let actionBtn = '';
         if (appt.sale_id) {
           actionBtn = `<a href="receipt.php?id=${appt.sale_id}" target="_blank" class="btn btn-success btn-sm px-3 shadow-sm" title="View Receipt"><i class="fas fa-file-invoice me-1"></i> Receipt</a>`;
-        } else if (appt.status === 'completed') {
-          actionBtn = `<span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-3"><i class="fas fa-check-double me-1"></i> Completed</span>`;
+        } else if (appt.status === 'completed' || isDone) {
+          actionBtn = `<a href="pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}" class="btn btn-success btn-sm px-3 shadow-sm fw-bold" title="Doctor Exam Complete: Proceed to POS"><i class="fas fa-shopping-cart me-1"></i> POS Checkout</a>`;
         } else if (appt.status === 'cancelled' || appt.status === 'no_show') {
           actionBtn = `<span class="badge bg-secondary py-2 px-3">${appt.status === 'cancelled' ? 'Cancelled' : 'No-Show'}</span>`;
-        } else if (isConsult && !isDone) {
-          actionBtn = `<button type="button" class="btn btn-secondary btn-sm px-3 disabled" style="opacity:0.75;cursor:not-allowed;" title="POS Locked: Awaiting Doctor's Exam & Prescription"><i class="fas fa-lock me-1"></i> Awaiting Exam</button>`;
+        } else if (isConsult && appt.status === 'in_progress') {
+          actionBtn = `<button type="button" class="btn btn-secondary btn-sm px-3 disabled" style="opacity:0.75;cursor:not-allowed;" title="In exam with Doctor"><i class="fas fa-stethoscope me-1"></i> In Exam</button>`;
         } else {
           actionBtn = `<a href="pos.php?patient_id=${appt.patient_id}&appt_id=${appt.id}" class="btn btn-primary btn-sm px-3 shadow-sm" title="Proceed to Checkout"><i class="fas fa-shopping-cart me-1"></i> Checkout</a>`;
         }
@@ -2311,7 +2295,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 <small class="text-muted">
                   ${escapeHtml((appt.purpose||'').replace(/_/g, ' '))} &middot; 
                   ${escapeHtml(appt.patient_phone || 'No phone')}
-                  ${isClaimAppt && appt.job_order_no ? ` &middot; <strong class="text-primary">JO #${escapeHtml(appt.job_order_no)}</strong>` : ''}
                 </small>
               </div>
             </div>
@@ -2636,20 +2619,21 @@ document.addEventListener('DOMContentLoaded', function() {
       const todayIso = formatDateIso(new Date());
       const isPastDate = (target.appointment_date < todayIso);
       const isToday = (target.appointment_date === todayIso);
-      const isFinished = (target.status === 'completed' || target.status === 'cancelled' || target.status === 'no_show');
+      const isBilled = !!target.sale_id;
+      const isDropped = (target.status === 'cancelled' || target.status === 'no_show');
 
       if (isApptClaim(target)) {
-        queueSegment = isFinished ? 'history' : 'claims';
-      } else if (isToday && !isFinished) {
+        queueSegment = (target.status === 'completed' || isDropped) ? 'history' : 'claims';
+      } else if (isToday && !isBilled && !isDropped) {
         queueSegment = (target.appointment_type === 'WALK_IN') ? 'walkin' : 'upcoming';
-      } else if (!isPastDate && !isFinished) {
+      } else if (!isPastDate && !isBilled && !isDropped) {
         queueSegment = 'upcoming';
       } else {
         queueSegment = 'history';
       }
       queueTabBtns.forEach(b => b.classList.toggle('active', b.dataset.segment === queueSegment));
       currentFilter = 'all';
-      filterPills.forEach(p => p.classList.toggle('active', p.dataset.status === 'all'));
+      if (calStatusSelect) calStatusSelect.value = 'all';
     }
   }
 

@@ -29,7 +29,32 @@ try {
             a.purpose, 
             a.notes,
             (SELECT COUNT(*) FROM prescriptions rx WHERE rx.patient_id = a.patient_id) as rx_count,
-            (SELECT COUNT(*) FROM appointments a2 WHERE a2.patient_id = a.patient_id AND a2.status = 'completed') as completed_visits
+            (SELECT COUNT(*) FROM prescriptions rx WHERE rx.appointment_id = a.id OR (rx.patient_id = a.patient_id AND DATE(rx.created_at) = a.appointment_date)) as today_rx_count,
+            (SELECT COUNT(*) FROM appointments a2 WHERE a2.patient_id = a.patient_id AND a2.status = 'completed') as completed_visits,
+            COALESCE(
+                (SELECT s.id FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+                (SELECT s2.id FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
+            ) as sale_id,
+            COALESCE(
+                (SELECT s.invoice_no FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+                (SELECT s2.invoice_no FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
+            ) as invoice_no,
+            COALESCE(
+                (SELECT s.job_order_no FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+                (SELECT s2.job_order_no FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
+            ) as job_order_no,
+            COALESCE(
+                (SELECT s.order_status FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+                (SELECT s2.order_status FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
+            ) as order_status,
+            COALESCE(
+                (SELECT s.balance_due FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+                (SELECT s2.balance_due FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
+            ) as balance_due,
+            COALESCE(
+                (SELECT s.payment_type FROM sales s WHERE s.appointment_id = a.id ORDER BY s.id DESC LIMIT 1),
+                (SELECT s2.payment_type FROM sales s2 WHERE s2.patient_id = a.patient_id AND DATE(s2.created_at) = a.appointment_date ORDER BY s2.id DESC LIMIT 1)
+            ) as payment_type
         FROM appointments a
         JOIN patients p ON p.id = a.patient_id
     ";

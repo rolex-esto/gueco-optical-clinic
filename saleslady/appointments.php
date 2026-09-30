@@ -165,6 +165,7 @@ $pendingCount = count(array_filter($allAppointments, fn($a) => $a['status'] === 
 $confirmedCount = count(array_filter($allAppointments, fn($a) => $a['status'] === 'confirmed'));
 $totalCount = count($allAppointments);
 $activePurposes = getActiveConsultationPurposes($db);
+$allSlots = explode(',', getSetting('appointment_slots') ?? '09:00,09:30,10:00,10:30,11:00,11:30,13:00,13:30,14:00,14:30,15:00,15:30,16:00,16:30');
 
 $extraHead = '<link rel="stylesheet" href="' . BASE_URL . 'assets/css/calendar.css?v=' . time() . '">';
 $extraHead .= '<link rel="stylesheet" href="'.BASE_URL.'assets/css/pages/dashboard.css?v='.time().'">';
@@ -253,6 +254,111 @@ include __DIR__ . '/../includes/header.php';
 }
 .rx-ready-row td {
   background: transparent !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   TIME SLOT MONITOR STYLES (Copied from patient system format)
+   ───────────────────────────────────────────────────────────── */
+.slot-section-title {
+  font-size: .8rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--clr-primary, #00ADEF); margin: 18px 0 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.slot-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border-color, #e2e8f0); }
+
+.slot-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;
+}
+
+.slot-btn {
+  padding: 10px 8px; border-radius: 12px;
+  border: 1.5px solid #CBD5E1;
+  background: #FFFFFF; color: #0F172A;
+  font-family: inherit; font-size: .9rem; font-weight: 800;
+  cursor: pointer; transition: all .15s ease; text-align: center; line-height: 1.2;
+  box-shadow: 0 3px 0 #CBD5E1, 0 3px 8px rgba(15, 23, 42, 0.04);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: relative; text-decoration: none; width: 100%;
+}
+.slot-btn .slot-time-text { font-size: 0.95rem; font-weight: 800; }
+.slot-btn .slot-period { font-size: .68rem; color: #64748B; display: block; margin-top: 2px; font-weight: 700; }
+
+.slot-btn:hover:not(.is-taken) {
+  border-color: #00ADEF; color: #00ADEF;
+  background: #EFF6FF; transform: translateY(-2px);
+  box-shadow: 0 5px 0 #CBD5E1, 0 6px 14px rgba(0, 173, 239, 0.2);
+}
+.slot-btn:active:not(.is-taken) {
+  transform: translateY(2px); box-shadow: 0 1px 0 #CBD5E1;
+}
+
+/* Taken Slot Styling */
+.slot-btn.is-taken {
+  background: #F8FAFC !important;
+  color: #94A3B8 !important;
+  border: 1.5px dashed #CBD5E1 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  cursor: pointer;
+}
+.slot-btn.is-taken .slot-time-text {
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+.slot-btn.is-taken .slot-period.booked {
+  color: #DC2626 !important;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px; border-radius: 6px;
+  margin-top: 4px; display: inline-flex; align-items: center;
+  font-size: 0.65rem; font-weight: 800;
+}
+.slot-btn .slot-patient-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-top: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .slot-btn {
+  background: #1E2D4A; color: #FFFFFF;
+  border: 1.5px solid rgba(56, 189, 248, 0.28);
+  box-shadow: 0 3px 0 #0D1626, 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .slot-btn .slot-period { color: #7DD3FC; }
+[data-theme="dark"] .slot-btn:hover:not(.is-taken) {
+  border-color: #38BDF8; color: #38BDF8;
+  background: rgba(56, 189, 248, 0.16);
+  box-shadow: 0 5px 0 #0D1626, 0 8px 18px rgba(56, 189, 248, 0.25);
+}
+[data-theme="dark"] .slot-btn.is-taken {
+  background: #0B1324 !important;
+  color: #64748B !important;
+  border: 1.5px dashed rgba(255, 255, 255, 0.14) !important;
+}
+[data-theme="dark"] .slot-btn.is-taken .slot-period.booked {
+  color: #FCA5A5 !important;
+  background: rgba(239, 68, 68, 0.2) !important;
+}
+[data-theme="dark"] .slot-btn .slot-patient-tag {
+  color: #94A3B8;
+}
+
+.slot-avail-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 12px; font-size: .84rem; font-weight: 700;
+  padding: 10px 16px; border-radius: 10px;
+  background: rgba(0, 173, 239, 0.06); border: 1px solid var(--border-color, #e2e8f0);
+}
+.slot-avail-bar .badge-avail {
+  color: #10B981; display: inline-flex; align-items: center; gap: 6px;
+}
+.slot-avail-bar .badge-taken {
+  color: #EF4444; display: inline-flex; align-items: center; gap: 6px;
 }
 </style>
 
@@ -364,6 +470,9 @@ include __DIR__ . '/../includes/header.php';
       <a href="pos.php?mode=retail" class="btn btn-outline-warning btn-sm d-flex align-items-center gap-1 fw-bold shadow-sm" style="border-radius:8px;padding:6px 14px;font-size:0.8rem;text-decoration:none;">
         <i class="fas fa-bolt"></i> Quick Sale (POS)
       </a>
+      <button type="button" class="btn btn-primary btn-sm d-flex align-items-center gap-2 fw-bold shadow-sm" id="btnSlotsToday" data-bs-toggle="modal" data-bs-target="#slotsTodayModal" style="border:none;border-radius:8px;padding:6px 14px;font-size:0.8rem;background:linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);color:#ffffff;">
+        <i class="fas fa-clock"></i> Slots Today <span class="badge bg-white text-primary rounded-pill px-2 py-0" id="slotsTodayHeaderBadge" style="font-size:0.72rem;font-weight:800;">--/--</span>
+      </button>
       <div class="cal-view-switcher">
         <button type="button" class="cal-view-btn" data-view="week" id="viewBtnWeek">
           <i class="fas fa-calendar-week"></i> Week
@@ -997,6 +1106,91 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <!-- ============================================================ -->
+<!-- SLOTS TODAY MONITOR MODAL (Matches Patient System Format)    -->
+<!-- ============================================================ -->
+<div class="modal fade" id="slotsTodayModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content" style="border-radius: 16px; border: none; box-shadow: 0 20px 40px rgba(0,0,0,0.18); overflow: hidden;">
+      <div class="modal-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #0284c7, #38bdf8); color: white; padding: 18px 24px;">
+        <div class="d-flex align-items-center gap-3">
+          <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+            <i class="fas fa-clock text-white"></i>
+          </div>
+          <div>
+            <h5 class="modal-title fw-bold mb-0 text-white" id="slotsModalHeading">Slots Today · <?= date('F j, Y') ?></h5>
+            <small style="opacity: 0.92; font-size: 0.8rem;">Monitor available and booked doctor consultation slots for today</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body p-4" style="max-height: calc(85vh - 120px); overflow-y: auto;">
+        <!-- Date Selector & Quick Jump -->
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pb-3 border-bottom">
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-muted fw-bold small text-uppercase" style="letter-spacing: 0.5px;">Monitoring Date:</span>
+            <input type="date" id="slotsFilterDateInput" class="form-control form-control-sm" value="<?= $today ?>" style="width: 160px; font-weight: 600; border-radius: 8px;">
+            <button type="button" class="btn btn-outline-primary btn-sm px-3 fw-bold" id="btnSlotsJumpToday" style="border-radius: 8px;">
+              <i class="fas fa-calendar-day me-1"></i> Today
+            </button>
+          </div>
+          <div class="text-muted small" id="slotsLiveNotice">
+            <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fas fa-circle text-success me-1" style="font-size:0.5rem;"></i>Live Sync Active</span>
+          </div>
+        </div>
+
+        <!-- Availability Status Bar (Copy from patient system format) -->
+        <div class="slot-avail-bar" id="slotsAvailSummaryBar">
+          <span class="badge-avail"><i class="fas fa-circle-check"></i> <strong id="slotsAvailText">-- of -- slots available</strong></span>
+          <span class="badge-taken"><i class="fas fa-circle-xmark"></i> <strong id="slotsTakenText">-- slots taken</strong></span>
+        </div>
+
+        <!-- Fully Booked Notice (Hidden by default, shown if 0 available) -->
+        <div class="slot-fully-booked-box" id="slotsFullyBookedBox" style="display:none;">
+          <div class="slot-fully-booked-icon"><i class="fas fa-calendar-xmark"></i></div>
+          <div>
+            <div class="slot-fully-booked-title">Fully Booked for This Date</div>
+            <p class="slot-fully-booked-desc">All appointment time slots for this day have already been scheduled or occupied.</p>
+          </div>
+        </div>
+
+        <!-- Morning Section -->
+        <div class="slot-section-title">
+          <i class="fas fa-sun text-warning"></i> Morning Schedule (9:00 AM – 11:30 AM)
+        </div>
+        <div class="slot-grid" id="slotsGridMorning">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Afternoon Section -->
+        <div class="slot-section-title" style="margin-top: 24px;">
+          <i class="fas fa-cloud-moon text-info"></i> Afternoon Schedule (1:00 PM – 4:30 PM)
+        </div>
+        <div class="slot-grid" id="slotsGridAfternoon">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Explanatory Help Footnote -->
+        <div class="alert alert-light border mt-4 mb-0 py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2" style="font-size: 0.78rem;">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span><span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-check me-1"></i>Available</span> = Open for walk-in or booking</span>
+            <span><span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 ms-2"><i class="fas fa-lock me-1"></i>Slot Taken</span> = Booked via patient system / front desk</span>
+          </div>
+          <span class="text-muted"><i class="fas fa-info-circle me-1"></i>Click any taken slot to view appointment record</span>
+        </div>
+      </div>
+
+      <div class="modal-footer d-flex justify-content-between align-items-center py-2 px-4 bg-light">
+        <span class="text-muted small">Standard 30-minute consultation intervals</span>
+        <button type="button" class="btn btn-secondary btn-sm px-4 fw-bold" data-bs-dismiss="modal" style="border-radius: 8px;">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
 <!-- CALENDAR JAVASCRIPT LOGIC ENGINE                             -->
 <!-- ============================================================ -->
 <script>
@@ -1018,6 +1212,7 @@ window.onClaimPatientSelect = function(selectEl) {
 
 document.addEventListener('DOMContentLoaded', function() {
   const rawAppointments = <?= json_encode($allAppointments, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+  const allSlots = <?= json_encode($allSlots) ?>;
   const initialDateStr = '<?= htmlspecialchars($_GET['date'] ?? $today) ?>';
   
   // App State
@@ -1109,6 +1304,31 @@ document.addEventListener('DOMContentLoaded', function() {
       service: service,
       userNotes: userNotes,
       hasUserNotes: userNotes.length > 0
+    };
+  }
+
+  function normalizeSlotTime(t) {
+    if (!t) return '';
+    const p = String(t).trim().split(':');
+    return p.length >= 2 ? (p[0].padStart(2, '0') + ':' + p[1].padStart(2, '0')) : String(t).substring(0, 5);
+  }
+
+  function getApptsForSlot(slot, dateStr) {
+    const normSlot = normalizeSlotTime(slot);
+    return rawAppointments.filter(a => {
+      if (a.appointment_date !== dateStr) return false;
+      if (a.status === 'cancelled' || a.status === 'no_show') return false;
+      return normalizeSlotTime(a.appointment_time) === normSlot;
+    });
+  }
+
+  function formatSlotDisplay(slot) {
+    const [h, m] = slot.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return {
+      time: `${h12}:${String(m).padStart(2, '0')}`,
+      period: ampm
     };
   }
 
@@ -1215,6 +1435,23 @@ document.addEventListener('DOMContentLoaded', function() {
     if (segClaimsEl) segClaimsEl.textContent = countClaims;
     if (segUpcomingEl) segUpcomingEl.textContent = countUpcoming;
     if (segHistoryEl) segHistoryEl.textContent = countHistory;
+
+    // 3. Slots Today Header Badge
+    let takenTodayCount = 0;
+    allSlots.forEach(slot => {
+      if (getApptsForSlot(slot, todayIso).length > 0) takenTodayCount++;
+    });
+    const freeTodayCount = Math.max(0, allSlots.length - takenTodayCount);
+    const slotsHeaderBadge = document.getElementById('slotsTodayHeaderBadge');
+    if (slotsHeaderBadge) {
+      if (freeTodayCount === 0) {
+        slotsHeaderBadge.className = 'badge bg-danger text-white rounded-pill px-2 py-0';
+        slotsHeaderBadge.textContent = 'Full';
+      } else {
+        slotsHeaderBadge.className = 'badge bg-white text-primary rounded-pill px-2 py-0';
+        slotsHeaderBadge.textContent = `${freeTodayCount}/${allSlots.length} Free`;
+      }
+    }
   }
 
   // ── 1. RENDER MONTH VIEW ───────────────────────────────────────
@@ -1875,9 +2112,110 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // ── Slots Today Monitor Renderer ─────────────────────────────
+  function renderSlotsModal(dateStr) {
+    if (!dateStr) dateStr = formatDateIso(new Date());
+    const filterInput = document.getElementById('slotsFilterDateInput');
+    if (filterInput && filterInput.value !== dateStr) {
+      filterInput.value = dateStr;
+    }
+
+    const dateObj = new Date(dateStr + 'T00:00:00');
+    const dateFormatted = !isNaN(dateObj.getTime())
+      ? dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : dateStr;
+
+    const todayIso = formatDateIso(new Date());
+    const headingEl = document.getElementById('slotsModalHeading');
+    if (headingEl) {
+      headingEl.textContent = (dateStr === todayIso)
+        ? `Slots Today · ${dateFormatted}`
+        : `Slots Schedule · ${dateFormatted}`;
+    }
+
+    let takenCount = 0;
+    const slotStatusList = allSlots.map(slot => {
+      const matching = getApptsForSlot(slot, dateStr);
+      const isTaken = matching.length > 0;
+      if (isTaken) takenCount++;
+      return { slot, isTaken, appts: matching };
+    });
+
+    const availCount = Math.max(0, allSlots.length - takenCount);
+    const availText = document.getElementById('slotsAvailText');
+    const takenText = document.getElementById('slotsTakenText');
+    const fullyBookedBox = document.getElementById('slotsFullyBookedBox');
+
+    if (availText) availText.textContent = `${availCount} of ${allSlots.length} slots available`;
+    if (takenText) takenText.textContent = `${takenCount} slots taken`;
+    if (fullyBookedBox) {
+      fullyBookedBox.style.display = (availCount === 0) ? 'flex' : 'none';
+    }
+
+    const amList = slotStatusList.filter(s => parseInt(s.slot, 10) < 12);
+    const pmList = slotStatusList.filter(s => parseInt(s.slot, 10) >= 12);
+
+    const renderGroup = (containerId, list) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+
+      list.forEach(item => {
+        const { slot, isTaken, appts } = item;
+        const { time, period } = formatSlotDisplay(slot);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slot-btn' + (isTaken ? ' is-taken' : '');
+
+        if (isTaken) {
+          const appt = appts[0];
+          const patName = appt ? (appt.patient_name || 'Booked Patient') : 'Booked';
+          const isClaim = appt ? isApptClaim(appt) : false;
+          const isWalkin = (appt && appt.appointment_type === 'WALK_IN');
+          const typeBadge = isClaim ? 'Claim' : (isWalkin ? 'Walk-in' : 'Checkup');
+
+          btn.title = `Slot Taken: ${patName} (${typeBadge}) · Click to view appointment details`;
+          btn.innerHTML = `
+            <span class="slot-time-text">${time}</span>
+            <span class="slot-period booked"><i class="fas fa-lock me-1"></i>Slot Taken</span>
+            <span class="slot-patient-tag" title="${escapeHtml(patName)}">${escapeHtml(patName)}</span>
+            <span class="badge ${isClaim ? 'bg-info-subtle text-info border border-info-subtle' : 'bg-primary-subtle text-primary border border-primary-subtle'}" style="font-size:0.6rem;padding:2px 5px;border-radius:4px;margin-top:2px;">
+              ${typeBadge}
+            </span>
+          `;
+
+          btn.addEventListener('click', () => {
+            const modalEl = document.getElementById('slotsTodayModal');
+            const instance = bootstrap.Modal.getInstance(modalEl);
+            if (instance) instance.hide();
+            setTimeout(() => {
+              openAppointmentModal(appt);
+            }, 300);
+          });
+        } else {
+          btn.title = `Available slot at ${time} ${period}`;
+          btn.innerHTML = `
+            <span class="slot-time-text">${time}</span>
+            <span class="slot-period" style="color:#10B981;font-weight:700;"><i class="fas fa-check-circle me-1"></i>Available</span>
+            <span class="text-muted" style="font-size:0.68rem;margin-top:2px;">${period} Slot</span>
+          `;
+        }
+
+        container.appendChild(btn);
+      });
+    };
+
+    renderGroup('slotsGridMorning', amList);
+    renderGroup('slotsGridAfternoon', pmList);
+  }
+
   // ── Master Render Trigger ──────────────────────────────────────
   function render() {
     updateCounts();
+    if (document.getElementById('slotsTodayModal')?.classList.contains('show')) {
+      const activeFilterDate = document.getElementById('slotsFilterDateInput')?.value || formatDateIso(new Date());
+      renderSlotsModal(activeFilterDate);
+    }
     monthViewContainer.style.display = (currentView === 'month') ? 'block' : 'none';
     weekViewContainer.style.display = (currentView === 'week') ? 'grid' : 'none';
     agendaViewContainer.style.display = (currentView === 'agenda') ? 'flex' : 'none';
@@ -2635,6 +2973,31 @@ document.addEventListener('DOMContentLoaded', function() {
       currentFilter = 'all';
       if (calStatusSelect) calStatusSelect.value = 'all';
     }
+  }
+
+  // Slots Today Modal Event Listeners
+  const slotsFilterDateInput = document.getElementById('slotsFilterDateInput');
+  if (slotsFilterDateInput) {
+    slotsFilterDateInput.addEventListener('change', function() {
+      renderSlotsModal(this.value);
+    });
+  }
+
+  const btnSlotsJumpToday = document.getElementById('btnSlotsJumpToday');
+  if (btnSlotsJumpToday) {
+    btnSlotsJumpToday.addEventListener('click', function() {
+      const todayIso = formatDateIso(new Date());
+      if (slotsFilterDateInput) slotsFilterDateInput.value = todayIso;
+      renderSlotsModal(todayIso);
+    });
+  }
+
+  const slotsTodayModalEl = document.getElementById('slotsTodayModal');
+  if (slotsTodayModalEl) {
+    slotsTodayModalEl.addEventListener('show.bs.modal', function() {
+      const targetDate = (slotsFilterDateInput && slotsFilterDateInput.value) ? slotsFilterDateInput.value : formatDateIso(new Date());
+      renderSlotsModal(targetDate);
+    });
   }
 
   // Initial render

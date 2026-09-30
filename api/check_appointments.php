@@ -27,7 +27,8 @@ try {
 
     // Fetch the recent pending appointments with patient names
     $stmtRecent = $db->prepare("
-        SELECT a.id, p.full_name as patient_name, a.appointment_date, a.appointment_time, a.purpose 
+        SELECT a.id, a.patient_id, p.full_name as patient_name, a.appointment_date, a.appointment_time, a.purpose,
+               'pending_booking' as notif_type
         FROM appointments a 
         JOIN patients p ON a.patient_id = p.id 
         WHERE a.status = 'pending' AND a.appointment_date >= CURDATE() " . $purposeFilterJoin . "
@@ -36,6 +37,55 @@ try {
     ");
     $stmtRecent->execute();
     $recentAppts = $stmtRecent->fetchAll(PDO::FETCH_ASSOC);
+
+    // 1. Doctor Notification: Active Walk-in patients waiting today for doctor examination
+    $walkinCount = 0;
+    $walkinAppts = [];
+    if (in_array($userRole, ['doctor', 'admin'])) {
+        $stmtWalkin = $db->prepare("
+            SELECT a.id, a.patient_id, p.full_name as patient_name, a.appointment_date, a.appointment_time, a.purpose,
+                   'walkin_waiting' as notif_type
+            FROM appointments a
+            JOIN patients p ON a.patient_id = p.id
+            WHERE a.appointment_date = CURDATE()
+              AND a.appointment_type = 'WALK_IN'
+              AND a.status IN ('confirmed', 'in_progress')
+              AND a.id NOT IN (SELECT COALESCE(appointment_id, 0) FROM prescriptions WHERE appointment_id IS NOT NULL)
+            ORDER BY a.created_at DESC
+            LIMIT 10
+        ");
+        $stmtWalkin->execute();
+        $walkinAppts = $stmtWalkin->fetchAll(PDO::FETCH_ASSOC);
+        $walkinCount = count($walkinAppts);
+    }
+
+    // 2. Saleslady Notification: Patients who completed eye exam & prescription written, ready for POS billing
+    $readyPosCount = 0;
+    $readyPosAppts = [];
+    if (in_array($userRole, ['saleslady', 'admin'])) {
+        $stmtReadyPos = $db->prepare("
+            SELECT a.id, a.patient_id, p.full_name as patient_name, a.appointment_date, a.appointment_time, a.purpose,
+                   'ready_for_pos' as notif_type
+            FROM appointments a
+            JOIN patients p ON a.patient_id = p.id
+            WHERE a.appointment_date = CURDATE()
+              AND a.sale_id IS NULL
+              AND a.status NOT IN ('cancelled', 'no_show')
+              AND (
+                  a.status = 'completed'
+                  OR EXISTS (
+                      SELECT 1 FROM prescriptions rx 
+                      WHERE rx.appointment_id = a.id 
+                         OR (rx.patient_id = a.patient_id AND DATE(rx.created_at) = a.appointment_date)
+                  )
+              )
+            ORDER BY a.id DESC
+            LIMIT 10
+        ");
+        $stmtReadyPos->execute();
+        $readyPosAppts = $stmtReadyPos->fetchAll(PDO::FETCH_ASSOC);
+        $readyPosCount = count($readyPosAppts);
+    }
 
     // Fetch low stock inventory for admin & saleslady
     $lowStockCount = 0;
@@ -55,12 +105,16 @@ try {
         $recentLowStock = $stmtLowRecent ? $stmtLowRecent->fetchAll(PDO::FETCH_ASSOC) : [];
     }
 
-    $totalCount = $apptCount + $lowStockCount;
+    $totalCount = $apptCount + $lowStockCount + $walkinCount + $readyPosCount;
     
     echo json_encode([
         'count'           => $totalCount,
         'appt_count'      => $apptCount,
         'appointments'    => $recentAppts,
+        'walkin_count'    => $walkinCount,
+        'walkin_items'    => $walkinAppts,
+        'ready_pos_count' => $readyPosCount,
+        'ready_pos_items' => $readyPosAppts,
         'low_stock_count' => $lowStockCount,
         'low_stock_items' => $recentLowStock,
         'role'            => $userRole

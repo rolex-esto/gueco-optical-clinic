@@ -699,6 +699,14 @@ include __DIR__ . '/../includes/header.php';
             </div>
           </div>
 
+          <!-- Availed Products for Claiming Box -->
+          <div class="p-2 mb-2 rounded border" id="modalClaimProductsBox" style="background:#fff; font-size:0.82rem; display:none;">
+            <div class="fw-bold mb-1" style="color:#059669;">
+              <i class="fas fa-box-open me-1"></i> Availed Products to Claim:
+            </div>
+            <div id="modalClaimProductsList" class="ps-1 text-dark" style="line-height:1.5;"></div>
+          </div>
+
           <p class="text-muted small mb-3" id="modalClaimNoticeText" style="line-height:1.45;">
             Optical dispensing service managed directly by front-desk Saleslady. No doctor examination or optometrist confirmation required.
           </p>
@@ -1288,7 +1296,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function parseApptNotes(rawNotes) {
     if (!rawNotes || typeof rawNotes !== 'string') {
-      return { service: '', userNotes: '', hasUserNotes: false };
+      return { service: '', userNotes: '', hasUserNotes: false, availedProducts: [] };
     }
     let txt = rawNotes.trim();
     txt = txt.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'");
@@ -1300,10 +1308,23 @@ document.addEventListener('DOMContentLoaded', function() {
       service = match[1].trim();
       userNotes = txt.replace(/^Service:\s*[^\r\n]+/m, '').trim();
     }
+
+    // Extract Availed Products if present in claim notes
+    const availedProducts = [];
+    const prodMatch = txt.match(/Availed Products:\s*([\s\S]*?)(?=(Invoice:|Job Order:|Balance|Paid in Full|$))/i);
+    if (prodMatch && prodMatch[1]) {
+      const lines = prodMatch[1].split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      lines.forEach(l => {
+        const clean = l.replace(/^[•\-\*]\s*/, '').trim();
+        if (clean) availedProducts.push(clean);
+      });
+    }
+
     return {
       service: service,
       userNotes: userNotes,
-      hasUserNotes: userNotes.length > 0
+      hasUserNotes: userNotes.length > 0,
+      availedProducts: availedProducts
     };
   }
 
@@ -2066,13 +2087,22 @@ document.addEventListener('DOMContentLoaded', function() {
           `;
         }
       }
-      actionButtons += '</div>';
+      const pNotesRow = parseApptNotes(appt.notes);
+      let claimProdsSnippet = '';
+      if (isClaim && pNotesRow.availedProducts && pNotesRow.availedProducts.length > 0) {
+        claimProdsSnippet = `
+          <div class="mt-1" style="font-size:0.75rem; line-height:1.3; color:#059669;">
+            <i class="fas fa-box-open me-1"></i><strong>Claim Items:</strong> ${escapeHtml(pNotesRow.availedProducts.slice(0, 2).join(', '))}${pNotesRow.availedProducts.length > 2 ? ' ...' : ''}
+          </div>
+        `;
+      }
 
       tr.innerHTML = `
         <td class="text-muted fw-bold">${idx + 1}</td>
         <td>
           <div class="fw-bold cal-modal-title">${escapeHtml(appt.patient_name)}</div>
           <small class="text-muted">${escapeHtml(appt.patient_phone || 'No phone')}</small>
+          ${claimProdsSnippet}
         </td>
         <td>${typeBadge}</td>
         <td>
@@ -2408,6 +2438,24 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }
 
+        // Populate Availed Products List for this claim
+        const prodBox = document.getElementById('modalClaimProductsBox');
+        const prodList = document.getElementById('modalClaimProductsList');
+        if (prodBox && prodList) {
+          if (pNotes.availedProducts && pNotes.availedProducts.length > 0) {
+            prodBox.style.display = 'block';
+            prodList.innerHTML = pNotes.availedProducts.map(p => `
+              <div class="d-flex align-items-center gap-2 py-1 border-bottom border-light">
+                <i class="fas fa-check-circle text-success small flex-shrink-0"></i>
+                <span class="fw-semibold">${escapeHtml(p)}</span>
+              </div>
+            `).join('');
+          } else {
+            prodBox.style.display = 'none';
+            prodList.innerHTML = '';
+          }
+        }
+
         // Populate Form IDs and current dates
         if (confirmClaimApptId) confirmClaimApptId.value = appt.id;
         if (confirmClaimCurrentDate) confirmClaimCurrentDate.value = appt.appointment_date || '';
@@ -2455,6 +2503,8 @@ document.addEventListener('DOMContentLoaded', function() {
         claimActionBox.classList.remove('d-block');
         claimActionBox.classList.add('d-none');
         if (claimOrderSummary) claimOrderSummary.style.display = 'none';
+        const prodBox = document.getElementById('modalClaimProductsBox');
+        if (prodBox) prodBox.style.display = 'none';
         if (formConfirmClaim) formConfirmClaim.style.display = 'none';
         if (formReadyClaim) formReadyClaim.style.display = 'none';
         if (formCompleteClaim) formCompleteClaim.style.display = 'none';

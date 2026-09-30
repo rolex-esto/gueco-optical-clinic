@@ -209,12 +209,63 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
                 $recentLowStock = $stmtLowRecent ? $stmtLowRecent->fetchAll(PDO::FETCH_ASSOC) : [];
               }
 
-              $totalNotifCount = $notifCount + $lowStockCount;
+              // 1. Doctor Notification: Active Walk-in patients waiting today
+              $walkinCount = 0;
+              $recentWalkin = [];
+              if (in_array($currentUserRole, ['doctor', 'admin'])) {
+                $stmtWalkin = $db->prepare("
+                  SELECT a.id, a.patient_id, p.full_name as patient_name, a.appointment_date, a.appointment_time, a.purpose
+                  FROM appointments a
+                  JOIN patients p ON a.patient_id = p.id
+                  WHERE a.appointment_date = CURDATE()
+                    AND a.appointment_type = 'WALK_IN'
+                    AND a.status IN ('confirmed', 'in_progress')
+                    AND a.id NOT IN (SELECT COALESCE(appointment_id, 0) FROM prescriptions WHERE appointment_id IS NOT NULL)
+                  ORDER BY a.created_at DESC
+                  LIMIT 5
+                ");
+                $stmtWalkin->execute();
+                $recentWalkin = $stmtWalkin->fetchAll(PDO::FETCH_ASSOC);
+                $walkinCount = count($recentWalkin);
+              }
+
+              // 2. Saleslady Notification: Patients finished with exam & prescription written, ready for POS
+              $readyPosCount = 0;
+              $recentReadyPos = [];
+              if (in_array($currentUserRole, ['saleslady', 'admin'])) {
+                $stmtReadyPos = $db->prepare("
+                  SELECT a.id, a.patient_id, p.full_name as patient_name, a.appointment_date, a.appointment_time, a.purpose
+                  FROM appointments a
+                  JOIN patients p ON a.patient_id = p.id
+                  WHERE a.appointment_date = CURDATE()
+                    AND a.sale_id IS NULL
+                    AND a.status NOT IN ('cancelled', 'no_show')
+                    AND (
+                        a.status = 'completed'
+                        OR EXISTS (
+                            SELECT 1 FROM prescriptions rx 
+                            WHERE rx.appointment_id = a.id 
+                               OR (rx.patient_id = a.patient_id AND DATE(rx.created_at) = a.appointment_date)
+                        )
+                    )
+                  ORDER BY a.id DESC
+                  LIMIT 5
+                ");
+                $stmtReadyPos->execute();
+                $recentReadyPos = $stmtReadyPos->fetchAll(PDO::FETCH_ASSOC);
+                $readyPosCount = count($recentReadyPos);
+              }
+
+              $totalNotifCount = $notifCount + $lowStockCount + $walkinCount + $readyPosCount;
             } catch(Exception $e) { 
               $notifCount = 0; 
               $recentAppts = []; 
               $lowStockCount = 0;
               $recentLowStock = [];
+              $walkinCount = 0;
+              $recentWalkin = [];
+              $readyPosCount = 0;
+              $recentReadyPos = [];
               $totalNotifCount = 0;
               $headerApptsLink = BASE_URL . 'admin/appointments.php';
               $headerInventoryLink = BASE_URL . 'admin/inventory.php';
@@ -233,12 +284,59 @@ $currentTheme = ($userTheme === 'light') ? 'light' : 'dark';
             </li>
             
             <div style="max-height: 380px; overflow-y: auto;" class="custom-scroll">
-              <?php if (empty($recentAppts) && empty($recentLowStock)): ?>
+              <?php if (empty($recentAppts) && empty($recentLowStock) && empty($recentWalkin) && empty($recentReadyPos)): ?>
                 <li class="p-4 text-center text-muted" style="font-size: 0.86rem;">
                   <i class="fas fa-bell-slash d-block mb-2 text-muted" style="font-size: 1.8rem; opacity: 0.4;"></i>
                   <span>No new notifications</span>
                 </li>
               <?php else: ?>
+                <?php if (!empty($recentWalkin)): ?>
+                  <li class="dropdown-header text-uppercase text-warning fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                    <span><i class="fas fa-bolt me-1 text-warning"></i> Walk-in Waiting</span>
+                    <span class="badge bg-warning-subtle text-warning-emphasis" style="background: rgba(245,158,11,0.18);"><?= $walkinCount ?></span>
+                  </li>
+                  <?php foreach ($recentWalkin as $w): ?>
+                    <li>
+                      <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="<?= BASE_URL ?>doctor/appointments.php?highlight=<?= (int)$w['id'] ?>">
+                        <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(245, 158, 11, 0.15); color: #D97706; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
+                          <i class="fas fa-bolt"></i>
+                        </div>
+                        <div class="flex-grow-1 text-truncate">
+                          <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                            <?= sanitize($w['patient_name']) ?>
+                          </div>
+                          <small class="text-warning-emphasis d-block text-truncate" style="font-size: 0.74rem;">
+                            Walk-in Waiting &bull; Arrived at <?= date('h:i A', strtotime($w['appointment_time'])) ?>
+                          </small>
+                        </div>
+                      </a>
+                    </li>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+
+                <?php if (!empty($recentReadyPos)): ?>
+                  <li class="dropdown-header text-uppercase text-success fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                    <span><i class="fas fa-check-circle me-1 text-success"></i> Ready for Billing</span>
+                    <span class="badge bg-success-subtle text-success" style="background: rgba(16,185,129,0.18);"><?= $readyPosCount ?></span>
+                  </li>
+                  <?php foreach ($recentReadyPos as $rp): ?>
+                    <li>
+                      <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="<?= BASE_URL ?>saleslady/pos.php?patient_id=<?= (int)$rp['patient_id'] ?>&appt_id=<?= (int)$rp['id'] ?>">
+                        <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); color: #10B981; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
+                          <i class="fas fa-cash-register"></i>
+                        </div>
+                        <div class="flex-grow-1 text-truncate">
+                          <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                            <?= sanitize($rp['patient_name']) ?>
+                          </div>
+                          <small class="text-success d-block text-truncate" style="font-size: 0.74rem;">
+                            Exam Done &bull; Ready for POS Billing
+                          </small>
+                        </div>
+                      </a>
+                    </li>
+                  <?php endforeach; ?>
+                <?php endif; ?>
                 <?php if (!empty($recentLowStock)): ?>
                   <li class="dropdown-header text-uppercase text-danger fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
                     <span><i class="fas fa-boxes-stacked me-1"></i> Low Stock Alerts</span>

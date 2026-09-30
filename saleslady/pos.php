@@ -265,13 +265,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
             $upAppt->closeCursor();
         }
 
-        // Auto-create future Eyeglass Claim appointment on target pickup date
+        // Auto-create future Eyeglass Claim appointment on target pickup date (with detailed availed products)
         if (!empty($targetPickupDate) && $patientId > 0) {
-            $claimNotes = "Eyeglass Claim & Fitting for Job Order #" . ($jobOrderNo ?: $invoiceNo) . " (Invoice: $invoiceNo).";
+            $itemLines = [];
+            foreach ($itemsDetailed as $it) {
+                $itemLines[] = "• " . (int)$it['qty'] . "x " . $it['name'];
+            }
+            $itemsListStr = implode("\n", $itemLines);
+
+            $claimNotes = "Service: Eyeglass Claim & Fitting\n"
+                        . "Availed Products:\n" . ($itemsListStr ?: "• Prescribed Spectacles / Optical Goods") . "\n"
+                        . "Invoice: $invoiceNo";
+            if ($jobOrderNo) {
+                $claimNotes .= " | Job Order: $jobOrderNo";
+            }
             if ($balanceDue > 0) {
-                $claimNotes .= " Balance Due to collect: ₱" . number_format($balanceDue, 2);
+                $claimNotes .= "\nBalance Due to collect: ₱" . number_format($balanceDue, 2);
             } else {
-                $claimNotes .= " Paid in Full.";
+                $claimNotes .= "\nPaid in Full.";
             }
             $insClaim = $db->prepare("
                 INSERT INTO appointments (patient_id, appointment_date, appointment_time, appointment_type, purpose, status, notes, verified_by, created_at)
@@ -302,6 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
             'date'               => date('M d, Y h:i A'),
             'cashier'            => $_SESSION['user_name'] ?? 'Staff Cashier',
             'patient'            => $patientName,
+            'patient_id'         => $patientId,
             'items'              => $itemsDetailed,
             'subtotal'           => $subtotal,
             'discount'           => $discount,
@@ -314,6 +326,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
         $db->rollBack();
         echo json_encode(['success'=>false,'error'=>'Transaction failed: '.$e->getMessage()]);
     }
+    exit;
+}
+
+// Appoint future product claiming from POS Billing Transaction Summary
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'appoint_product_claim') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        echo json_encode(['success' => false, 'error' => 'Security token expired. Please refresh the page.']);
+        exit;
+    }
+    $saleId    = (int)($_POST['sale_id'] ?? 0);
+    $patientId = (int)($_POST['patient_id'] ?? 0);
+    $claimDate = sanitize($_POST['claim_date'] ?? '');
+    $claimTime = sanitize($_POST['claim_time'] ?? '14:00');
+
+    if (!$patientId || !$claimDate) {
+        echo json_encode(['success' => false, 'error' => 'Patient and claiming date are required.']);
+        exit;
+    }
+
+    // Fetch sale details
+    $saleStmt = $db->prepare("SELECT * FROM sales WHERE id = ?");
+    $saleStmt->execute([$saleId]);
+    $sale = $saleStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$sale) {
+        echo json_encode(['success' => false, 'error' => 'Sale record not found.']);
+        exit;
+    }
+
+    // Fetch items availed in this transaction
+    $itemsStmt = $db->prepare("SELECT item_name, quantity, unit_price, total_price FROM sale_items WHERE sale_id = ?");
+    $itemsStmt->execute([$saleId]);
+    $saleItems = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $itemLines = [];
+    foreach ($saleItems as $it) {
+        $itemLines[] = "• " . (int)$it['quantity'] . "x " . $it['item_name'];
+    }
+    $itemsListStr = implode("\n", $itemLines);
+
+    $invoiceNo  = $sale['invoice_no'] ?? ('Sale #' . $saleId);
+    $jobOrderNo = $sale['job_order_no'] ?? '';
+    $balanceDue = (float)($sale['balance_due'] ?? 0);
+
+    $notes = "Service: Eyeglass Claim & Fitting\n"
+           . "Availed Products:\n" . ($itemsListStr ?: "• Prescribed Spectacles / Optical Goods") . "\n"
+           . "Invoice: " . $invoiceNo;
+    if ($jobOrderNo) {
+        $notes .= " | Job Order: " . $jobOrderNo;
+    }
+    if ($balanceDue > 0) {
+        $notes .= "\nBalance to Collect upon Claim: ₱" . number_format($balanceDue, 2);
+    } else {
+        $notes .= "\nPaid in Full.";
+    }
+
+    // Insert claim appointment
+    $ins = $db->prepare("
+        INSERT INTO appointments (patient_id, appointment_date, appointment_time, appointment_type, purpose, status, notes, verified_by, created_at)
+        VALUES (?, ?, ?, 'SCHEDULED', 'eyeglass_claim', 'confirmed', ?, ?, NOW())
+    ");
+    $ins->execute([$patientId, $claimDate, $claimTime, $notes, $_SESSION['user_id']]);
+    $newApptId = (int)$db->lastInsertId();
+
+    // Update sales record
+    $db->prepare("UPDATE sales SET target_pickup_date = ?, order_status = 'in_progress' WHERE id = ?")->execute([$claimDate, $saleId]);
+
+    logActivity("Appointed product claim for patient ID #$patientId on $claimDate at $claimTime (Invoice: $invoiceNo)", "POS", $_SESSION['user_id'], 'staff');
+
+    echo json_encode([
+        'success'        => true,
+        'message'        => 'Product claiming appointed for ' . date('M d, Y', strtotime($claimDate)) . ' at ' . date('h:i A', strtotime($claimTime)) . '.',
+        'appointment_id' => $newApptId,
+        'claim_date'     => $claimDate,
+        'claim_time'     => $claimTime
+    ]);
+    exit;
+}
+
+// Mark products released today from POS Billing Transaction Summary
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'release_products_today') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        echo json_encode(['success' => false, 'error' => 'Security token expired. Please refresh the page.']);
+        exit;
+    }
+    $saleId = (int)($_POST['sale_id'] ?? 0);
+    if ($saleId > 0) {
+        $db->prepare("UPDATE sales SET order_status = 'completed' WHERE id = ?")->execute([$saleId]);
+        logActivity("Marked sale #$saleId products released today", "POS", $_SESSION['user_id'], 'staff');
+    }
+    echo json_encode(['success' => true, 'message' => 'Products marked as released today.']);
     exit;
 }
 
@@ -1024,6 +1127,196 @@ include __DIR__ . '/../includes/header.php';
       <button id="checkoutBtn" onclick="processCheckout()" class="btn btn-primary w-100" style="padding:10px;font-size:.92rem;font-weight:700;" disabled>
         <i class="fas fa-cash-register me-1"></i> Process Sale
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- BILLING TRANSACTION SUMMARY & PRODUCT CLAIM SCHEDULER MODAL -->
+<!-- ============================================================ -->
+<div class="modal fade" id="billingSummaryModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 780px;">
+    <div class="modal-content" style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border-color); box-shadow:0 20px 45px rgba(0,0,0,0.22); overflow:hidden;">
+      <div class="modal-header d-flex justify-content-between align-items-center" style="background:linear-gradient(135deg, #059669, #10b981); color:#fff; padding:16px 22px;">
+        <div class="d-flex align-items-center gap-3">
+          <div style="width:42px; height:42px; border-radius:10px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:1.25rem;">
+            <i class="fas fa-file-invoice-dollar"></i>
+          </div>
+          <div>
+            <h5 class="modal-title fw-bold mb-0 text-white">Billing Transaction Summary</h5>
+            <small style="opacity:0.9; font-size:0.82rem;">Transaction confirmed &middot; Review availed items &amp; claim schedule</small>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body p-4" style="max-height: calc(85vh - 130px); overflow-y: auto;">
+        <!-- Top Info Header Card -->
+        <div class="p-3 mb-3 rounded border" style="background:var(--bg-hover);">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+              <div class="text-muted small text-uppercase fw-bold" style="letter-spacing:0.5px;">Customer / Patient</div>
+              <h5 class="fw-bold mb-0" id="sumPatientName" style="color:var(--text-color);">Walk-in Customer</h5>
+              <div class="small text-muted mt-1">
+                <span>Cashier: <strong id="sumCashier">Staff</strong></span> &middot;
+                <span id="sumDateTime">--</span>
+              </div>
+            </div>
+            <div class="text-end">
+              <div class="d-flex align-items-center justify-content-end gap-1 mb-1">
+                <span class="badge bg-primary px-2 py-1" id="sumInvoiceNo" style="font-size:0.85rem;">GOC-0000</span>
+                <span class="badge bg-warning text-dark px-2 py-1" id="sumJobOrderBadge" style="display:none; font-size:0.85rem;">JO-0000</span>
+              </div>
+              <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="fas fa-check-circle me-1"></i>Payment Confirmed</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Availed Products Table -->
+        <div class="mb-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6 class="fw-bold mb-0" style="color:var(--text-color);">
+              <i class="fas fa-shopping-basket text-primary me-2"></i>Availed Products &amp; Services
+            </h6>
+          </div>
+          <div class="table-responsive rounded border" style="background:var(--bg-card);">
+            <table class="table table-sm align-middle mb-0" style="font-size:0.85rem;">
+              <thead style="background:var(--bg-hover); color:var(--text-muted); font-size:0.75rem; text-transform:uppercase;">
+                <tr>
+                  <th style="padding:8px 12px;">Item Description</th>
+                  <th class="text-center" style="padding:8px 12px; width:70px;">Qty</th>
+                  <th class="text-end" style="padding:8px 12px; width:110px;">Unit Price</th>
+                  <th class="text-end" style="padding:8px 12px; width:120px;">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="sumItemsTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Financial Summary Breakdown Cards -->
+        <div class="p-3 mb-3 rounded border" style="background:var(--bg-card);">
+          <div class="row g-2" style="font-size:0.85rem;">
+            <div class="col-sm-6">
+              <div class="d-flex justify-content-between py-1 border-bottom">
+                <span class="text-muted">Subtotal:</span>
+                <strong id="sumSubtotal">₱0.00</strong>
+              </div>
+              <div class="d-flex justify-content-between py-1 border-bottom">
+                <span class="text-muted">Discount:</span>
+                <strong id="sumDiscount" class="text-warning">-₱0.00</strong>
+              </div>
+              <div class="d-flex justify-content-between py-1">
+                <span class="text-muted">Payment Received:</span>
+                <strong id="sumPaid" class="text-primary">₱0.00</strong>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex justify-content-between py-1 border-bottom">
+                <span class="fw-bold">Total Due:</span>
+                <strong id="sumTotal" class="fw-bold text-success fs-6">₱0.00</strong>
+              </div>
+              <div class="d-flex justify-content-between py-1 border-bottom">
+                <span class="text-muted">Balance Due:</span>
+                <div id="sumBalanceDue">
+                  <span class="badge bg-success text-white px-2 py-1">Paid in Full</span>
+                </div>
+              </div>
+              <div class="d-flex justify-content-between py-1">
+                <span class="text-muted">Change:</span>
+                <strong id="sumChange" class="text-success">₱0.00</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Product Claiming / Handover Dispatch Section -->
+        <div class="p-3 rounded border" style="background:var(--bg-hover);">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="fas fa-glasses text-primary fa-lg"></i>
+            <h6 class="fw-bold mb-0">Product Release &amp; Claiming Schedule</h6>
+          </div>
+          <p class="text-muted small mb-3">
+            If the patient cannot take home the availed products today (e.g., lens fabrication or fitting scheduled on another day), appoint a claiming date and time below. The availed items will be linked directly to their claim record.
+          </p>
+
+          <!-- Action Choice Row -->
+          <div class="d-flex flex-wrap gap-2 mb-2" id="claimActionChoiceRow">
+            <button type="button" class="btn btn-outline-success fw-bold flex-fill py-2" id="btnReleaseToday" onclick="releaseProductsToday()">
+              <i class="fas fa-check-circle me-1"></i> Products Released Today
+            </button>
+            <button type="button" class="btn btn-primary fw-bold flex-fill py-2 shadow-sm" id="btnToggleClaimForm" onclick="toggleClaimScheduler()">
+              <i class="fas fa-calendar-plus me-1"></i> Appoint Date &amp; Time for Claiming
+            </button>
+          </div>
+
+          <!-- Product Claim Scheduler Container (Toggleable) -->
+          <div id="claimSchedulerContainer" class="p-3 mt-2 rounded border bg-white" style="display:none;">
+            <div class="alert alert-info py-2 px-3 small mb-3">
+              <i class="fas fa-info-circle me-1"></i>
+              <strong>Schedule Eyeglass Claim:</strong> This patient will be added to the Eyeglass Claims queue on the chosen date, with their full list of purchased items included for staff reference.
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted mb-1">Claiming Date <span class="text-danger">*</span></label>
+                <input type="date" id="claimScheduleDate" class="form-control form-control-sm" min="<?= date('Y-m-d') ?>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted mb-1">Preferred Time Slot</label>
+                <select id="claimScheduleTime" class="form-select form-select-sm">
+                  <option value="09:00">09:00 AM</option>
+                  <option value="09:30">09:30 AM</option>
+                  <option value="10:00">10:00 AM</option>
+                  <option value="10:30">10:30 AM</option>
+                  <option value="11:00">11:00 AM</option>
+                  <option value="11:30">11:30 AM</option>
+                  <option value="13:00">01:00 PM</option>
+                  <option value="13:30">01:30 PM</option>
+                  <option value="14:00" selected>02:00 PM (Default)</option>
+                  <option value="14:30">02:30 PM</option>
+                  <option value="15:00">03:00 PM</option>
+                  <option value="15:30">03:30 PM</option>
+                  <option value="16:00">04:00 PM</option>
+                  <option value="16:30">04:30 PM</option>
+                </select>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-secondary btn-sm px-3" onclick="toggleClaimScheduler()">
+                Cancel
+              </button>
+              <button type="button" class="btn btn-success btn-sm px-4 fw-bold" id="btnSubmitClaimAppt" onclick="submitClaimAppointment()">
+                <i class="fas fa-calendar-check me-1"></i> Confirm &amp; Save Claim Appointment
+              </button>
+            </div>
+          </div>
+
+          <!-- Success Alert when released today -->
+          <div id="releaseSuccessBox" class="alert alert-success py-2 px-3 small mb-0 mt-2" style="display:none;"></div>
+
+          <!-- Success Alert when claim appointment scheduled -->
+          <div id="claimStatusSuccessBox" class="alert alert-success py-2 px-3 small mb-0 mt-2" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Modal Footer with Document & Next Action Buttons -->
+      <div class="modal-footer d-flex justify-content-between align-items-center flex-wrap gap-2" style="background:var(--bg-hover); padding:12px 22px;">
+        <div class="d-flex gap-2">
+          <button type="button" onclick="openReceiptFromSummary()" class="btn btn-outline-primary btn-sm px-3">
+            <i class="fas fa-receipt me-1"></i> View / Print Receipt
+          </button>
+          <button type="button" onclick="openJobSlipFromSummary()" class="btn btn-outline-warning btn-sm px-3 fw-bold" id="btnSummaryJobSlip" style="display:none;">
+            <i class="fas fa-tools me-1"></i> View / Print Job Slip
+          </button>
+        </div>
+        <div>
+          <button type="button" class="btn btn-primary btn-sm px-4 fw-bold" onclick="closeBillingSummaryModal()">
+            <i class="fas fa-plus me-1"></i> Next Sale / Done
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1829,41 +2122,8 @@ async function processCheckout() {
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-cash-register me-1"></i> Process Sale';
 
-      // 2. Open Receipt in Tab & Embedded Modal
-      const receiptUrl = 'receipt.php?id=' + data.sale_id;
-      const jobSlipUrl = 'job_slip.php?id=' + data.sale_id;
-      
-      try {
-        window.open(receiptUrl + '&auto_print=1', '_blank');
-      } catch(e) {
-        console.log('Popup blocked');
-      }
-
-      document.getElementById('receiptModalTitle').textContent = `Official Receipt · ${data.invoice_no}`;
-      document.getElementById('receiptModalSubtitle').textContent = `Total: ${formatPeso(data.total)} · Customer: ${data.patient}`;
-      document.getElementById('receiptIframe').src = receiptUrl;
-      document.getElementById('btnOpenReceiptTab').href = receiptUrl;
-
-      // Optical Job Slip button in modal
-      const btnModalJob = document.getElementById('btnModalJobSlip');
-      const btnTabJob   = document.getElementById('btnOpenJobSlipTab');
-      if (data.has_job_order) {
-        btnModalJob.style.display = 'inline-block';
-        btnTabJob.style.display = 'inline-block';
-        btnTabJob.href = jobSlipUrl;
-      } else {
-        btnModalJob.style.display = 'none';
-        btnTabJob.style.display = 'none';
-      }
-
-      const modalEl = document.getElementById('receiptModal');
-      if (window.bootstrap && bootstrap.Modal) {
-        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        bsModal.show();
-      } else {
-        modalEl.classList.add('show');
-        modalEl.style.display = 'block';
-      }
+      // 2. Show Billing Transaction Summary Modal instead of raw receipt
+      showBillingSummaryModal(data);
 
       let successMsg = `Sale completed! Invoice #${data.invoice_no}`;
       if (data.has_job_order) {
@@ -1879,6 +2139,306 @@ async function processCheckout() {
     showToast('Network error while processing sale: ' + e.message, 'danger');
     btn.disabled = false; 
     btn.innerHTML = '<i class="fas fa-cash-register me-1"></i> Process Sale';
+  }
+}
+
+// ── Billing Transaction Summary Modal & Claim Scheduler Functions ──
+let currentSummaryData = null;
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatTime12(timeStr) {
+  if (!timeStr) return '';
+  const parts = String(timeStr).split(':');
+  let hours = parseInt(parts[0], 10);
+  const mins = parts[1] || '00';
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${hours}:${mins} ${ampm}`;
+}
+
+function showBillingSummaryModal(data) {
+  currentSummaryData = data;
+
+  // Header info
+  const invEl = document.getElementById('sumInvoiceNo');
+  if (invEl) invEl.textContent = data.invoice_no || ('Sale #' + data.sale_id);
+
+  const joBadge = document.getElementById('sumJobOrderBadge');
+  if (joBadge) {
+    if (data.has_job_order && data.job_order_no) {
+      joBadge.style.display = 'inline-block';
+      joBadge.textContent = 'JO #' + data.job_order_no;
+    } else {
+      joBadge.style.display = 'none';
+    }
+  }
+
+  const patientNameEl = document.getElementById('sumPatientName');
+  if (patientNameEl) patientNameEl.textContent = data.patient || 'Walk-in Customer';
+
+  const dateEl = document.getElementById('sumDateTime');
+  if (dateEl) dateEl.textContent = data.date || new Date().toLocaleString();
+
+  const cashierEl = document.getElementById('sumCashier');
+  if (cashierEl) cashierEl.textContent = data.cashier || 'Staff';
+
+  // Items table
+  const tbody = document.getElementById('sumItemsTableBody');
+  if (tbody) {
+    tbody.innerHTML = '';
+    if (Array.isArray(data.items) && data.items.length > 0) {
+      data.items.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="padding:8px 12px;">
+            <div class="fw-bold">${escapeHtml(item.name)}</div>
+            ${item.notes ? `<small class="text-muted">${escapeHtml(item.notes)}</small>` : ''}
+          </td>
+          <td class="text-center" style="padding:8px 12px;">${item.qty}</td>
+          <td class="text-end" style="padding:8px 12px;">${formatPeso(item.price)}</td>
+          <td class="text-end fw-bold" style="padding:8px 12px;">${formatPeso(item.total)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } else {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-2">No items listed</td></tr>';
+    }
+  }
+
+  // Financial summary
+  const subEl = document.getElementById('sumSubtotal');
+  if (subEl) subEl.textContent = formatPeso(data.subtotal || 0);
+
+  const discEl = document.getElementById('sumDiscount');
+  if (discEl) discEl.textContent = '-' + formatPeso(data.discount || 0);
+
+  const totEl = document.getElementById('sumTotal');
+  if (totEl) totEl.textContent = formatPeso(data.total || 0);
+
+  const paidEl = document.getElementById('sumPaid');
+  if (paidEl) paidEl.textContent = formatPeso(data.amount_paid || data.deposit_amount || 0);
+
+  const bal = parseFloat(data.balance_due || 0);
+  const balEl = document.getElementById('sumBalanceDue');
+  if (balEl) {
+    if (bal > 0) {
+      balEl.innerHTML = `<span class="badge bg-warning text-dark px-2 py-1"><i class="fas fa-exclamation-circle me-1"></i> Balance Due: ${formatPeso(bal)}</span>`;
+    } else {
+      balEl.innerHTML = `<span class="badge bg-success text-white px-2 py-1"><i class="fas fa-check-circle me-1"></i> Paid in Full</span>`;
+    }
+  }
+
+  const changeEl = document.getElementById('sumChange');
+  if (changeEl) changeEl.textContent = formatPeso(data.change || 0);
+
+  // Reset Claim controls
+  const scheduler = document.getElementById('claimSchedulerContainer');
+  if (scheduler) scheduler.style.display = 'none';
+
+  const statusSuccess = document.getElementById('claimStatusSuccessBox');
+  if (statusSuccess) {
+    statusSuccess.style.display = 'none';
+    statusSuccess.innerHTML = '';
+  }
+
+  const relSuccess = document.getElementById('releaseSuccessBox');
+  if (relSuccess) {
+    relSuccess.style.display = 'none';
+    relSuccess.innerHTML = '';
+  }
+
+  const choiceRow = document.getElementById('claimActionChoiceRow');
+  if (choiceRow) choiceRow.style.display = 'flex';
+
+  const btnRel = document.getElementById('btnReleaseToday');
+  if (btnRel) {
+    btnRel.disabled = false;
+    btnRel.innerHTML = '<i class="fas fa-check-circle me-1"></i> Products Released Today';
+  }
+
+  const btnAppt = document.getElementById('btnSubmitClaimAppt');
+  if (btnAppt) {
+    btnAppt.disabled = false;
+    btnAppt.innerHTML = '<i class="fas fa-calendar-check me-1"></i> Confirm &amp; Save Claim Appointment';
+  }
+
+  // Set default claim date (+3 days for JO, tomorrow for standard ready items)
+  const defDate = new Date();
+  defDate.setDate(defDate.getDate() + (data.has_job_order ? 3 : 1));
+  const defDateStr = defDate.toISOString().split('T')[0];
+  const dateInput = document.getElementById('claimScheduleDate');
+  if (dateInput) {
+    dateInput.value = defDateStr;
+  }
+
+  // Job slip button visibility
+  const btnJob = document.getElementById('btnSummaryJobSlip');
+  if (btnJob) {
+    btnJob.style.display = data.has_job_order ? 'inline-block' : 'none';
+  }
+
+  const modalEl = document.getElementById('billingSummaryModal');
+  if (modalEl) {
+    if (window.bootstrap && bootstrap.Modal) {
+      const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      bsModal.show();
+    } else {
+      modalEl.classList.add('show');
+      modalEl.style.display = 'block';
+    }
+  }
+}
+
+function toggleClaimScheduler() {
+  const container = document.getElementById('claimSchedulerContainer');
+  if (!container) return;
+  if (container.style.display === 'none' || !container.style.display) {
+    container.style.display = 'block';
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    container.style.display = 'none';
+  }
+}
+
+async function releaseProductsToday() {
+  if (!currentSummaryData || !currentSummaryData.sale_id) return;
+  const btn = document.getElementById('btnReleaseToday');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Updating...';
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('csrf_token', '<?= generateCsrfToken() ?>');
+    formData.append('action', 'release_products_today');
+    formData.append('sale_id', currentSummaryData.sale_id);
+
+    const res = await fetch('pos.php', { method: 'POST', body: formData });
+    const result = await res.json();
+
+    if (result.success) {
+      const choiceRow = document.getElementById('claimActionChoiceRow');
+      if (choiceRow) choiceRow.style.display = 'none';
+
+      const scheduler = document.getElementById('claimSchedulerContainer');
+      if (scheduler) scheduler.style.display = 'none';
+
+      const relBox = document.getElementById('releaseSuccessBox');
+      if (relBox) {
+        relBox.style.display = 'block';
+        relBox.innerHTML = '<i class="fas fa-check-circle me-2 text-success"></i> <strong>Products Released Today!</strong> Order marked as completed.';
+      }
+      showToast('Products marked as released today!', 'success');
+    } else {
+      showToast(result.error || 'Failed to update release status.', 'danger');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Products Released Today';
+      }
+    }
+  } catch(e) {
+    showToast('Network error: ' + e.message, 'danger');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check-circle me-1"></i> Products Released Today';
+    }
+  }
+}
+
+async function submitClaimAppointment() {
+  if (!currentSummaryData || !currentSummaryData.sale_id) return;
+  const claimDate = document.getElementById('claimScheduleDate')?.value;
+  const claimTime = document.getElementById('claimScheduleTime')?.value || '14:00';
+
+  if (!claimDate) {
+    alert('Please select a claiming date.');
+    return;
+  }
+
+  const btn = document.getElementById('btnSubmitClaimAppt');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Appointing...';
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('csrf_token', '<?= generateCsrfToken() ?>');
+    formData.append('action', 'appoint_product_claim');
+    formData.append('sale_id', currentSummaryData.sale_id);
+    formData.append('patient_id', currentSummaryData.patient_id || 0);
+    formData.append('claim_date', claimDate);
+    formData.append('claim_time', claimTime);
+
+    const res = await fetch('pos.php', { method: 'POST', body: formData });
+    const result = await res.json();
+
+    if (result.success) {
+      const choiceRow = document.getElementById('claimActionChoiceRow');
+      if (choiceRow) choiceRow.style.display = 'none';
+
+      const scheduler = document.getElementById('claimSchedulerContainer');
+      if (scheduler) scheduler.style.display = 'none';
+
+      const succBox = document.getElementById('claimStatusSuccessBox');
+      if (succBox) {
+        succBox.style.display = 'block';
+        succBox.innerHTML = `
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+              <i class="fas fa-calendar-check me-2 text-primary fa-lg"></i>
+              <strong>Product Claim Appointed!</strong>
+              <div class="text-muted small mt-1">Scheduled for <strong>${result.claim_date}</strong> at <strong>${formatTime12(result.claim_time)}</strong>. Availed products are saved directly into the calendar claim record.</div>
+            </div>
+            <span class="badge bg-primary text-white px-2 py-1"><i class="fas fa-glasses me-1"></i>Eyeglass Claim</span>
+          </div>
+        `;
+      }
+      showToast(result.message || 'Product claim appointment scheduled successfully!', 'success');
+    } else {
+      showToast(result.error || 'Failed to schedule claim appointment.', 'danger');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-calendar-check me-1"></i> Confirm &amp; Save Claim Appointment';
+      }
+    }
+  } catch(e) {
+    showToast('Network error: ' + e.message, 'danger');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-calendar-check me-1"></i> Confirm &amp; Save Claim Appointment';
+    }
+  }
+}
+
+function openReceiptFromSummary() {
+  if (currentSummaryData && currentSummaryData.sale_id) {
+    window.open('receipt.php?id=' + currentSummaryData.sale_id + '&auto_print=1', '_blank');
+  }
+}
+
+function openJobSlipFromSummary() {
+  if (currentSummaryData && currentSummaryData.sale_id) {
+    window.open('job_slip.php?id=' + currentSummaryData.sale_id + '&auto_print=1', '_blank');
+  }
+}
+
+function closeBillingSummaryModal() {
+  const modalEl = document.getElementById('billingSummaryModal');
+  if (modalEl) {
+    if (window.bootstrap && bootstrap.Modal) {
+      const bsModal = bootstrap.Modal.getInstance(modalEl);
+      if (bsModal) bsModal.hide();
+    } else {
+      modalEl.classList.remove('show');
+      modalEl.style.display = 'none';
+    }
   }
 }
 

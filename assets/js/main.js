@@ -483,6 +483,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Notification Polling (Appointments & Inventory Low Stock) ──
   let knownApptIds = null;
   let knownLowStockIds = null;
+  let knownWalkinIds = null;
+  let knownReadyPosIds = null;
   const notifBtn = document.querySelector('.notif-btn') || document.querySelector('#notifDropdownWrap .header-icon-btn');
 
   function formatTime(timeStr) {
@@ -522,6 +524,8 @@ document.addEventListener('DOMContentLoaded', function () {
       if (data && typeof data.count !== 'undefined') {
         const count = parseInt(data.count) || 0;
         const appts = data.appointments || [];
+        const walkins = data.walkin_items || [];
+        const readyPos = data.ready_pos_items || [];
         const lowStock = data.low_stock_items || [];
         const role = data.role || '';
 
@@ -537,31 +541,71 @@ document.addEventListener('DOMContentLoaded', function () {
         const apptsLink = prefix + rolePath + '/appointments.php';
         const invLink = prefix + (rolePath === 'saleslady' ? 'saleslady' : 'admin') + '/inventory.php';
 
-        // 1. Process New Appointments
+        // 1. Process New Online Pending Appointments
         if (knownApptIds !== null) {
           appts.forEach(appt => {
             const currentId = String(appt.id);
             if (!knownApptIds.has(currentId)) {
               const msg = `<strong>${escapeHtml(appt.patient_name)}</strong> booked an appointment for <strong>${formatDate(appt.appointment_date)}</strong> at <strong>${formatTime(appt.appointment_time)}</strong>.`;
-              window.showToast(msg, 'info', 3000); 
+              window.showToast(msg, 'info', 4000); 
             }
           });
         }
 
-        // 2. Process New Low Stock Alerts
+        // 2. Process Doctor Walk-in Waiting Alerts (Clickable popup with chime)
+        if (knownWalkinIds !== null && (rolePath === 'doctor' || rolePath === 'admin')) {
+          walkins.forEach(walkin => {
+            const currentId = String(walkin.id);
+            if (!knownWalkinIds.has(currentId)) {
+              const walkinUrl = prefix + 'doctor/appointments.php?highlight=' + walkin.id;
+              const msg = `
+                <a href="${walkinUrl}" style="text-decoration:none; color:inherit; display:flex; align-items:flex-start; gap:8px;">
+                  <div style="flex:1;">
+                    <div><span class="badge bg-warning text-dark me-1" style="font-size:0.7rem;"><i class="fas fa-bolt"></i> Walk-in</span> <strong>${escapeHtml(walkin.patient_name)}</strong> is waiting for doctor checkup.</div>
+                    <div class="small text-muted mt-1"><i class="fas fa-calendar-check me-1 text-primary"></i>Click to open Doctor Calendar</div>
+                  </div>
+                </a>
+              `;
+              window.showToast(msg, 'warning', 6000, true);
+            }
+          });
+        }
+
+        // 3. Process Saleslady Ready for POS Alerts (Clickable popup with chime)
+        if (knownReadyPosIds !== null && (rolePath === 'saleslady' || rolePath === 'admin')) {
+          readyPos.forEach(item => {
+            const currentId = String(item.id);
+            if (!knownReadyPosIds.has(currentId)) {
+              const posUrl = prefix + 'saleslady/pos.php?patient_id=' + item.patient_id + '&appt_id=' + item.id;
+              const msg = `
+                <a href="${posUrl}" style="text-decoration:none; color:inherit; display:flex; align-items:flex-start; gap:8px;">
+                  <div style="flex:1;">
+                    <div><span class="badge bg-success text-white me-1" style="font-size:0.7rem;"><i class="fas fa-check-circle"></i> Ready for POS</span> <strong>${escapeHtml(item.patient_name)}</strong> completed exam & prescription is written.</div>
+                    <div class="small text-muted mt-1"><i class="fas fa-cash-register me-1 text-success"></i>Click to open POS Billing</div>
+                  </div>
+                </a>
+              `;
+              window.showToast(msg, 'success', 6000, true);
+            }
+          });
+        }
+
+        // 4. Process New Low Stock Alerts
         if (knownLowStockIds !== null && (rolePath === 'admin' || rolePath === 'saleslady')) {
           lowStock.forEach(item => {
             const currentStockId = String(item.id);
             if (!knownLowStockIds.has(currentStockId)) {
               const prodName = escapeHtml(item.name + (item.variant_name ? ' — ' + item.variant_name : ''));
               const msg = `<strong>Low Stock Alert:</strong> ${prodName} has only <strong>${item.stock_quantity}</strong> remaining (Alert: &le; ${item.low_stock_alert}).`;
-              window.showToast(msg, 'warning', 3000);
+              window.showToast(msg, 'warning', 4000);
             }
           });
         }
         
         // Update tracked IDs
         knownApptIds = new Set(appts.map(a => String(a.id)));
+        knownWalkinIds = new Set(walkins.map(w => String(w.id)));
+        knownReadyPosIds = new Set(readyPos.map(r => String(r.id)));
         knownLowStockIds = new Set(lowStock.map(p => String(p.id)));
         
         // Update badge on bell
@@ -591,7 +635,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <div style="max-height: 380px; overflow-y: auto;" class="custom-scroll">
           `;
 
-          if (appts.length === 0 && lowStock.length === 0) {
+          if (appts.length === 0 && lowStock.length === 0 && walkins.length === 0 && readyPos.length === 0) {
             html += `
               <li class="p-4 text-center text-muted" style="font-size: 0.86rem;">
                 <i class="fas fa-bell-slash d-block mb-2 text-muted" style="font-size: 1.8rem; opacity: 0.4;"></i>
@@ -599,6 +643,64 @@ document.addEventListener('DOMContentLoaded', function () {
               </li>
             `;
           } else {
+            // Render Walk-in Waiting section for doctor/admin
+            if (walkins.length > 0 && (rolePath === 'doctor' || rolePath === 'admin')) {
+              html += `
+                <li class="dropdown-header text-uppercase text-warning fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                  <span><i class="fas fa-bolt me-1 text-warning"></i> Walk-in Waiting</span>
+                  <span class="badge bg-warning-subtle text-warning-emphasis" style="background: rgba(245,158,11,0.18);">${walkins.length}</span>
+                </li>
+              `;
+              walkins.slice(0, 5).forEach(walkin => {
+                html += `
+                  <li>
+                    <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="${prefix}doctor/appointments.php?highlight=${walkin.id}">
+                      <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(245, 158, 11, 0.15); color: #D97706; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
+                        <i class="fas fa-bolt"></i>
+                      </div>
+                      <div class="flex-grow-1 text-truncate">
+                        <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                          ${escapeHtml(walkin.patient_name)}
+                        </div>
+                        <small class="text-warning-emphasis d-block text-truncate" style="font-size: 0.74rem;">
+                          Walk-in Waiting &bull; Arrived at ${formatTime(walkin.appointment_time)}
+                        </small>
+                      </div>
+                    </a>
+                  </li>
+                `;
+              });
+            }
+
+            // Render Ready for Billing section for saleslady/admin
+            if (readyPos.length > 0 && (rolePath === 'saleslady' || rolePath === 'admin')) {
+              html += `
+                <li class="dropdown-header text-uppercase text-success fw-bold d-flex align-items-center justify-content-between px-3 pt-2 pb-1" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                  <span><i class="fas fa-check-circle me-1 text-success"></i> Ready for Billing</span>
+                  <span class="badge bg-success-subtle text-success" style="background: rgba(16,185,129,0.18);">${readyPos.length}</span>
+                </li>
+              `;
+              readyPos.slice(0, 5).forEach(item => {
+                html += `
+                  <li>
+                    <a class="dropdown-item px-3 py-2 d-flex align-items-start gap-2 border-bottom border-light" href="${prefix}saleslady/pos.php?patient_id=${item.patient_id}&appt_id=${item.id}">
+                      <div style="width: 30px; height: 30px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); color: #10B981; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.82rem; margin-top: 2px;">
+                        <i class="fas fa-cash-register"></i>
+                      </div>
+                      <div class="flex-grow-1 text-truncate">
+                        <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">
+                          ${escapeHtml(item.patient_name)}
+                        </div>
+                        <small class="text-success d-block text-truncate" style="font-size: 0.74rem;">
+                          Exam Done &bull; Ready for POS Billing
+                        </small>
+                      </div>
+                    </a>
+                  </li>
+                `;
+              });
+            }
+
             // Render Low Stock section if available
             if (lowStock.length > 0 && (rolePath === 'admin' || rolePath === 'saleslady')) {
               html += `
@@ -685,7 +787,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Live update All Notifications modal body if open or rendered
         const modalBody = document.getElementById('allNotificationsModalBody');
         if (modalBody) {
-          if (appts.length === 0 && lowStock.length === 0) {
+          if (appts.length === 0 && lowStock.length === 0 && walkins.length === 0 && readyPos.length === 0) {
             modalBody.innerHTML = `
               <div class="text-center py-5 text-muted">
                 <i class="fas fa-bell-slash mb-3" style="font-size: 2.5rem; opacity: 0.35;"></i>
@@ -695,6 +797,68 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
           } else {
             let mHtml = '';
+
+            // Walk-in patients waiting section
+            if (walkins.length > 0 && (rolePath === 'doctor' || rolePath === 'admin')) {
+              mHtml += `
+                <div class="mb-4">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-warning-emphasis text-uppercase small" style="letter-spacing: 0.5px;">
+                      <i class="fas fa-bolt me-1 text-warning"></i> Walk-in Patients Waiting (${walkins.length})
+                    </span>
+                    <a href="${prefix}doctor/appointments.php" class="small text-warning-emphasis fw-semibold text-decoration-none">Open Calendar &rarr;</a>
+                  </div>
+                  <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+              `;
+              walkins.forEach(walkin => {
+                mHtml += `
+                  <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                    <div class="d-flex align-items-center gap-2 text-truncate me-2">
+                      <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(245, 158, 11, 0.15); color: #D97706; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem;">
+                        <i class="fas fa-bolt"></i>
+                      </div>
+                      <div class="text-truncate">
+                        <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">${escapeHtml(walkin.patient_name)}</div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Arrived at ${formatTime(walkin.appointment_time)} &bull; Waiting for Doctor Exam</small>
+                      </div>
+                    </div>
+                    <a href="${prefix}doctor/appointments.php?highlight=${walkin.id}" class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size: 0.74rem;">Examine</a>
+                  </div>
+                `;
+              });
+              mHtml += `</div></div>`;
+            }
+
+            // Ready for POS billing section
+            if (readyPos.length > 0 && (rolePath === 'saleslady' || rolePath === 'admin')) {
+              mHtml += `
+                <div class="mb-4">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-success text-uppercase small" style="letter-spacing: 0.5px;">
+                      <i class="fas fa-check-circle me-1 text-success"></i> Ready for POS Billing (${readyPos.length})
+                    </span>
+                    <a href="${prefix}saleslady/pos.php" class="small text-success fw-semibold text-decoration-none">Open POS &rarr;</a>
+                  </div>
+                  <div class="list-group list-group-flush border rounded-3 overflow-hidden">
+              `;
+              readyPos.forEach(item => {
+                mHtml += `
+                  <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+                    <div class="d-flex align-items-center gap-2 text-truncate me-2">
+                      <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(16, 185, 129, 0.15); color: #10B981; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.8rem;">
+                        <i class="fas fa-cash-register"></i>
+                      </div>
+                      <div class="text-truncate">
+                        <div class="fw-bold text-truncate" style="font-size: 0.83rem; color: var(--text-primary);">${escapeHtml(item.patient_name)}</div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Doctor exam finished &bull; Prescription written</small>
+                      </div>
+                    </div>
+                    <a href="${prefix}saleslady/pos.php?patient_id=${item.patient_id}&appt_id=${item.id}" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size: 0.74rem;">Bill Now</a>
+                  </div>
+                `;
+              });
+              mHtml += `</div></div>`;
+            }
             if (lowStock.length > 0 && (rolePath === 'admin' || rolePath === 'saleslady')) {
               mHtml += `
                 <div class="mb-4">

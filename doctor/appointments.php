@@ -2391,10 +2391,14 @@ document.addEventListener('DOMContentLoaded', function() {
   render();
 
   if (highlightParam > 0) {
+    const target = rawAppointments.find(a => parseInt(a.id, 10) === highlightParam);
     setTimeout(() => {
       const row = document.getElementById('appt-row-' + highlightParam);
       if (row) {
         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      if (target) {
+        openAppointmentModal(target);
       }
     }, 350);
   }

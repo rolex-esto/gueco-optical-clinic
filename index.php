@@ -675,187 +675,512 @@ if (!function_exists('getSiteSetting')) {
     [data-theme="light"] .theme-btn { background:rgba(0,0,0,.04); }
     .theme-btn:hover { border-color:var(--clr-primary); color:var(--clr-primary); transform:scale(1.05); }
 
-    /* HERO */
+    /* ── NEW HERO REDESIGN (matches reference screenshots) ───── */
     .hero {
-      padding:160px 24px 100px; max-width:1200px; margin:0 auto; display:flex; align-items:center; gap:60px;
+      padding: 120px 0 0;
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: flex-start;
+      gap: 48px;
+      min-height: 100vh;
+      padding-left: 48px;
+      padding-right: 48px;
     }
-    .hero-text { flex:1; }
-    .badge-est {
-      display:inline-flex; align-items:center; gap:8px; padding:8px 18px;
-      background:rgba(0,173,239,.14); color:#00ADEF; border-radius:100px;
-      font-size:.85rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
-      margin-bottom:24px; border:1px solid rgba(0,173,239,.35); box-shadow:0 2px 10px rgba(0,173,239,.12);
+    .hero-text {
+      flex: 1;
+      padding-top: 40px;
     }
-    .hero h1 { font-size:3.8rem; font-weight:900; line-height:1.15; margin-bottom:24px; color:var(--text-primary); letter-spacing:-1px; }
-    .hero h1 span {
-      background:linear-gradient(135deg,#00ADEF 0%,#27AAE2 50%,#235EAE 100%);
-      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    .hero h1 {
+      font-size: 4.2rem;
+      font-weight: 900;
+      line-height: 1.1;
+      margin-bottom: 22px;
+      color: #0e1a3a;
+      letter-spacing: -2px;
     }
-    .hero p { font-size:1.15rem; color:var(--text-secondary); line-height:1.7; margin-bottom:40px; max-width:540px; }
-    
-    .stats { display:flex; gap:40px; }
-    .stat-item h3 { font-size:2.2rem; font-weight:800; margin:0; color:var(--clr-primary); }
-    .stat-item p { font-size:.9rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:.05em; margin:0; }
+    [data-theme="dark"] .hero h1 { color: #f0f4fc; }
+    .hero h1 .highlight {
+      color: #1a3cb0;
+    }
+    [data-theme="dark"] .hero h1 .highlight { color: #5b85e8; }
+    .hero p {
+      font-size: 1.0rem;
+      color: #4f5c78;
+      line-height: 1.65;
+      margin-bottom: 36px;
+      max-width: 440px;
+    }
+    [data-theme="dark"] .hero p { color: #8fa3c8; }
 
-    /* 3D FLOATING HERO LOGO EMBLEM (LOGO ONLY) */
-    .hero-image {
+    /* Hero CTA buttons */
+    .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 36px; }
+    .btn-book-primary {
+      background: #1a3cb0;
+      color: #fff;
+      padding: 14px 28px;
+      border-radius: 100px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.22s ease;
+      box-shadow: 0 6px 20px rgba(26,60,176,0.3);
+    }
+    .btn-book-primary:hover {
+      background: #1430a0;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(26,60,176,0.4);
+      color: #fff;
+    }
+    .btn-see-offer {
+      background: transparent;
+      color: #0e1a3a;
+      padding: 13px 26px;
+      border-radius: 100px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: 1.5px solid #cdd5e0;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.22s ease;
+    }
+    [data-theme="dark"] .btn-see-offer { color: #d0ddf5; border-color: rgba(255,255,255,0.25); }
+    .btn-see-offer:hover { border-color: #1a3cb0; color: #1a3cb0; }
+    [data-theme="dark"] .btn-see-offer:hover { border-color: #5b85e8; color: #5b85e8; }
+
+    /* Info chips row */
+    .hero-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .hero-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 16px;
+      border-radius: 100px;
+      background: #f0f4fc;
+      border: 1px solid #d8e2f8;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #4f5c78;
+    }
+    [data-theme="dark"] .hero-chip {
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(255,255,255,0.18);
+      color: #9db4d8;
+    }
+
+    /* Hero circle photos */
+    .hero-photos {
       flex: 1;
       position: relative;
-      perspective: 1200px;
       display: flex;
-      justify-content: center;
-      align-items: center;
+      align-items: flex-start;
+      gap: 0;
+      padding-top: 80px;
+      min-height: 480px;
     }
-    .hero-logo-container {
+    .hero-circle {
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 5px solid #1a3cb0;
+      box-shadow: 0 16px 48px rgba(26,60,176,0.18);
       position: relative;
+      background: #dce8ff;
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
-      max-width: 440px;
-      padding: 20px;
-    }
-    /* Radiant Glow Aura Behind Logo */
-    .hero-logo-aura {
-      position: absolute;
-      width: 340px;
-      height: 340px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(0, 173, 239, 0.35) 0%, rgba(35, 94, 174, 0.18) 50%, transparent 70%);
-      filter: blur(45px);
-      z-index: 1;
-      pointer-events: none;
-      animation: pulseAura 5s ease-in-out infinite alternate;
-    }
-    @keyframes pulseAura {
-      0%   { transform: scale(0.92); opacity: 0.7; }
-      100% { transform: scale(1.15); opacity: 1; }
-    }
-
-    /* High-Tech Optic Precision Ring */
-    .hero-logo-ring {
-      position: absolute;
-      width: 430px;
-      height: 430px;
-      border-radius: 50%;
-      border: 1.5px dashed rgba(0, 173, 239, 0.28);
-      z-index: 1;
-      pointer-events: none;
-      animation: spinRing 40s linear infinite;
-    }
-    .hero-logo-ring::before {
-      content: '';
-      position: absolute;
-      inset: 28px;
-      border-radius: 50%;
-      border: 1px solid rgba(35, 94, 174, 0.18);
-    }
-    @keyframes spinRing {
-      from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
-    }
-
-    /* 3D Elevated Logo Card / Pedestal */
-    .hero-3d-logo-card {
-      position: relative;
-      z-index: 2;
-      width: 360px;
-      height: 360px;
-      border-radius: 46px;
-      background: #FFFFFF;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 36px;
-      border: 2px solid rgba(0, 173, 239, 0.25);
-      box-shadow: 0 28px 70px -8px rgba(0, 173, 239, 0.35),
-                  0 14px 30px rgba(35, 94, 174, 0.22),
-                  inset 0 3px 0 #FFFFFF;
-      animation: floatEmblem 5s ease-in-out infinite alternate;
-      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s;
-      cursor: pointer;
       overflow: hidden;
+      transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
     }
-    [data-theme="dark"] .hero-3d-logo-card {
-      box-shadow: 0 35px 80px -10px rgba(0, 0, 0, 0.65),
-                  0 0 50px rgba(0, 173, 239, 0.3),
-                  inset 0 2px 0 rgba(255, 255, 255, 0.95);
-      border-color: rgba(0, 173, 239, 0.4);
+    .hero-circle:hover { transform: translateY(-8px) scale(1.02); }
+    .hero-circle:first-child {
+      z-index: 2;
+      margin-right: -40px;
     }
-    .hero-3d-logo-card:hover {
-      transform: translateY(-10px) scale(1.03);
-      box-shadow: 0 45px 95px -10px rgba(0, 173, 239, 0.48),
-                  0 0 65px rgba(0, 173, 239, 0.35),
-                  inset 0 2px 0 #FFFFFF;
-      border-color: rgba(0, 173, 239, 0.6);
+    .hero-circle:last-child { z-index: 1; margin-top: 60px; }
+    .hero-circle img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+    /* connector dot between circles */
+    .hero-circle-connector {
+      position: absolute;
+      left: calc(280px - 20px);
+      top: calc(140px + 30px);
+      width: 10px;
+      height: 10px;
+      background: #1a3cb0;
+      border-radius: 50%;
+      z-index: 3;
     }
 
-    /* Glossy Glass Sheen on Hover */
-    .hero-3d-logo-card::before {
+    /* ── SERVICES SECTION ─────────────────────────────────── */
+    .services-section {
+      background: #dce8ff;
+      padding: 80px 48px;
+    }
+    [data-theme="dark"] .services-section { background: rgba(26,60,176,0.08); }
+    .services-inner { max-width: 1200px; margin: 0 auto; }
+    .services-header { margin-bottom: 40px; }
+    .services-header h2 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: #0e1a3a;
+      margin-bottom: 8px;
+      letter-spacing: -0.8px;
+    }
+    [data-theme="dark"] .services-header h2 { color: #d8e8ff; }
+    .services-header p {
+      font-size: 0.95rem;
+      color: #4f5c78;
+      margin: 0;
+    }
+    [data-theme="dark"] .services-header p { color: #8fa3c8; }
+    .services-header p .underline-link {
+      text-decoration: underline;
+      color: #1a3cb0;
+    }
+
+    /* Services bento grid */
+    .services-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 20px;
+    }
+    .svc-card {
+      border-radius: 24px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.28s cubic-bezier(0.16,1,0.3,1), box-shadow 0.28s;
+    }
+    .svc-card:hover { transform: translateY(-6px); box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
+
+    /* Eye exams — large left cell */
+    .svc-card-exam {
+      background: #eef4ff;
+      grid-row: span 2;
+    }
+    [data-theme="dark"] .svc-card-exam { background: rgba(26,60,176,0.18); }
+    .svc-card-exam h3 {
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: #0e1a3a;
+      margin-bottom: 12px;
+      letter-spacing: -0.4px;
+      line-height: 1.2;
+    }
+    [data-theme="dark"] .svc-card-exam h3 { color: #d8e8ff; }
+    .svc-card-exam p { font-size: 0.9rem; color: #4f5c78; line-height: 1.6; }
+    [data-theme="dark"] .svc-card-exam p { color: #8fa3c8; }
+
+    /* Eyeglasses — right photo card */
+    .svc-card-glasses {
+      background: #0e1a3a;
+      overflow: hidden;
+      padding: 0;
+      min-height: 220px;
+    }
+    .svc-card-glasses .svc-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.7;
+    }
+    .svc-card-glasses .svc-overlay {
+      position: relative;
+      z-index: 1;
+      padding: 28px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    .svc-card-glasses h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .svc-card-glasses p { font-size: 0.85rem; color: rgba(255,255,255,0.8); margin: 0; }
+
+    /* Contact lenses — right bottom left */
+    .svc-card-contact {
+      background: #eef4ff;
+    }
+    [data-theme="dark"] .svc-card-contact { background: rgba(26,60,176,0.14); }
+    .svc-card-contact h3 { font-size: 1.1rem; font-weight: 700; color: #0e1a3a; margin-bottom: 8px; }
+    [data-theme="dark"] .svc-card-contact h3 { color: #d8e8ff; }
+    .svc-card-contact p { font-size: 0.85rem; color: #4f5c78; margin: 0; }
+    [data-theme="dark"] .svc-card-contact p { color: #8fa3c8; }
+
+    /* Aftercare — dark card */
+    .svc-card-aftercare {
+      background: #0e1a3a;
+    }
+    .svc-card-aftercare h3 { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    .svc-card-aftercare p { font-size: 0.85rem; color: rgba(255,255,255,0.75); margin: 0; }
+
+    /* ── ABOUT SECTION ──────────────────────────────────── */
+    .about-section {
+      background: #dce8ff;
+      padding: 80px 48px;
+    }
+    [data-theme="dark"] .about-section { background: rgba(26,60,176,0.06); }
+    .about-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 64px;
+    }
+    .about-photo-wrap {
+      flex-shrink: 0;
+      position: relative;
+      width: 340px;
+    }
+    .about-arch-img {
+      width: 100%;
+      height: 420px;
+      object-fit: cover;
+      border-radius: 50% 50% 0 0 / 60% 60% 0 0;
+      border: 4px solid #fff;
+      box-shadow: 0 16px 48px rgba(26,60,176,0.15);
+      display: block;
+      background: #c9dcff;
+    }
+    .about-badge {
+      position: absolute;
+      bottom: -10px;
+      right: 20px;
+      background: #0e1a3a;
+      color: #fff;
+      padding: 9px 20px;
+      border-radius: 100px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+    }
+    .about-content { flex: 1; }
+    .about-content h2 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #0e1a3a;
+      margin-bottom: 22px;
+      letter-spacing: -0.6px;
+      line-height: 1.2;
+    }
+    [data-theme="dark"] .about-content h2 { color: #d8e8ff; }
+    .about-content p {
+      font-size: 0.95rem;
+      color: #4f5c78;
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+    [data-theme="dark"] .about-content p { color: #8fa3c8; }
+    .about-content p:last-child { margin-bottom: 0; }
+
+    /* ── STEPS SECTION ──────────────────────────────────── */
+    .steps-section {
+      background: #dce8ff;
+      padding: 70px 48px 60px;
+    }
+    [data-theme="dark"] .steps-section { background: rgba(26,60,176,0.07); }
+    .steps-inner { max-width: 1200px; margin: 0 auto; }
+    .steps-inner h2 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #0e1a3a;
+      margin-bottom: 40px;
+      letter-spacing: -0.6px;
+    }
+    [data-theme="dark"] .steps-inner h2 { color: #d8e8ff; }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      position: relative;
+    }
+    .steps-grid::before {
       content: '';
       position: absolute;
-      top: 0; left: -100%;
-      width: 100%; height: 100%;
-      background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.4) 50%, transparent 60%);
-      transition: all 0.6s ease;
-      pointer-events: none;
+      top: 18px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #1a3cb0;
+      z-index: 0;
     }
-    .hero-3d-logo-card:hover::before {
-      left: 100%;
+    .step-item { position: relative; z-index: 1; }
+    .step-num {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: #1a3cb0;
+      line-height: 1;
+      margin-bottom: 16px;
     }
-
-    /* Pure Logo Image */
-    .hero-pure-logo {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: contain !important;
-      border-radius: 0 !important;
-      box-shadow: none !important;
-      border: none !important;
-      margin: 0 !important;
-      background: transparent !important;
-      padding: 0 !important;
-      filter: drop-shadow(0 6px 14px rgba(35, 94, 174, 0.18));
-      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    [data-theme="dark"] .step-num { color: #5b85e8; }
+    .step-item h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0e1a3a;
+      margin-bottom: 10px;
     }
-    .hero-3d-logo-card:hover .hero-pure-logo {
-      transform: scale(1.05);
+    [data-theme="dark"] .step-item h3 { color: #d8e8ff; }
+    .step-item p {
+      font-size: 0.88rem;
+      color: #4f5c78;
+      line-height: 1.65;
+      margin: 0;
     }
-
-    @keyframes floatEmblem {
-      0%   { transform: translateY(0px) rotate(0deg); }
-      100% { transform: translateY(-14px) rotate(0.6deg); }
-    }
-
-    @media (max-width: 991px) {
-      .hero-logo-ring { width: 330px; height: 330px; }
-      .hero-logo-aura { width: 260px; height: 260px; }
-      .hero-3d-logo-card { width: 280px; height: 280px; border-radius: 36px; padding: 26px; }
-    }
-    @media (max-width: 576px) {
-      .hero-logo-ring { width: 270px; height: 270px; }
-      .hero-logo-aura { width: 220px; height: 220px; }
-      .hero-3d-logo-card { width: 230px; height: 230px; border-radius: 30px; padding: 20px; }
+    [data-theme="dark"] .step-item p { color: #8fa3c8; }
+    .step-item p .link-inline {
+      color: #1a3cb0;
+      text-decoration: underline;
     }
 
-    /* DETAILS */
-    .details { max-width:1200px; margin:0 auto 100px; padding:0 24px; display:grid; grid-template-columns:repeat(3, 1fr); gap:30px; }
-    .detail-card {
-      background:var(--bg-card); border:1px solid var(--border-color);
-      padding:40px; border-radius:24px; backdrop-filter:blur(16px);
-      transition:transform .3s cubic-bezier(0.16,1,0.3,1), box-shadow .3s cubic-bezier(0.16,1,0.3,1), border-color .3s;
+    /* ── GALLERY SECTION ────────────────────────────────── */
+    .gallery-section {
+      background: #dce8ff;
+      padding: 20px 48px 80px;
     }
-    .detail-card:hover { transform:translateY(-8px); box-shadow:0 20px 40px rgba(0,0,0,.3); border-color:rgba(0,173,239,.4); }
-    .detail-icon {
-      width:64px; height:64px; border-radius:18px; display:flex; align-items:center; justify-content:center;
-      font-size:1.8rem; margin-bottom:24px; color:#fff;
+    [data-theme="dark"] .gallery-section { background: rgba(26,60,176,0.06); }
+    .gallery-inner { max-width: 1200px; margin: 0 auto; }
+    .gallery-header { margin-bottom: 20px; }
+    .gallery-header h2 {
+      font-size: 2.0rem;
+      font-weight: 800;
+      color: #0e1a3a;
+      margin-bottom: 6px;
     }
-    .icon-bronze { background:linear-gradient(135deg,#235EAE,#00ADEF); box-shadow:0 12px 24px rgba(35,94,174,.35); }
-    .icon-gold   { background:linear-gradient(135deg,#1E74BD,#27AAE2); box-shadow:0 12px 24px rgba(30,116,189,.35); }
-    .icon-emerald{ background:linear-gradient(135deg,#2D3891,#272264); box-shadow:0 12px 24px rgba(45,56,145,.35); }
-    
-    .detail-card h3 { font-size:1.3rem; font-weight:700; margin-bottom:12px; }
-    .detail-card p { font-size:1rem; color:var(--text-secondary); line-height:1.6; margin:0; }
+    [data-theme="dark"] .gallery-header h2 { color: #d8e8ff; }
+    .gallery-header p { font-size: 0.88rem; color: #4f5c78; margin: 0; }
+    [data-theme="dark"] .gallery-header p { color: #8fa3c8; }
+    .gallery-row {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: #1a3cb0 #dce8ff;
+    }
+    .gallery-item {
+      flex-shrink: 0;
+      width: 220px;
+      height: 280px;
+      border-radius: 24px;
+      overflow: hidden;
+      background: #c9dcff;
+      transition: transform 0.3s ease;
+    }
+    .gallery-item:hover { transform: translateY(-6px); }
+    .gallery-item:first-child { border-radius: 50% 50% 24px 24px / 50% 50% 24px 24px; }
+    .gallery-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* ── TOPBAR REDESIGN ──────────────────────────────────── */
+    /* Override to match clean white nav from screenshots */
+    .topbar {
+      background: #fff !important;
+      border-bottom: 1px solid #e8eef8 !important;
+      backdrop-filter: none !important;
+    }
+    [data-theme="dark"] .topbar {
+      background: rgba(14,26,58,0.97) !important;
+      border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+    }
+    .topbar-name { color: #0e1a3a !important; }
+    [data-theme="dark"] .topbar-name { color: #d8e8ff !important; }
+    .topbar-sub  { color: #6b7a9f !important; }
+    .nav-links a { color: #4f5c78 !important; }
+    [data-theme="dark"] .nav-links a { color: #9db4d8 !important; }
+    .nav-links a:hover { color: #1a3cb0 !important; }
+    /* Book a visit button in nav */
+    .topbar-book-btn {
+      background: #1a3cb0;
+      color: #fff !important;
+      padding: 8px 22px;
+      border-radius: 100px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      border: none;
+      cursor: pointer;
+      text-decoration: none !important;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 24px;
+      transition: all 0.2s ease;
+    }
+    .topbar-book-btn:hover {
+      background: #1430a0;
+      transform: translateY(-1px);
+      color: #fff !important;
+    }
+
+    /* Body bg override for landing page clean look */
+    .lp-body { background: #f3f6fc !important; }
+    [data-theme="dark"] .lp-body { background: #0e1320 !important; }
+
+    /* Scroll reveal animation */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-left {
+      opacity: 0;
+      transform: translateX(-32px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal-left.visible { opacity: 1; transform: translateX(0); }
+    .reveal-right {
+      opacity: 0;
+      transform: translateX(32px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal-right.visible { opacity: 1; transform: translateX(0); }
+
+    /* Responsive for landing sections */
+    @media (max-width: 992px) {
+      .hero { flex-direction: column; padding-top: 100px; min-height: auto; padding-left: 24px; padding-right: 24px; }
+      .hero-photos { justify-content: center; padding-top: 20px; }
+      .services-section, .about-section, .steps-section, .gallery-section { padding-left: 24px; padding-right: 24px; }
+      .services-grid { grid-template-columns: 1fr; }
+      .svc-card-exam { grid-row: auto; }
+      .about-inner { flex-direction: column; gap: 40px; }
+      .about-photo-wrap { width: 100%; max-width: 340px; margin: 0 auto; }
+      .steps-grid { grid-template-columns: 1fr; }
+      .steps-grid::before { display: none; }
+    }
 
     /* FLOATING ACTION BUTTON (3D ELEVATION) */
     .fab {
@@ -2014,7 +2339,7 @@ if (!function_exists('getSiteSetting')) {
     }
   </style>
 </head>
-<body>
+<body class="lp-body">
 <div class="bg-mesh"></div>
 
 <!-- TOPBAR -->
@@ -2027,80 +2352,158 @@ if (!function_exists('getSiteSetting')) {
     </div>
   </a>
   <div class="nav-links d-none d-md-flex align-items-center">
-    <a href="#about">About Us</a>
     <a href="#services">Services</a>
+    <a href="#about">About</a>
     <a href="#faq">FAQs</a>
-    <a href="javascript:void(0)" onclick="openPrivacyModal()"><i class="fas fa-file-contract me-1" style="color:var(--clr-primary)"></i>Terms &amp; Conditions</a>
+    <a href="javascript:void(0)" onclick="openPrivacyModal()">Terms</a>
     <?php if($isPatient): ?>
-      <a href="patient/dashboard.php" style="color:var(--clr-primary); font-weight:700;">My Dashboard</a>
+      <a href="patient/dashboard.php" style="color:#1a3cb0; font-weight:700;">My Dashboard</a>
     <?php endif; ?>
     <button class="theme-btn" id="themeToggle" title="Toggle Theme"><i class="fas fa-moon" id="themeIcon"></i></button>
+    <button type="button" onclick="openAuthModal()" class="topbar-book-btn">
+      Book a visit
+    </button>
   </div>
   <!-- Mobile quick actions -->
   <div class="d-flex d-md-none align-items-center gap-2">
-    <a href="#faq" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem; padding:4px 9px; border-radius:8px; font-weight:600; text-decoration:none; color:var(--text-secondary); border-color:var(--border-color);">FAQs</a>
-    <button type="button" onclick="openPrivacyModal()" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem; padding:4px 10px; border-radius:8px; font-weight:600; border-color:var(--clr-primary); color:var(--clr-primary);">
-      <i class="fas fa-file-contract"></i> Terms
-    </button>
     <button class="theme-btn" id="themeToggleMobile" style="margin-left:0;" title="Toggle Theme"><i class="fas fa-moon" id="themeIconMobile"></i></button>
+    <button type="button" onclick="openAuthModal()" class="topbar-book-btn" style="margin-left:0; padding:7px 14px; font-size:0.8rem;">
+      Book
+    </button>
   </div>
 </nav>
 
 <!-- HERO SECTION -->
-<section class="hero" id="about">
-  <div class="hero-text">
-    <div class="badge-est"><i class="fas fa-certificate text-warning me-1"></i><?= htmlspecialchars(getSiteSetting($siteSettings, 'hero_badge', 'Established in 1986')) ?></div>
-    <?php
-    $hLine = strip_tags(getSiteSetting($siteSettings, 'hero_headline', 'See the World'));
-    $hHigh = strip_tags(getSiteSetting($siteSettings, 'hero_highlight', 'Clearly & Beautifully'));
-    ?>
-    <h1><?= htmlspecialchars($hLine) ?><?php if (!empty($hHigh)): ?> <span><?= htmlspecialchars($hHigh) ?></span><?php endif; ?></h1>
-    <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'hero_description', 'Providing exceptional, comprehensive eye care services to the Capas community. We combine state-of-the-art technology with compassionate care to help you achieve your best vision.')) ?></p>
-    
-    <div class="stats">
-      <div class="stat-item">
-        <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'stat1_value', '40+')) ?></h3>
-        <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'stat1_label', 'Years of Service')) ?></p>
-      </div>
-      <div class="stat-item">
-        <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'stat2_value', '10k+')) ?></h3>
-        <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'stat2_label', 'Happy Patients')) ?></p>
-      </div>
-      <div class="stat-item">
-        <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'stat3_value', '100%')) ?></h3>
-        <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'stat3_label', 'Commitment')) ?></p>
-      </div>
+<!-- HERO SECTION -->
+<section class="hero" id="home">
+  <div class="hero-text reveal-left">
+    <h1>
+      Good eyes,<br>
+      <span class="highlight">great frames,</span><br>
+      and a clinic<br>
+      you know.
+    </h1>
+    <p>Eye exams by licensed optometrists, plus glasses and contact lenses you will want to wear. Serving Capas since 1986.</p>
+    <div class="hero-cta">
+      <button type="button" onclick="openAuthModal()" class="btn-book-primary">
+        <i class="fas fa-calendar-check"></i> Book an appointment
+      </button>
+      <a href="#services" class="btn-see-offer">See what we offer</a>
+    </div>
+    <div class="hero-chips">
+      <span class="hero-chip"><i class="fas fa-clock" style="color:#1a3cb0;"></i> Open Mon to Fri, 9 AM to 5 PM</span>
+      <span class="hero-chip"><i class="fas fa-map-marker-alt" style="color:#1a3cb0;"></i> Capas, Tarlac</span>
+      <span class="hero-chip"><i class="fas fa-shield-halved" style="color:#1a3cb0;"></i> RA 10173 compliant</span>
     </div>
   </div>
-  <div class="hero-image">
-    <div class="hero-logo-container">
-      <div class="hero-logo-aura"></div>
-      <div class="hero-logo-ring"></div>
-      <div class="hero-3d-logo-card" onclick="openAuthModal()" title="Gueco Optical Clinic">
-        <img src="<?= htmlspecialchars(getClinicLogoUrl()) ?>" alt="Gueco Optical Logo" class="hero-pure-logo">
+  <div class="hero-photos reveal-right">
+    <div class="hero-circle" onclick="openAuthModal()" title="Book an appointment">
+      <img src="https://images.unsplash.com/photo-1582560475093-ba66accbc424?w=400&q=80" alt="Clinic interior" loading="lazy">
+    </div>
+    <div class="hero-circle" onclick="openAuthModal()" title="Our eyewear collection">
+      <img src="https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=400&q=80" alt="Eyewear selection" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<!-- SERVICES SECTION -->
+<section class="services-section" id="services">
+  <div class="services-inner">
+    <div class="services-header reveal">
+      <h2>Everything for your eyes, under one roof</h2>
+      <p>From your first check to the pair you walk out wearing. <a href="javascript:void(0)" onclick="openAuthModal()" class="underline-link">Book a visit →</a></p>
+    </div>
+    <div class="services-grid reveal">
+      <!-- Eye exams — large left card -->
+      <div class="svc-card svc-card-exam">
+        <h3>Eye exams that take their time</h3>
+        <p>Thorough, unhurried refraction and anterior-segment checks by our licensed optometrists. We take the time to understand your vision history, lifestyle, and goals — so your prescription is always spot-on.</p>
+      </div>
+      <!-- Eyeglasses — dark photo card -->
+      <div class="svc-card svc-card-glasses" style="position:relative;">
+        <img src="https://images.unsplash.com/photo-1509695507497-903c140c43b0?w=600&q=80" alt="Eyeglasses" class="svc-img" loading="lazy">
+        <div class="svc-overlay">
+          <h3>Eyeglasses</h3>
+          <p>Wide selection of frames — from lightweight titanium to bold acetate — fitted with precision-cut lenses.</p>
+        </div>
+      </div>
+      <!-- Contact lenses -->
+      <div class="svc-card svc-card-contact">
+        <h3>Contact lenses</h3>
+        <p>Daily, monthly, and specialty contacts fitted to your prescription and lifestyle.</p>
+      </div>
+      <!-- Aftercare -->
+      <div class="svc-card svc-card-aftercare">
+        <h3>Aftercare</h3>
+        <p>Free lifetime adjustments, cleaning, and screw tightening — no appointment needed, just walk in.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- DETAILS -->
-<section class="details" id="services">
-  <div class="detail-card">
-    <div class="detail-icon icon-bronze"><i class="fas <?= htmlspecialchars(getSiteSetting($siteSettings, 'card1_icon', 'fa-user-md')) ?>"></i></div>
-    <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'card1_title', 'Expert Optometrists')) ?></h3>
-    <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'card1_desc', 'Our highly trained professionals provide thorough eye exams, accurate prescriptions, and personalized care tailored to your unique visual needs.')) ?></p>
+<!-- ABOUT SECTION -->
+<section class="about-section" id="about">
+  <div class="about-inner">
+    <div class="about-photo-wrap reveal-left">
+      <img src="https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=400&q=80" alt="Gueco Optical Clinic interior" class="about-arch-img" loading="lazy">
+      <span class="about-badge">Since 1986</span>
+    </div>
+    <div class="about-content reveal-right">
+      <h2>Four decades of helping Capas see clearly</h2>
+      <p>Gueco Optical Clinic has been the trusted eye care destination in Capas, Tarlac since 1986. What started as a small neighborhood optical shop has grown into a full-service eye care center — equipped with modern refraction instruments and staffed by licensed optometrists who truly care.</p>
+      <p>We believe good vision is a right, not a luxury. That is why we offer comprehensive eye exams, an extensive eyewear selection, and lifetime aftercare at rates accessible to every family in our community.</p>
+    </div>
   </div>
-  
-  <div class="detail-card">
-    <div class="detail-icon icon-gold"><i class="fas <?= htmlspecialchars(getSiteSetting($siteSettings, 'card2_icon', 'fa-glasses')) ?>"></i></div>
-    <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'card2_title', 'Premium Eyewear')) ?></h3>
-    <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'card2_desc', 'Choose from a wide selection of stylish frames, premium lenses, and comfortable contact lenses sourced from top international brands.')) ?></p>
+</section>
+
+<!-- STEPS SECTION -->
+<section class="steps-section">
+  <div class="steps-inner">
+    <h2 class="reveal">Your visit, start to finish</h2>
+    <div class="steps-grid">
+      <div class="step-item reveal">
+        <div class="step-num">1</div>
+        <h3>Book a time</h3>
+        <p>Pick a weekday slot through the <a href="javascript:void(0)" onclick="openAuthModal()" class="link-inline">patient portal</a>. It takes under a minute to register and confirm.</p>
+      </div>
+      <div class="step-item reveal" style="transition-delay:0.12s;">
+        <div class="step-num">2</div>
+        <h3>Get your eyes checked</h3>
+        <p>Bring your current glasses and any old prescription. Our optometrist will perform a full refraction and anterior-segment check.</p>
+      </div>
+      <div class="step-item reveal" style="transition-delay:0.24s;">
+        <div class="step-num">3</div>
+        <h3>Choose your frames</h3>
+        <p>Try them on, then we confirm your pickup date before you pay. Standard lenses are usually ready in 1–2 business days.</p>
+      </div>
+    </div>
   </div>
-  
-  <div class="detail-card">
-    <div class="detail-icon icon-emerald"><i class="fas <?= htmlspecialchars(getSiteSetting($siteSettings, 'card3_icon', 'fa-map-marker-alt')) ?>"></i></div>
-    <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'card3_title', 'Convenient Location')) ?></h3>
-    <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'card3_desc', 'Located in the heart of Capas, Tarlac. We provide a comfortable, welcoming environment with modern facilities for all our patients.')) ?></p>
+</section>
+
+<!-- GALLERY SECTION -->
+<section class="gallery-section">
+  <div class="gallery-inner">
+    <div class="gallery-header reveal">
+      <h2>Take a look around</h2>
+      <p>A glimpse inside Gueco Optical Clinic, Capas, Tarlac.</p>
+    </div>
+    <div class="gallery-row reveal">
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1582560475093-ba66accbc424?w=300&q=75" alt="Clinic" loading="lazy">
+      </div>
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1509695507497-903c140c43b0?w=300&q=75" alt="Frames" loading="lazy">
+      </div>
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=300&q=75" alt="Eyewear" loading="lazy">
+      </div>
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1527613426441-4da17471b66d?w=300&q=75" alt="Eye exam" loading="lazy">
+      </div>
+      <div class="gallery-item">
+        <img src="https://images.unsplash.com/photo-1485965120184-e220f721d03e?w=300&q=75" alt="Optical" loading="lazy">
+      </div>
+    </div>
   </div>
 </section>
 
@@ -3056,6 +3459,20 @@ function toggleTheme() {
 
 document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
 document.getElementById('themeToggleMobile')?.addEventListener('click', toggleTheme);
+// ── SCROLL REVEAL ──────────────────────────────────
+(function() {
+  var revealEls = document.querySelectorAll('.reveal, .reveal-left, .reveal-right');
+  if (!revealEls.length) return;
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+  revealEls.forEach(function(el) { io.observe(el); });
+})();
 </script>
 <div class="toast-container" id="toastContainer"></div>
 </body>

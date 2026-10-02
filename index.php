@@ -637,7 +637,8 @@ if (!function_exists('getSiteSetting')) {
   --p-boutique:url(assets/images/clinic_boutique.jpg);--p-grey:url(assets/images/clinic_grey.jpg);--p-frames:url(assets/images/clinic_frames.jpg);
 }
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a1122;--surface:#121c36;--ink:#eef2fb;--muted:#a3afc9;--line:#243456;--sky:#16264d;--navy:#060b18;--link:#9dbfff;--tint:#1f3a7a}}
-:root[data-theme="dark"]{--bg:#0a1122;--surface:#121c36;--ink:#eef2fb;--muted:#a3afc9;--line:#243456;--sky:#16264d;--navy:#060b18;--link:#9dbfff;--tint:#1f3a7a}
+:root[data-theme="dark"], [data-theme="dark"]{--bg:#0a1122;--surface:#121c36;--ink:#eef2fb;--muted:#a3afc9;--line:#243456;--sky:#16264d;--navy:#060b18;--link:#9dbfff;--tint:#1f3a7a}
+:root[data-theme="light"], [data-theme="light"]{--bg:#f3f6fc;--surface:#fff;--ink:#0e1a3a;--muted:#4f5c78;--line:#d6deec;--blue:#1a3cb0;--blue-ink:#fff;--link:#1a3cb0;--tint:#c9dcff;--sky:#dce8ff;--navy:#0e1a3a;--navy-ink:#eef2fb}
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 76px);scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.6 var(--body)}
@@ -1895,7 +1896,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     <?php else: ?>
       <button type="button" class="btn sm" onclick="openAuthModal()">Book a visit</button>
     <?php endif; ?>
-    <button class="theme" id="theme" aria-label="Switch light or dark mode">◐</button>
+    <button class="theme" id="theme" aria-label="Switch light or dark mode" onclick="toggleTheme()">◐</button>
   </nav>
 </div></header>
 
@@ -2845,8 +2846,9 @@ const savedTheme = localStorage.getItem('gueco_theme') || localStorage.getItem('
 applyLandingTheme(savedTheme);
 
 function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'dark';
-  const next = current === 'dark' ? 'light' : 'dark';
+  const current = document.documentElement.getAttribute('data-theme');
+  const isDark = current ? current === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)').matches);
+  const next = isDark ? 'light' : 'dark';
   applyLandingTheme(next);
 }
 
@@ -2869,11 +2871,13 @@ document.getElementById('themeToggleMobile')?.addEventListener('click', toggleTh
           io.unobserve(x.target);
         }
       });
-    }, {threshold: .15});
+    }, {threshold: .05});
     els.forEach(function(e){ io.observe(e); });
   } else {
     els.forEach(function(e){ e.classList.add('in'); });
   }
+})();
+
 // ── LIVE PREVIEW POSTMESSAGE LISTENER (ADMIN CONTENT STUDIO) ──
 window.addEventListener('message', function(event) {
   if (!event.data || event.data.type !== 'UPDATE_PREVIEW') return;

@@ -1904,6 +1904,16 @@ $lensLeft = getSiteSetting($siteSettings, 'hero_lens_left', 'assets/images/clini
 $lensRight = getSiteSetting($siteSettings, 'hero_lens_right', 'assets/images/clinic_grey.jpg');
 $bentoT2Img = getSiteSetting($siteSettings, 'bento_t2_img', 'assets/images/clinic_frames.jpg');
 $aboutArchImg = getSiteSetting($siteSettings, 'about_arch_img', 'assets/images/clinic_boutique.jpg');
+$galleryItem1Img = getSiteSetting($siteSettings, 'gallery_item1_img', 'assets/images/clinic_boutique.jpg');
+$galleryItem2Img = getSiteSetting($siteSettings, 'gallery_item2_img', 'assets/images/clinic_grey.jpg');
+$galleryItem3Img = getSiteSetting($siteSettings, 'gallery_item3_img', 'assets/images/clinic_frames.jpg');
+$galleryItem4Img = getSiteSetting($siteSettings, 'gallery_item4_img', 'assets/images/clinic_grey.jpg');
+$galleryItem5Img = getSiteSetting($siteSettings, 'gallery_item5_img', 'assets/images/clinic_boutique.jpg');
+$galleryItem1Caption = getSiteSetting($siteSettings, 'gallery_item1_caption', 'Reception');
+$galleryItem2Caption = getSiteSetting($siteSettings, 'gallery_item2_caption', 'Frames wall');
+$galleryItem3Caption = getSiteSetting($siteSettings, 'gallery_item3_caption', 'Sunglasses');
+$galleryItem4Caption = getSiteSetting($siteSettings, 'gallery_item4_caption', 'Exam area');
+$galleryItem5Caption = getSiteSetting($siteSettings, 'gallery_item5_caption', 'Waiting area');
 ?>
 <main id="top">
 <div class="hero"><div class="wrap hero-in">
@@ -1986,11 +1996,11 @@ $aboutArchImg = getSiteSetting($siteSettings, 'about_arch_img', 'assets/images/c
   <h2 class="title"><?= htmlspecialchars(getSiteSetting($siteSettings, 'gallery_title', 'Take a look around')) ?></h2>
   <p class="sub"><?= htmlspecialchars(getSiteSetting($siteSettings, 'gallery_sub', 'Swipe through the clinic.')) ?></p>
   <div class="strip" tabindex="0" aria-label="Clinic photos">
-    <figure class="reveal"><div class="ph" role="img" aria-label="Reception" style="background-image:var(--p-boutique);background-position:50% 60%"></div><figcaption>Reception</figcaption></figure>
-    <figure class="reveal"><div class="ph" role="img" aria-label="Frames wall" style="background-image:var(--p-grey);background-position:20% 50%"></div><figcaption>Frames wall</figcaption></figure>
-    <figure class="reveal"><div class="ph" role="img" aria-label="Sunglasses display" style="background-image:var(--p-frames);background-position:30% 75%"></div><figcaption>Sunglasses</figcaption></figure>
-    <figure class="reveal"><div class="ph" role="img" aria-label="Exam area" style="background-image:var(--p-grey);background-position:90% 50%"></div><figcaption>Exam area</figcaption></figure>
-    <figure class="reveal"><div class="ph" role="img" aria-label="Waiting area" style="background-image:var(--p-boutique);background-position:90% 55%"></div><figcaption>Waiting area</figcaption></figure>
+    <figure class="reveal"><div class="ph" role="img" aria-label="<?= htmlspecialchars($galleryItem1Caption) ?>" style="background-image:url(<?= htmlspecialchars($galleryItem1Img) ?>);background-position:50% 60%"></div><figcaption><?= htmlspecialchars($galleryItem1Caption) ?></figcaption></figure>
+    <figure class="reveal"><div class="ph" role="img" aria-label="<?= htmlspecialchars($galleryItem2Caption) ?>" style="background-image:url(<?= htmlspecialchars($galleryItem2Img) ?>);background-position:20% 50%"></div><figcaption><?= htmlspecialchars($galleryItem2Caption) ?></figcaption></figure>
+    <figure class="reveal"><div class="ph" role="img" aria-label="<?= htmlspecialchars($galleryItem3Caption) ?>" style="background-image:url(<?= htmlspecialchars($galleryItem3Img) ?>);background-position:30% 75%"></div><figcaption><?= htmlspecialchars($galleryItem3Caption) ?></figcaption></figure>
+    <figure class="reveal"><div class="ph" role="img" aria-label="<?= htmlspecialchars($galleryItem4Caption) ?>" style="background-image:url(<?= htmlspecialchars($galleryItem4Img) ?>);background-position:90% 50%"></div><figcaption><?= htmlspecialchars($galleryItem4Caption) ?></figcaption></figure>
+    <figure class="reveal"><div class="ph" role="img" aria-label="<?= htmlspecialchars($galleryItem5Caption) ?>" style="background-image:url(<?= htmlspecialchars($galleryItem5Img) ?>);background-position:90% 55%"></div><figcaption><?= htmlspecialchars($galleryItem5Caption) ?></figcaption></figure>
   </div>
 </div></section>
 
@@ -2954,6 +2964,25 @@ window.addEventListener('message', function(event) {
   if (galleryTitle && d.gallery_title !== undefined) galleryTitle.textContent = d.gallery_title;
   var gallerySub = document.querySelector('.strip')?.closest('section')?.querySelector('.sub');
   if (gallerySub && d.gallery_sub !== undefined) gallerySub.textContent = d.gallery_sub;
+
+  var stripFigs = document.querySelectorAll('.strip figure');
+  if (stripFigs.length >= 5) {
+    for (var gi = 1; gi <= 5; gi++) {
+      var fig = stripFigs[gi - 1];
+      var capVal = d['gallery_item' + gi + '_caption'];
+      var imgVal = d['gallery_item' + gi + '_img'];
+      if (capVal !== undefined) {
+        var figCap = fig.querySelector('figcaption');
+        if (figCap) figCap.textContent = capVal;
+        var phEl = fig.querySelector('.ph');
+        if (phEl) phEl.setAttribute('aria-label', capVal);
+      }
+      if (imgVal) {
+        var phEl = fig.querySelector('.ph');
+        if (phEl) phEl.style.backgroundImage = 'url(' + imgVal + ')';
+      }
+    }
+  }
 
   // Update Close
   var closeH2 = document.querySelector('#terms .close h2');

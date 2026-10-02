@@ -188,6 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'step2_title', 'step2_desc',
             'step3_title', 'step3_desc',
             'gallery_title', 'gallery_sub',
+            'gallery_item1_caption', 'gallery_item2_caption', 'gallery_item3_caption', 'gallery_item4_caption', 'gallery_item5_caption',
             'close_title', 'close_privacy'
         ];
 
@@ -206,8 +207,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Handle image uploads (hero lenses, bento image, arch image)
-        $imgFields = ['hero_lens_left', 'hero_lens_right', 'about_arch_img', 'bento_t2_img'];
+        // Handle image uploads (hero lenses, bento image, arch image, gallery cards 1-5)
+        $imgFields = [
+            'hero_lens_left', 'hero_lens_right', 'about_arch_img', 'bento_t2_img',
+            'gallery_item1_img', 'gallery_item2_img', 'gallery_item3_img', 'gallery_item4_img', 'gallery_item5_img'
+        ];
         $destDir = __DIR__ . '/../assets/images/';
         foreach ($imgFields as $imgKey) {
             if (isset($_FILES[$imgKey]) && $_FILES[$imgKey]['error'] === UPLOAD_ERR_OK) {
@@ -1178,15 +1182,15 @@ document.addEventListener("DOMContentLoaded", function() {
       </div>
     </div>
 
-    <!-- Section 5: Gallery & Closing Notice -->
+    <!-- Section 5: Clinic Photo Gallery Studio ("Swipe through the clinic") -->
     <div class="pm-card-box mt-4">
       <div class="pm-card-box-header">
         <div class="pm-header-badge-tag"><i class="fas fa-images"></i> SECTION 5</div>
-        <h4 class="pm-card-box-title">Gallery Header &amp; Closing Callout</h4>
-        <p class="pm-card-box-desc">Control the gallery section headers and the closing booking card with privacy notice.</p>
+        <h4 class="pm-card-box-title">Clinic Photo Gallery Studio ("Swipe through the clinic")</h4>
+        <p class="pm-card-box-desc">Customize the horizontal clinic photo cards (Reception, Frames wall, Sunglasses, Exam area, Waiting area) shown on the homepage.</p>
       </div>
 
-      <div class="pm-field-row-2">
+      <div class="pm-field-row-2 mb-4">
         <div class="pm-field-block">
           <label class="pm-input-label">Gallery Heading</label>
           <input type="text" name="gallery_title" class="form-control pm-styled-input fw-bold" 
@@ -1199,7 +1203,73 @@ document.addEventListener("DOMContentLoaded", function() {
         </div>
       </div>
 
-      <div class="pm-field-row-2 mt-3">
+      <label class="pm-input-label mb-2"><i class="fas fa-photo-film text-primary me-1"></i> Gallery Photo Cards (Arch Shape)</label>
+      <div class="row g-3">
+        <?php
+        $galleryDefaults = [
+          1 => ['title' => 'Reception', 'img' => 'assets/images/clinic_boutique.jpg', 'icon' => 'fa-door-open'],
+          2 => ['title' => 'Frames wall', 'img' => 'assets/images/clinic_grey.jpg', 'icon' => 'fa-glasses'],
+          3 => ['title' => 'Sunglasses', 'img' => 'assets/images/clinic_frames.jpg', 'icon' => 'fa-sun'],
+          4 => ['title' => 'Exam area', 'img' => 'assets/images/clinic_grey.jpg', 'icon' => 'fa-user-doctor'],
+          5 => ['title' => 'Waiting area', 'img' => 'assets/images/clinic_boutique.jpg', 'icon' => 'fa-couch'],
+        ];
+        foreach ($galleryDefaults as $gNum => $gDef):
+          $capKey = 'gallery_item' . $gNum . '_caption';
+          $imgKey = 'gallery_item' . $gNum . '_img';
+          $currentCap = gs($settings, $capKey, $gDef['title']);
+          $currentImg = gs($settings, $imgKey, $gDef['img']);
+          $isCustomImg = isset($settings[$imgKey]) && !empty($settings[$imgKey]);
+        ?>
+        <div class="col-md-4 col-sm-6">
+          <div class="pm-feature-builder-card h-100 p-3" style="border-radius:18px;background:var(--bg-card);border:1px solid var(--border-color);">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span class="badge bg-primary text-white" style="font-weight:700;"><i class="fas <?= $gDef['icon'] ?> me-1"></i> Card <?= $gNum ?></span>
+              <?php if ($isCustomImg): ?>
+                <span class="badge bg-success" style="font-size:0.7rem;">Custom Upload</span>
+              <?php else: ?>
+                <span class="badge bg-light text-muted border" style="font-size:0.7rem;">Default</span>
+              <?php endif; ?>
+            </div>
+
+            <!-- Preview of the arched card -->
+            <div class="text-center my-2">
+              <div style="width:100%;height:140px;border-radius:999px 999px 14px 14px;background-image:url('<?= htmlspecialchars(BASE_URL . $currentImg) ?>');background-size:cover;background-position:center;border:2px solid rgba(26,60,176,0.3);box-shadow:0 4px 12px rgba(0,0,0,0.06);margin:0 auto;" id="galleryThumb_<?= $gNum ?>"></div>
+            </div>
+
+            <div class="pm-field-block mt-2">
+              <label class="pm-input-label" style="font-size:0.8rem;">Card Caption / Label</label>
+              <input type="text" name="<?= $capKey ?>" class="form-control pm-styled-input form-control-sm fw-bold" 
+                     value="<?= htmlspecialchars($currentCap) ?>" placeholder="e.g. <?= $gDef['title'] ?>">
+            </div>
+
+            <div class="pm-field-block mt-2">
+              <label class="pm-input-label" style="font-size:0.8rem;">Replace Photo</label>
+              <input type="file" name="<?= $imgKey ?>" class="form-control form-control-sm" accept="image/*">
+            </div>
+
+            <?php if ($isCustomImg): ?>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" name="reset_<?= $imgKey ?>" value="1" id="reset_<?= $imgKey ?>">
+              <label class="form-check-label text-danger" for="reset_<?= $imgKey ?>" style="font-size:0.75rem;">
+                <i class="fas fa-undo"></i> Reset to default photo
+              </label>
+            </div>
+            <?php endif; ?>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <!-- Section 6: Closing Action & Legal Callout -->
+    <div class="pm-card-box mt-4">
+      <div class="pm-card-box-header">
+        <div class="pm-header-badge-tag"><i class="fas fa-bullhorn"></i> SECTION 6</div>
+        <h4 class="pm-card-box-title">Closing Action &amp; Legal Notice Studio</h4>
+        <p class="pm-card-box-desc">Control the closing booking callout card and patient data privacy notice.</p>
+      </div>
+
+      <div class="pm-field-row-2">
         <div class="pm-field-block">
           <label class="pm-input-label">Closing Action Card Title</label>
           <input type="text" name="close_title" class="form-control pm-styled-input fw-bold" 

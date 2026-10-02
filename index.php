@@ -483,7 +483,9 @@ if (!function_exists('getSiteSetting')) {
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script>document.documentElement.classList.add("js")</script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -627,585 +629,126 @@ if (!function_exists('getSiteSetting')) {
       cursor: pointer !important;
     }
 
-    body { 
-      font-family:'Plus Jakarta Sans','Poppins',sans-serif; background:var(--bg-body); 
-      color:var(--text-primary); min-height:100vh; font-size:16px;
-      overflow-x:hidden; transition: background 0.25s ease, color 0.25s ease;
-    }
+:root{
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f3f6fc;--surface:#fff;--ink:#0e1a3a;--muted:#4f5c78;--line:#d6deec;
+  --blue:#1a3cb0;--blue-ink:#fff;--link:#1a3cb0;--tint:#c9dcff;--sky:#dce8ff;--navy:#0e1a3a;--navy-ink:#eef2fb;
+  --head:'Bricolage Grotesque','Segoe UI',Arial,sans-serif;--body:'Figtree','Segoe UI',Arial,sans-serif;
+  --p-boutique:url(assets/images/clinic_boutique.jpg);--p-grey:url(assets/images/clinic_grey.jpg);--p-frames:url(assets/images/clinic_frames.jpg);
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a1122;--surface:#121c36;--ink:#eef2fb;--muted:#a3afc9;--line:#243456;--sky:#16264d;--navy:#060b18;--link:#9dbfff;--tint:#1f3a7a}}
+:root[data-theme="dark"]{--bg:#0a1122;--surface:#121c36;--ink:#eef2fb;--muted:#a3afc9;--line:#243456;--sky:#16264d;--navy:#060b18;--link:#9dbfff;--tint:#1f3a7a}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 76px);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.6 var(--body)}
+a{color:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+:focus-visible{outline:3px solid var(--link);outline-offset:3px;border-radius:6px}
+h1,h2,h3{font-family:var(--head);margin:0;letter-spacing:-.02em}
+.btn{display:inline-block;background:var(--blue);color:#fff;font:700 1rem var(--body);padding:14px 26px;border-radius:999px;text-decoration:none;border:0;cursor:pointer;transition:transform .15s}
+.btn:hover{transform:translateY(-2px);color:#fff}
+.btn.line{background:transparent;color:inherit;border:2px solid currentColor}
+.btn.sm{padding:9px 18px;font-size:.92rem}
+.ph{background-size:cover;background-position:center}
 
-    .bg-mesh {
-      position:fixed; inset:0; z-index:-1; pointer-events:none;
-      background:
-        radial-gradient(ellipse 70% 60% at 0% 0%, rgba(0,173,239,.14) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 50% at 100% 100%, rgba(35,94,174,.1) 0%, transparent 60%);
-    }
-    [data-theme="light"] .bg-mesh {
-      background:
-        radial-gradient(ellipse 70% 60% at 0% 0%, rgba(0,173,239,.1) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 50% at 100% 100%, rgba(35,94,174,.06) 0%, transparent 60%);
-    }
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:800 1.2rem/1 var(--head);color:var(--ink)}
+.brand svg{width:36px;color:var(--link);flex-shrink:0}
+.brand small{display:block;font:500 .72rem/1.2 var(--body);color:var(--muted);margin-top:3px}
+nav{display:flex;align-items:center;gap:22px;font-weight:500;font-size:.95rem}
+nav a:not(.btn){text-decoration:none;color:var(--muted)}
+nav a:not(.btn):hover{color:var(--ink)}
+.theme{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:1.1rem;line-height:1}
+@media(max-width:780px){.hide-s{display:none}nav{gap:10px}}
 
-    /* TOPBAR */
-    .topbar {
-      position:fixed; top:0; width:100%; z-index:200;
-      background:var(--bg-topbar); backdrop-filter:blur(20px);
-      border-bottom:1px solid var(--border-color);
-      display:flex; align-items:center; justify-content:space-between;
-      padding:0 28px; height:80px;
-    }
-    .topbar-brand { display:flex; align-items:center; gap:16px; text-decoration:none; }
-    .topbar-logo {
-      width:52px; height:52px; object-fit:contain; border-radius:50%;
-      background:rgba(255,255,255,0.95); padding:2px; box-shadow:0 2px 10px rgba(0,173,239,0.35);
-    }
-    .topbar-name { font-weight:800; font-size:1.3rem; color:var(--text-primary); line-height:1.2; letter-spacing:-0.3px; }
-    .topbar-sub  { font-size:.85rem; color:var(--text-muted); font-weight:500; }
-    
-    .nav-links a {
-      color:var(--text-secondary); text-decoration:none; font-weight:600; font-size:.95rem; margin-left:24px; transition:color .2s;
-    }
-    .nav-links a:hover { color:var(--clr-primary); }
-    
-    .theme-btn {
-      width:38px; height:38px; border-radius:50%; border:1px solid var(--border-color);
-      background:rgba(255,255,255,.05); color:var(--text-muted); cursor:pointer;
-      display:inline-flex; align-items:center; justify-content:center; font-size:.88rem;
-      transition:all .2s; margin-left:24px; vertical-align:middle;
-    }
-    [data-theme="light"] .theme-btn { background:rgba(0,0,0,.04); }
-    .theme-btn:hover { border-color:var(--clr-primary); color:var(--clr-primary); transform:scale(1.05); }
+/* hero */
+.hero{background:var(--surface);color:var(--ink);overflow:hidden;border-bottom:1px solid var(--line)}
+.hero-in{display:grid;grid-template-columns:1.05fr 1fr;gap:32px;align-items:center;padding-top:56px;padding-bottom:72px}
+.hero h1{font-size:clamp(2.6rem,6.4vw,4.8rem);line-height:1;font-weight:800}
+.hero h1 em{font-style:normal;color:var(--link)}
+.hero p.lede{font-size:1.15rem;max-width:44ch;margin:22px 0 30px;color:var(--muted)}
+.cta-row{display:flex;gap:12px;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:34px}
+.chips span{background:var(--sky);border-radius:999px;padding:7px 15px;font-size:.92rem;font-weight:500}
+.lenses{display:flex;align-items:center;justify-content:center}
+.lens{width:clamp(140px,24vw,270px);aspect-ratio:1;border-radius:50%;border:10px solid var(--link);flex:none;animation:pop .9s cubic-bezier(.2,.8,.2,1) both}
+.lens.b{margin-top:70px;animation-delay:.12s}
+.bridge{width:clamp(14px,3vw,34px);height:10px;background:var(--link);margin-top:-30px;flex:none}
+@keyframes pop{from{transform:scale(.7);opacity:0}to{transform:none;opacity:1}}
+@media(max-width:860px){.hero-in{grid-template-columns:1fr;padding-top:36px;padding-bottom:48px}.lens.b{margin-top:50px}}
 
-    /* ── NEW HERO REDESIGN (matches reference screenshots) ───── */
-    .hero {
-      padding: 120px 0 0;
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      align-items: flex-start;
-      gap: 48px;
-      min-height: 100vh;
-      padding-left: 48px;
-      padding-right: 48px;
-    }
-    .hero-text {
-      flex: 1;
-      padding-top: 40px;
-    }
-    .hero h1 {
-      font-size: 4.2rem;
-      font-weight: 900;
-      line-height: 1.1;
-      margin-bottom: 22px;
-      color: #0e1a3a;
-      letter-spacing: -2px;
-    }
-    [data-theme="dark"] .hero h1 { color: #f0f4fc; }
-    .hero h1 .highlight {
-      color: #1a3cb0;
-    }
-    [data-theme="dark"] .hero h1 .highlight { color: #5b85e8; }
-    .hero p {
-      font-size: 1.0rem;
-      color: #4f5c78;
-      line-height: 1.65;
-      margin-bottom: 36px;
-      max-width: 440px;
-    }
-    [data-theme="dark"] .hero p { color: #8fa3c8; }
+/* services bento */
+section{padding:72px 0}
+.title{font-size:clamp(2rem,4.4vw,3rem);line-height:1.05;font-weight:800;max-width:18ch}
+.sub{color:var(--muted);max-width:52ch;margin:14px 0 36px}
+.bento{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tile{border-radius:28px;padding:28px;min-height:220px;display:flex;flex-direction:column;justify-content:flex-end}
+.tile h3{font-size:1.45rem;line-height:1.15;margin-bottom:8px}
+.tile p{margin:0;max-width:40ch}
+.t1{grid-column:span 2;grid-row:span 2;background:var(--tint);color:var(--ink);border-radius:28px 28px 28px 120px}
+.t1 h3{font-size:clamp(2rem,4vw,3rem);line-height:1}
+.t2{grid-column:span 2;color:#fff;background:linear-gradient(rgba(10,17,34,.45),rgba(10,17,34,.72)),var(--p-frames);background-size:cover;background-position:30% 75%}
+.t3{background:var(--sky);border-radius:120px 28px 28px 28px;justify-content:center}
+.t4{background:var(--navy);color:var(--navy-ink)}
+@media(max-width:820px){.bento{grid-template-columns:1fr 1fr}.t1,.t2{grid-column:span 2}.t1{grid-row:auto;min-height:280px}}
+@media(max-width:520px){.bento{grid-template-columns:1fr}.t1,.t2{grid-column:auto}}
 
-    /* Hero CTA buttons */
-    .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 36px; }
-    .btn-book-primary {
-      background: #1a3cb0;
-      color: #fff;
-      padding: 14px 28px;
-      border-radius: 100px;
-      font-weight: 700;
-      font-size: 0.95rem;
-      border: none;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.22s ease;
-      box-shadow: 0 6px 20px rgba(26,60,176,0.3);
-    }
-    .btn-book-primary:hover {
-      background: #1430a0;
-      transform: translateY(-2px);
-      box-shadow: 0 10px 28px rgba(26,60,176,0.4);
-      color: #fff;
-    }
-    .btn-see-offer {
-      background: transparent;
-      color: #0e1a3a;
-      padding: 13px 26px;
-      border-radius: 100px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      border: 1.5px solid #cdd5e0;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.22s ease;
-    }
-    [data-theme="dark"] .btn-see-offer { color: #d0ddf5; border-color: rgba(255,255,255,0.25); }
-    .btn-see-offer:hover { border-color: #1a3cb0; color: #1a3cb0; }
-    [data-theme="dark"] .btn-see-offer:hover { border-color: #5b85e8; color: #5b85e8; }
+/* since */
+.since{background:var(--sky)}
+.since-in{display:grid;grid-template-columns:.9fr 1.1fr;gap:56px;align-items:center}
+.arch{aspect-ratio:4/5;border-radius:999px 999px 28px 28px;background-image:var(--p-boutique);background-size:cover;background-position:60% 50%;position:relative;max-width:420px;width:100%}
+.arch b{position:absolute;right:-14px;bottom:28px;background:#fff;color:var(--blue);font:800 1.5rem/1 var(--head);padding:16px 22px;border-radius:20px;transform:rotate(-4deg);box-shadow:0 4px 14px rgba(0,0,0,0.08)}
+.since p{color:var(--muted);max-width:50ch;margin:16px 0 0}
+@media(max-width:780px){.since-in{grid-template-columns:1fr;gap:36px}.arch{margin:0 auto}}
 
-    /* Info chips row */
-    .hero-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 4px;
-    }
-    .hero-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 7px 16px;
-      border-radius: 100px;
-      background: #f0f4fc;
-      border: 1px solid #d8e2f8;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: #4f5c78;
-    }
-    [data-theme="dark"] .hero-chip {
-      background: rgba(255,255,255,0.07);
-      border-color: rgba(255,255,255,0.18);
-      color: #9db4d8;
-    }
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:36px}
+.step{border-top:3px solid var(--link);padding-top:16px}
+.step i{font:800 2.8rem/1 var(--head);font-style:normal;color:var(--link)}
+.step h3{font-size:1.3rem;margin:8px 0 6px}
+.step p{margin:0;color:var(--muted)}
+@media(max-width:700px){.steps{grid-template-columns:1fr}}
 
-    /* Hero circle photos */
-    .hero-photos {
-      flex: 1;
-      position: relative;
-      display: flex;
-      align-items: flex-start;
-      gap: 0;
-      padding-top: 80px;
-      min-height: 480px;
-    }
-    .hero-circle {
-      width: 280px;
-      height: 280px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 5px solid #1a3cb0;
-      box-shadow: 0 16px 48px rgba(26,60,176,0.18);
-      position: relative;
-      background: #dce8ff;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
-    }
-    .hero-circle:hover { transform: translateY(-8px) scale(1.02); }
-    .hero-circle:first-child {
-      z-index: 2;
-      margin-right: -40px;
-    }
-    .hero-circle:last-child { z-index: 1; margin-top: 60px; }
-    .hero-circle img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: 50%;
-    }
-    /* connector dot between circles */
-    .hero-circle-connector {
-      position: absolute;
-      left: calc(280px - 20px);
-      top: calc(140px + 30px);
-      width: 10px;
-      height: 10px;
-      background: #1a3cb0;
-      border-radius: 50%;
-      z-index: 3;
-    }
+/* gallery */
+.strip{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 20px 20px;margin:0 -20px;scrollbar-width:thin}
+.strip figure{margin:0;flex:0 0 min(270px,72vw);scroll-snap-align:start}
+.strip .ph{height:360px;border-radius:999px 999px 24px 24px}
+.strip figure:nth-child(even) .ph{border-radius:24px 24px 999px 999px}
+.strip figcaption{margin-top:10px;font-weight:600;text-align:center}
 
-    /* ── SERVICES SECTION ─────────────────────────────────── */
-    .services-section {
-      background: #dce8ff;
-      padding: 80px 48px;
-    }
-    [data-theme="dark"] .services-section { background: rgba(26,60,176,0.08); }
-    .services-inner { max-width: 1200px; margin: 0 auto; }
-    .services-header { margin-bottom: 40px; }
-    .services-header h2 {
-      font-size: 2.4rem;
-      font-weight: 800;
-      color: #0e1a3a;
-      margin-bottom: 8px;
-      letter-spacing: -0.8px;
-    }
-    [data-theme="dark"] .services-header h2 { color: #d8e8ff; }
-    .services-header p {
-      font-size: 0.95rem;
-      color: #4f5c78;
-      margin: 0;
-    }
-    [data-theme="dark"] .services-header p { color: #8fa3c8; }
-    .services-header p .underline-link {
-      text-decoration: underline;
-      color: #1a3cb0;
-    }
+/* faq */
+.faq-in{display:grid;grid-template-columns:.8fr 1.2fr;gap:56px;align-items:start}
+.faq-in aside{position:sticky;top:96px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:20px;margin-bottom:12px}
+summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 22px;font:700 1.08rem/1.35 var(--head)}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";flex:none;width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font:500 1.4rem/1 var(--body);transition:transform .2s}
+details[open] summary::after{transform:rotate(45deg)}
+details p{margin:0;padding:0 22px 20px;color:var(--muted);max-width:60ch}
+@media(max-width:780px){.faq-in{grid-template-columns:1fr;gap:28px}.faq-in aside{position:static}}
 
-    /* Services bento grid */
-    .services-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: auto auto;
-      gap: 20px;
-    }
-    .svc-card {
-      border-radius: 24px;
-      padding: 32px;
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.28s cubic-bezier(0.16,1,0.3,1), box-shadow 0.28s;
-    }
-    .svc-card:hover { transform: translateY(-6px); box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
-
-    /* Eye exams — large left cell */
-    .svc-card-exam {
-      background: #eef4ff;
-      grid-row: span 2;
-    }
-    [data-theme="dark"] .svc-card-exam { background: rgba(26,60,176,0.18); }
-    .svc-card-exam h3 {
-      font-size: 1.7rem;
-      font-weight: 800;
-      color: #0e1a3a;
-      margin-bottom: 12px;
-      letter-spacing: -0.4px;
-      line-height: 1.2;
-    }
-    [data-theme="dark"] .svc-card-exam h3 { color: #d8e8ff; }
-    .svc-card-exam p { font-size: 0.9rem; color: #4f5c78; line-height: 1.6; }
-    [data-theme="dark"] .svc-card-exam p { color: #8fa3c8; }
-
-    /* Eyeglasses — right photo card */
-    .svc-card-glasses {
-      background: #0e1a3a;
-      overflow: hidden;
-      padding: 0;
-      min-height: 220px;
-    }
-    .svc-card-glasses .svc-img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      opacity: 0.7;
-    }
-    .svc-card-glasses .svc-overlay {
-      position: relative;
-      z-index: 1;
-      padding: 28px;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-    }
-    .svc-card-glasses h3 {
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: #fff;
-      margin-bottom: 6px;
-    }
-    .svc-card-glasses p { font-size: 0.85rem; color: rgba(255,255,255,0.8); margin: 0; }
-
-    /* Contact lenses — right bottom left */
-    .svc-card-contact {
-      background: #eef4ff;
-    }
-    [data-theme="dark"] .svc-card-contact { background: rgba(26,60,176,0.14); }
-    .svc-card-contact h3 { font-size: 1.1rem; font-weight: 700; color: #0e1a3a; margin-bottom: 8px; }
-    [data-theme="dark"] .svc-card-contact h3 { color: #d8e8ff; }
-    .svc-card-contact p { font-size: 0.85rem; color: #4f5c78; margin: 0; }
-    [data-theme="dark"] .svc-card-contact p { color: #8fa3c8; }
-
-    /* Aftercare — dark card */
-    .svc-card-aftercare {
-      background: #0e1a3a;
-    }
-    .svc-card-aftercare h3 { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 8px; }
-    .svc-card-aftercare p { font-size: 0.85rem; color: rgba(255,255,255,0.75); margin: 0; }
-
-    /* ── ABOUT SECTION ──────────────────────────────────── */
-    .about-section {
-      background: #dce8ff;
-      padding: 80px 48px;
-    }
-    [data-theme="dark"] .about-section { background: rgba(26,60,176,0.06); }
-    .about-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      gap: 64px;
-    }
-    .about-photo-wrap {
-      flex-shrink: 0;
-      position: relative;
-      width: 340px;
-    }
-    .about-arch-img {
-      width: 100%;
-      height: 420px;
-      object-fit: cover;
-      border-radius: 50% 50% 0 0 / 60% 60% 0 0;
-      border: 4px solid #fff;
-      box-shadow: 0 16px 48px rgba(26,60,176,0.15);
-      display: block;
-      background: #c9dcff;
-    }
-    .about-badge {
-      position: absolute;
-      bottom: -10px;
-      right: 20px;
-      background: #0e1a3a;
-      color: #fff;
-      padding: 9px 20px;
-      border-radius: 100px;
-      font-size: 0.9rem;
-      font-weight: 700;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.22);
-    }
-    .about-content { flex: 1; }
-    .about-content h2 {
-      font-size: 2.2rem;
-      font-weight: 800;
-      color: #0e1a3a;
-      margin-bottom: 22px;
-      letter-spacing: -0.6px;
-      line-height: 1.2;
-    }
-    [data-theme="dark"] .about-content h2 { color: #d8e8ff; }
-    .about-content p {
-      font-size: 0.95rem;
-      color: #4f5c78;
-      line-height: 1.7;
-      margin-bottom: 16px;
-    }
-    [data-theme="dark"] .about-content p { color: #8fa3c8; }
-    .about-content p:last-child { margin-bottom: 0; }
-
-    /* ── STEPS SECTION ──────────────────────────────────── */
-    .steps-section {
-      background: #dce8ff;
-      padding: 70px 48px 60px;
-    }
-    [data-theme="dark"] .steps-section { background: rgba(26,60,176,0.07); }
-    .steps-inner { max-width: 1200px; margin: 0 auto; }
-    .steps-inner h2 {
-      font-size: 2.2rem;
-      font-weight: 800;
-      color: #0e1a3a;
-      margin-bottom: 40px;
-      letter-spacing: -0.6px;
-    }
-    [data-theme="dark"] .steps-inner h2 { color: #d8e8ff; }
-    .steps-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 32px;
-      position: relative;
-    }
-    .steps-grid::before {
-      content: '';
-      position: absolute;
-      top: 18px;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: #1a3cb0;
-      z-index: 0;
-    }
-    .step-item { position: relative; z-index: 1; }
-    .step-num {
-      font-size: 2.4rem;
-      font-weight: 800;
-      color: #1a3cb0;
-      line-height: 1;
-      margin-bottom: 16px;
-    }
-    [data-theme="dark"] .step-num { color: #5b85e8; }
-    .step-item h3 {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: #0e1a3a;
-      margin-bottom: 10px;
-    }
-    [data-theme="dark"] .step-item h3 { color: #d8e8ff; }
-    .step-item p {
-      font-size: 0.88rem;
-      color: #4f5c78;
-      line-height: 1.65;
-      margin: 0;
-    }
-    [data-theme="dark"] .step-item p { color: #8fa3c8; }
-    .step-item p .link-inline {
-      color: #1a3cb0;
-      text-decoration: underline;
-    }
-
-    /* ── GALLERY SECTION ────────────────────────────────── */
-    .gallery-section {
-      background: #dce8ff;
-      padding: 20px 48px 80px;
-    }
-    [data-theme="dark"] .gallery-section { background: rgba(26,60,176,0.06); }
-    .gallery-inner { max-width: 1200px; margin: 0 auto; }
-    .gallery-header { margin-bottom: 20px; }
-    .gallery-header h2 {
-      font-size: 2.0rem;
-      font-weight: 800;
-      color: #0e1a3a;
-      margin-bottom: 6px;
-    }
-    [data-theme="dark"] .gallery-header h2 { color: #d8e8ff; }
-    .gallery-header p { font-size: 0.88rem; color: #4f5c78; margin: 0; }
-    [data-theme="dark"] .gallery-header p { color: #8fa3c8; }
-    .gallery-row {
-      display: flex;
-      gap: 16px;
-      overflow-x: auto;
-      padding-bottom: 8px;
-      scrollbar-width: thin;
-      scrollbar-color: #1a3cb0 #dce8ff;
-    }
-    .gallery-item {
-      flex-shrink: 0;
-      width: 220px;
-      height: 280px;
-      border-radius: 24px;
-      overflow: hidden;
-      background: #c9dcff;
-      transition: transform 0.3s ease;
-    }
-    .gallery-item:hover { transform: translateY(-6px); }
-    .gallery-item:first-child { border-radius: 50% 50% 24px 24px / 50% 50% 24px 24px; }
-    .gallery-item img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    /* ── TOPBAR REDESIGN ──────────────────────────────────── */
-    /* Override to match clean white nav from screenshots */
-    .topbar {
-      background: #fff !important;
-      border-bottom: 1px solid #e8eef8 !important;
-      backdrop-filter: none !important;
-    }
-    [data-theme="dark"] .topbar {
-      background: rgba(14,26,58,0.97) !important;
-      border-bottom: 1px solid rgba(255,255,255,0.1) !important;
-    }
-    .topbar-name { color: #0e1a3a !important; }
-    [data-theme="dark"] .topbar-name { color: #d8e8ff !important; }
-    .topbar-sub  { color: #6b7a9f !important; }
-    .nav-links a { color: #4f5c78 !important; }
-    [data-theme="dark"] .nav-links a { color: #9db4d8 !important; }
-    .nav-links a:hover { color: #1a3cb0 !important; }
-    /* Book a visit button in nav */
-    .topbar-book-btn {
-      background: #1a3cb0;
-      color: #fff !important;
-      padding: 8px 22px;
-      border-radius: 100px;
-      font-weight: 700;
-      font-size: 0.88rem;
-      border: none;
-      cursor: pointer;
-      text-decoration: none !important;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-left: 24px;
-      transition: all 0.2s ease;
-    }
-    .topbar-book-btn:hover {
-      background: #1430a0;
-      transform: translateY(-1px);
-      color: #fff !important;
-    }
-
-    /* Body bg override for landing page clean look */
-    .lp-body { background: #f3f6fc !important; }
-    [data-theme="dark"] .lp-body { background: #0e1320 !important; }
-
-    /* Scroll reveal animation */
-    .reveal {
-      opacity: 0;
-      transform: translateY(32px);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-    .reveal.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .reveal-left {
-      opacity: 0;
-      transform: translateX(-32px);
-      transition: opacity 0.7s ease, transform 0.7s ease;
-    }
-    .reveal-left.visible { opacity: 1; transform: translateX(0); }
-    .reveal-right {
-      opacity: 0;
-      transform: translateX(32px);
-      transition: opacity 0.7s ease, transform 0.7s ease;
-    }
-    .reveal-right.visible { opacity: 1; transform: translateX(0); }
-
-    /* Responsive for landing sections */
-    @media (max-width: 992px) {
-      .hero { flex-direction: column; padding-top: 100px; min-height: auto; padding-left: 24px; padding-right: 24px; }
-      .hero-photos { justify-content: center; padding-top: 20px; }
-      .services-section, .about-section, .steps-section, .gallery-section { padding-left: 24px; padding-right: 24px; }
-      .services-grid { grid-template-columns: 1fr; }
-      .svc-card-exam { grid-row: auto; }
-      .about-inner { flex-direction: column; gap: 40px; }
-      .about-photo-wrap { width: 100%; max-width: 340px; margin: 0 auto; }
-      .steps-grid { grid-template-columns: 1fr; }
-      .steps-grid::before { display: none; }
-    }
-
-    /* FLOATING ACTION BUTTON (3D ELEVATION) */
-    .fab {
-      position:fixed; bottom:40px; right:40px; z-index:999;
-      background:linear-gradient(135deg, #235EAE 0%, #00ADEF 100%);
-      color:#fff; padding:16px 32px; border-radius:100px; font-size:1.02rem; font-weight:800;
-      display:flex; align-items:center; gap:12px; border:none; cursor:pointer;
-      box-shadow: 0 14px 34px -4px rgba(0, 173, 239, 0.45),
-                  0 6px 14px rgba(35, 94, 174, 0.35),
-                  inset 0 1px 0 rgba(255, 255, 255, 0.4);
-      transition:all .25s cubic-bezier(0.16, 1, 0.3, 1);
-      text-decoration:none !important;
-    }
-    .fab i { font-size:1.2rem; }
-    .fab:hover {
-      transform:translateY(-4px) scale(1.03);
-      box-shadow: 0 20px 45px -4px rgba(0, 173, 239, 0.65),
-                  0 10px 20px rgba(35, 94, 174, 0.45),
-                  inset 0 1px 0 rgba(255, 255, 255, 0.55);
-      color:#fff;
-    }
-    .fab:active {
-      transform:translateY(1px) scale(0.98);
-      box-shadow: 0 6px 16px rgba(0, 173, 239, 0.35);
-    }
+/* closing */
+.close{background:var(--sky);color:var(--ink);border-radius:36px;padding:clamp(32px,6vw,64px);display:grid;grid-template-columns:1.2fr 1fr;gap:32px;align-items:center}
+.close h2{font-size:clamp(2rem,4.4vw,3.2rem);line-height:1.05;font-weight:800}
+.close dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 18px;color:var(--muted)}
+.close dt{opacity:.9}.close dd{margin:0;font-weight:600;color:var(--ink)}
+.close .btn{margin-top:22px}
+.privacy{margin-top:20px;color:var(--muted);font-size:.95rem;max-width:70ch}
+.privacy a{color:var(--link);font-weight:600}
+@media(max-width:780px){.close{grid-template-columns:1fr}}
+footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);font-size:.93rem}
+.foot{display:flex;flex-wrap:wrap;gap:24px 56px;justify-content:space-between}
+.foot b{display:block;color:var(--ink);margin-bottom:6px;font-family:var(--head)}
+.foot a{display:block;text-decoration:none;padding:2px 0}
+.float{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9;box-shadow:0 8px 24px rgba(14,26,58,.35)}
+@media(min-width:861px){.float{display:none}}
+@media(prefers-reduced-motion:reduce){.lens{animation:none}html{scroll-behavior:auto}.btn,summary::after{transition:none}}
+.js .reveal{opacity:0;transform:translateY(40px) scale(.96);transition:opacity .8s ease,transform .9s cubic-bezier(.2,.8,.2,1);transition-delay:var(--d,0s)}
+.js .reveal.in{opacity:1;transform:none}
+.js .arch.reveal{transform:translateY(60px) scale(.92)}
+.js .arch.reveal.in{transform:none}
+@media(prefers-reduced-motion:reduce){.js .reveal,.js .reveal.in{opacity:1;transform:none;transition:none}}
 
     /* MODAL STYLES (PREMIUM 3D MODERN REDESIGN - NO WEIRD SCROLLBAR) */
     .modal-overlay { 
@@ -2339,321 +1882,113 @@ if (!function_exists('getSiteSetting')) {
     }
   </style>
 </head>
-<body class="lp-body">
-<div class="bg-mesh"></div>
-
-<!-- TOPBAR -->
-<nav class="topbar">
-  <a href="index.php" class="topbar-brand">
-    <img src="<?= htmlspecialchars(getClinicLogoUrl()) ?>" alt="Logo" class="topbar-logo">
-    <div>
-      <div class="topbar-name">Gueco Optical</div>
-      <div class="topbar-sub">Capas, Tarlac</div>
-    </div>
+<body>
+<header><div class="wrap bar">
+  <a class="brand" href="#top" aria-label="Gueco Optical home">
+    <svg viewBox="0 0 48 20" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><circle cx="12" cy="11" r="8"/><circle cx="36" cy="11" r="8"/><path d="M20 10c2-2 6-2 8 0M0 8l4 1M48 8l-4 1"/></svg>
+    <span>Gueco Optical<small>Capas, Tarlac</small></span>
   </a>
-  <div class="nav-links d-none d-md-flex align-items-center">
-    <a href="#services">Services</a>
-    <a href="#about">About</a>
-    <a href="#faq">FAQs</a>
-    <a href="javascript:void(0)" onclick="openPrivacyModal()">Terms</a>
+  <nav aria-label="Main">
+    <a class="hide-s" href="#services">Services</a><a class="hide-s" href="#about">About</a><a class="hide-s" href="#faqs">FAQs</a><a class="hide-s" href="javascript:void(0)" onclick="openPrivacyModal()">Terms</a>
     <?php if($isPatient): ?>
-      <a href="patient/dashboard.php" style="color:#1a3cb0; font-weight:700;">My Dashboard</a>
+      <a class="btn sm" href="patient/dashboard.php">My Dashboard</a>
+    <?php else: ?>
+      <button type="button" class="btn sm" onclick="openAuthModal()">Book a visit</button>
     <?php endif; ?>
-    <button class="theme-btn" id="themeToggle" title="Toggle Theme"><i class="fas fa-moon" id="themeIcon"></i></button>
-    <button type="button" onclick="openAuthModal()" class="topbar-book-btn">
-      Book a visit
-    </button>
-  </div>
-  <!-- Mobile quick actions -->
-  <div class="d-flex d-md-none align-items-center gap-2">
-    <button class="theme-btn" id="themeToggleMobile" style="margin-left:0;" title="Toggle Theme"><i class="fas fa-moon" id="themeIconMobile"></i></button>
-    <button type="button" onclick="openAuthModal()" class="topbar-book-btn" style="margin-left:0; padding:7px 14px; font-size:0.8rem;">
-      Book
-    </button>
-  </div>
-</nav>
+    <button class="theme" id="theme" aria-label="Switch light or dark mode">◐</button>
+  </nav>
+</div></header>
 
-<!-- HERO SECTION -->
-<!-- HERO SECTION -->
-<section class="hero" id="home">
-  <div class="hero-text reveal-left">
-    <h1>
-      Good eyes,<br>
-      <span class="highlight">great frames,</span><br>
-      and a clinic<br>
-      you know.
-    </h1>
-    <p>Eye exams by licensed optometrists, plus glasses and contact lenses you will want to wear. Serving Capas since 1986.</p>
-    <div class="hero-cta">
-      <button type="button" onclick="openAuthModal()" class="btn-book-primary">
-        <i class="fas fa-calendar-check"></i> Book an appointment
-      </button>
-      <a href="#services" class="btn-see-offer">See what we offer</a>
+<main id="top">
+<div class="hero"><div class="wrap hero-in">
+  <div>
+    <h1>Good eyes, <em>great frames</em>, and a clinic you know.</h1>
+    <p class="lede">Eye exams by licensed optometrists, plus glasses and contact lenses you will want to wear. Serving Capas since 1986.</p>
+    <div class="cta-row">
+      <button type="button" class="btn" onclick="openAuthModal()">Book an appointment</button>
+      <a class="btn line" href="#services">See what we offer</a>
     </div>
-    <div class="hero-chips">
-      <span class="hero-chip"><i class="fas fa-clock" style="color:#1a3cb0;"></i> Open Mon to Fri, 9 AM to 5 PM</span>
-      <span class="hero-chip"><i class="fas fa-map-marker-alt" style="color:#1a3cb0;"></i> Capas, Tarlac</span>
-      <span class="hero-chip"><i class="fas fa-shield-halved" style="color:#1a3cb0;"></i> RA 10173 compliant</span>
-    </div>
+    <div class="chips"><span>Open Mon to Fri, 9 AM to 5 PM</span><span>Capas, Tarlac</span><span>RA 10173 compliant</span></div>
   </div>
-  <div class="hero-photos reveal-right">
-    <div class="hero-circle" onclick="openAuthModal()" title="Book an appointment">
-      <img src="https://images.unsplash.com/photo-1582560475093-ba66accbc424?w=400&q=80" alt="Clinic interior" loading="lazy">
-    </div>
-    <div class="hero-circle" onclick="openAuthModal()" title="Our eyewear collection">
-      <img src="https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=400&q=80" alt="Eyewear selection" loading="lazy">
-    </div>
+  <div class="lenses" role="img" aria-label="Photos of the clinic framed in a pair of glasses">
+    <div class="lens ph" style="background-image:var(--p-boutique);background-position:60% 50%"></div>
+    <div class="bridge"></div>
+    <div class="lens b ph" style="background-image:var(--p-grey);background-position:25% 50%"></div>
   </div>
-</section>
+</div></div>
 
-<!-- SERVICES SECTION -->
-<section class="services-section" id="services">
-  <div class="services-inner">
-    <div class="services-header reveal">
-      <h2>Everything for your eyes, under one roof</h2>
-      <p>From your first check to the pair you walk out wearing. <a href="javascript:void(0)" onclick="openAuthModal()" class="underline-link">Book a visit →</a></p>
-    </div>
-    <div class="services-grid reveal">
-      <!-- Eye exams — large left card -->
-      <div class="svc-card svc-card-exam">
-        <h3>Eye exams that take their time</h3>
-        <p>Thorough, unhurried refraction and anterior-segment checks by our licensed optometrists. We take the time to understand your vision history, lifestyle, and goals — so your prescription is always spot-on.</p>
-      </div>
-      <!-- Eyeglasses — dark photo card -->
-      <div class="svc-card svc-card-glasses" style="position:relative;">
-        <img src="https://images.unsplash.com/photo-1509695507497-903c140c43b0?w=600&q=80" alt="Eyeglasses" class="svc-img" loading="lazy">
-        <div class="svc-overlay">
-          <h3>Eyeglasses</h3>
-          <p>Wide selection of frames — from lightweight titanium to bold acetate — fitted with precision-cut lenses.</p>
-        </div>
-      </div>
-      <!-- Contact lenses -->
-      <div class="svc-card svc-card-contact">
-        <h3>Contact lenses</h3>
-        <p>Daily, monthly, and specialty contacts fitted to your prescription and lifestyle.</p>
-      </div>
-      <!-- Aftercare -->
-      <div class="svc-card svc-card-aftercare">
-        <h3>Aftercare</h3>
-        <p>Free lifetime adjustments, cleaning, and screw tightening — no appointment needed, just walk in.</p>
-      </div>
-    </div>
+<section id="services"><div class="wrap">
+  <h2 class="title">Everything for your eyes, under one roof</h2>
+  <p class="sub">From your first check to the pair you walk out wearing.</p>
+  <div class="bento">
+    <div class="tile t1"><h3>Eye exams that take their time</h3><p>A thorough check and a prescription you can trust. Once a year for most people, every six months if you wear contacts or live on screens.</p></div>
+    <div class="tile t2 reveal"><h3>Eyeglasses</h3><p>Frames for every face and budget, with quality lenses fitted in the clinic.</p></div>
+    <div class="tile t3"><h3>Contact lenses</h3><p>Fitting, trial, and follow-up.</p></div>
+    <div class="tile t4"><h3>Aftercare</h3><p>Adjustments, repairs, and warranty support.</p></div>
   </div>
-</section>
+</div></section>
 
-<!-- ABOUT SECTION -->
-<section class="about-section" id="about">
-  <div class="about-inner">
-    <div class="about-photo-wrap reveal-left">
-      <img src="https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=400&q=80" alt="Gueco Optical Clinic interior" class="about-arch-img" loading="lazy">
-      <span class="about-badge">Since 1986</span>
-    </div>
-    <div class="about-content reveal-right">
-      <h2>Four decades of helping Capas see clearly</h2>
-      <p>Gueco Optical Clinic has been the trusted eye care destination in Capas, Tarlac since 1986. What started as a small neighborhood optical shop has grown into a full-service eye care center — equipped with modern refraction instruments and staffed by licensed optometrists who truly care.</p>
-      <p>We believe good vision is a right, not a luxury. That is why we offer comprehensive eye exams, an extensive eyewear selection, and lifetime aftercare at rates accessible to every family in our community.</p>
-    </div>
+<section id="about" class="since"><div class="wrap since-in">
+  <div class="arch reveal" role="img" aria-label="Inside the clinic"><b>Since 1986</b></div>
+  <div>
+    <h2 class="title">Four decades of helping Capas see clearly</h2>
+    <p>Many of our patients now bring their children and parents. We have grown with the town and kept the part that matters: your optometrist knows your name.</p>
+    <p>Modern equipment, honest advice, and no pressure to buy more than you need.</p>
   </div>
-</section>
+</div></section>
 
-<!-- STEPS SECTION -->
-<section class="steps-section">
-  <div class="steps-inner">
-    <h2 class="reveal">Your visit, start to finish</h2>
-    <div class="steps-grid">
-      <div class="step-item reveal">
-        <div class="step-num">1</div>
-        <h3>Book a time</h3>
-        <p>Pick a weekday slot through the <a href="javascript:void(0)" onclick="openAuthModal()" class="link-inline">patient portal</a>. It takes under a minute to register and confirm.</p>
-      </div>
-      <div class="step-item reveal" style="transition-delay:0.12s;">
-        <div class="step-num">2</div>
-        <h3>Get your eyes checked</h3>
-        <p>Bring your current glasses and any old prescription. Our optometrist will perform a full refraction and anterior-segment check.</p>
-      </div>
-      <div class="step-item reveal" style="transition-delay:0.24s;">
-        <div class="step-num">3</div>
-        <h3>Choose your frames</h3>
-        <p>Try them on, then we confirm your pickup date before you pay. Standard lenses are usually ready in 1–2 business days.</p>
-      </div>
-    </div>
+<section><div class="wrap">
+  <h2 class="title">Your visit, start to finish</h2>
+  <div class="steps">
+    <div class="step"><i>1</i><h3>Book a time</h3><p>Pick a weekday slot through the patient portal.</p></div>
+    <div class="step"><i>2</i><h3>Get your eyes checked</h3><p>Bring your current glasses and any old prescription.</p></div>
+    <div class="step"><i>3</i><h3>Choose your frames</h3><p>Try them on, then we confirm your pickup date before you pay.</p></div>
   </div>
-</section>
+</div></section>
 
-<!-- GALLERY SECTION -->
-<section class="gallery-section">
-  <div class="gallery-inner">
-    <div class="gallery-header reveal">
-      <h2>Take a look around</h2>
-      <p>A glimpse inside Gueco Optical Clinic, Capas, Tarlac.</p>
-    </div>
-    <div class="gallery-row reveal">
-      <div class="gallery-item">
-        <img src="https://images.unsplash.com/photo-1582560475093-ba66accbc424?w=300&q=75" alt="Clinic" loading="lazy">
-      </div>
-      <div class="gallery-item">
-        <img src="https://images.unsplash.com/photo-1509695507497-903c140c43b0?w=300&q=75" alt="Frames" loading="lazy">
-      </div>
-      <div class="gallery-item">
-        <img src="https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=300&q=75" alt="Eyewear" loading="lazy">
-      </div>
-      <div class="gallery-item">
-        <img src="https://images.unsplash.com/photo-1527613426441-4da17471b66d?w=300&q=75" alt="Eye exam" loading="lazy">
-      </div>
-      <div class="gallery-item">
-        <img src="https://images.unsplash.com/photo-1485965120184-e220f721d03e?w=300&q=75" alt="Optical" loading="lazy">
-      </div>
-    </div>
+<section style="padding-top:0"><div class="wrap">
+  <h2 class="title">Take a look around</h2>
+  <p class="sub">Swipe through the clinic.</p>
+  <div class="strip" tabindex="0" aria-label="Clinic photos">
+    <figure class="reveal"><div class="ph" role="img" aria-label="Reception" style="background-image:var(--p-boutique);background-position:50% 60%"></div><figcaption>Reception</figcaption></figure>
+    <figure class="reveal"><div class="ph" role="img" aria-label="Frames wall" style="background-image:var(--p-grey);background-position:20% 50%"></div><figcaption>Frames wall</figcaption></figure>
+    <figure class="reveal"><div class="ph" role="img" aria-label="Sunglasses display" style="background-image:var(--p-frames);background-position:30% 75%"></div><figcaption>Sunglasses</figcaption></figure>
+    <figure class="reveal"><div class="ph" role="img" aria-label="Exam area" style="background-image:var(--p-grey);background-position:90% 50%"></div><figcaption>Exam area</figcaption></figure>
+    <figure class="reveal"><div class="ph" role="img" aria-label="Waiting area" style="background-image:var(--p-boutique);background-position:90% 55%"></div><figcaption>Waiting area</figcaption></figure>
   </div>
-</section>
+</div></section>
 
-<!-- FREQUENTLY ASKED QUESTIONS (FAQS) -->
-<section class="faq-section" id="faq">
-  <div class="faq-header">
-    <div class="faq-badge">
-      <i class="fas fa-circle-question"></i> Help &amp; Information
-    </div>
-    <h2 class="faq-title">Frequently Asked <span>Questions</span></h2>
-    <p class="faq-subtitle">
-      Everything you need to know about professional eye examinations, eyewear fabrication, warranties, and clinic policies at Gueco Optical Clinic.
-    </p>
+<section id="faqs" style="padding-top:0"><div class="wrap faq-in">
+  <aside><h2 class="title">Questions patients ask</h2><p class="sub">Still unsure? Visit us Monday to Friday, 9 AM to 5 PM.</p></aside>
+  <div>
+    <details open><summary>How often should I have an eye exam?</summary><p>Once a year is recommended. Routine checkups keep your prescription accurate. If you wear contact lenses, have an existing health condition, or spend long hours on screens, every six months may be better.</p></details>
+    <details><summary>How do I book through the patient portal?</summary><p>Choose Book an appointment, sign in or register, then pick a weekday and time. We are open Monday to Friday, 9 AM to 5 PM.</p></details>
+    <details><summary>What should I bring?</summary><p>Your current glasses or contact lenses, any previous prescription, and a list of medicines you take.</p></details>
+    <details><summary>How long until my glasses are ready?</summary><p>It depends on the lenses and frame you choose. We give you a pickup date before you pay.</p></details>
+    <details><summary>Do you offer warranty and aftercare?</summary><p>Yes. We cover adjustments and repairs. Warranty terms are in our Terms and Conditions.</p></details>
+    <details><summary>Is my personal and medical information private?</summary><p>Yes. We handle your data under the Data Privacy Act of 2012 (RA 10173) and only use it for your care.</p></details>
   </div>
+</div></section>
 
-  <div class="faq-grid">
-    <?php
-    if (empty($clinicFaqs)) {
-        $clinicFaqs = [
-            ['question' => 'How often should I have a comprehensive eye examination?', 'answer' => 'Both adults and children are recommended to undergo a professional eye examination at least once every 12 months. Routine checkups ensure your optical prescription remains accurate and help detect subtle vision changes early. Patients who wear contact lenses, spend long hours on digital screens, or have pre-existing health conditions such as diabetes or hypertension may benefit from semi-annual checkups.', 'icon' => 'fa-eye'],
-            ['question' => 'How do I schedule an appointment through the patient portal?', 'answer' => 'Booking an appointment is seamless! Simply click the "Book an Appointment" button anywhere on this page. You can log in or register in seconds using your email address or Google Account. Once inside, select your preferred clinic date, convenient time slot, and reason for visit. You will receive immediate booking confirmation and appointment reminders.', 'icon' => 'fa-calendar-check'],
-            ['question' => 'What should I bring to my optical appointment?', 'answer' => 'To help our optometrists provide the most accurate assessment, please bring: your current eyeglasses or contact lens prescription details (if any), a valid photo ID for patient identification, a list of any current medications, eye drops, or chronic conditions (e.g., allergies, diabetes), and your sunglasses in case your eyes feel sensitive to bright light following ophthalmic screening.', 'icon' => 'fa-clipboard-list'],
-            ['question' => 'How long does it take to prepare my new prescription eyewear?', 'answer' => 'Standard single-vision prescription lenses and in-stock frames are typically crafted, precision-edged, and ready for dispensing within 1 to 2 business days. Custom specialty orders—including progressive multifocal lenses, ultra-thin high-index materials, blue-light blocking filters, and photochromic transition lenses—typically require 3 to 5 business days for optical surfacing and quality inspection.', 'icon' => 'fa-glasses'],
-            ['question' => 'Do you offer warranties and aftercare on eyeglasses?', 'answer' => 'Yes! All authentic designer frames and premium prescription lens coatings purchased at Gueco Optical Clinic include manufacturer warranty coverage against verified factory defects. In addition, every patient receives Free Lifetime Maintenance—including complimentary ultrasonic cleaning, screw tightening, nose pad replacements, and custom frame adjustments whenever you visit our clinic in Capas, Tarlac.', 'icon' => 'fa-shield-halved'],
-            ['question' => 'Is my personal and medical health information kept private?', 'answer' => 'Your health privacy is our utmost priority. All patient records, clinical charts, refraction results, and contact information are strictly protected under the Philippine Data Privacy Act of 2012 (RA 10173). We adhere to strict medical confidentiality. We never sell, rent, or distribute your personal details to outside advertisers or third parties.', 'icon' => 'fa-user-shield'],
-        ];
-    }
-    foreach ($clinicFaqs as $idx => $faqItem):
-      $isActiveCard = ($idx === 0) ? ' active' : '';
-      $isExpanded = ($idx === 0) ? 'true' : 'false';
-      $iconClass = !empty($faqItem['icon']) ? htmlspecialchars($faqItem['icon']) : 'fa-circle-question';
-    ?>
-    <div class="faq-card<?= $isActiveCard ?>" onclick="toggleFaqCard(this)">
-      <button type="button" class="faq-trigger" aria-expanded="<?= $isExpanded ?>">
-        <div class="faq-q-wrap">
-          <div class="faq-q-icon"><i class="fas <?= $iconClass ?>"></i></div>
-          <h3 class="faq-q-text"><?= htmlspecialchars($faqItem['question']) ?></h3>
-        </div>
-        <div class="faq-arrow"><i class="fas fa-chevron-down"></i></div>
-      </button>
-      <div class="faq-content">
-        <div class="faq-inner">
-          <p><?= nl2br(htmlspecialchars($faqItem['answer'])) ?></p>
-        </div>
-      </div>
-    </div>
-    <?php endforeach; ?>
+<section id="terms" style="padding-top:0"><div class="wrap">
+  <div class="close">
+    <div><h2>Ready for a clearer view?</h2><button type="button" class="btn" onclick="openAuthModal()">Book an appointment</button></div>
+    <dl><dt>Where</dt><dd>Capas, Tarlac</dd><dt>Mon to Fri</dt><dd>9:00 AM to 5:00 PM</dd><dt>Sat and Sun</dt><dd>Closed</dd></dl>
   </div>
+  <p class="privacy">Our terms for appointments, eyewear warranties, and patient rights follow the Data Privacy Act of 2012 (RA 10173). <a href="javascript:void(0)" onclick="openPrivacyModal()">Read Terms and Conditions</a></p>
+</div></section>
+</main>
 
-  <!-- FAQ Bottom Assistance Box -->
-  <div class="faq-cta-box">
-    <div class="faq-cta-info">
-      <div class="faq-cta-icon">
-        <i class="fas fa-headset"></i>
-      </div>
-      <div>
-        <h4 class="faq-cta-title">Still have questions or ready for your eye check?</h4>
-        <p class="faq-cta-desc">Our optometrists and friendly clinic staff are ready to help you achieve your best vision.</p>
-      </div>
-    </div>
-    <div class="faq-cta-btns">
-      <button type="button" onclick="openAuthModal()" class="btn btn-primary" style="padding:11px 22px; border-radius:12px; font-weight:700; display:inline-flex; align-items:center; gap:8px;">
-        <i class="fas fa-calendar-check"></i> Book an Appointment
-      </button>
-      <button type="button" onclick="openPrivacyModal()" class="btn btn-outline-secondary" style="padding:11px 20px; border-radius:12px; font-weight:700; display:inline-flex; align-items:center; gap:8px;">
-        <i class="fas fa-file-contract"></i> Read Terms &amp; Policies
-      </button>
-    </div>
-  </div>
-</section>
+<footer><div class="wrap foot">
+  <div><b>Gueco Optical Clinic</b>Eye care and optical services<br>Capas, Tarlac, Philippines</div>
+  <div><b>Pages</b><a href="#services">Services</a><a href="#about">About</a><a href="#faqs">FAQs</a><a href="javascript:void(0)" onclick="openPrivacyModal()">Terms and Conditions</a><a href="javascript:void(0)" onclick="openAuthModal()">Patient login or register</a></div>
+  <div><b>Hours</b>Mon to Fri, 9 AM to 5 PM<br>Sat and Sun closed<br><br>&copy; 2026 Gueco Optical Clinic</div>
+</div></footer>
 
-<!-- TRUST & CLINIC TERMS BANNER -->
-<section style="max-width:1200px; margin:0 auto 80px; padding:0 24px;">
-  <div style="background:linear-gradient(135deg,rgba(35,94,174,0.12),rgba(0,173,239,0.06)); border:1px solid rgba(0,173,239,0.3); border-radius:24px; padding:32px 36px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; backdrop-filter:blur(16px); box-shadow:0 12px 30px rgba(0,0,0,0.25);">
-    <div style="display:flex; align-items:center; gap:20px; max-width:720px;">
-      <div style="width:56px; height:56px; border-radius:16px; background:linear-gradient(135deg,var(--clr-primary),var(--clr-secondary)); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.6rem; flex-shrink:0; box-shadow:0 8px 20px rgba(0,173,239,0.35);">
-        <i class="fas fa-file-contract"></i>
-      </div>
-      <div>
-        <h4 style="margin:0 0 6px 0; font-weight:800; font-size:1.2rem; color:var(--text-primary);">Clinic Terms &amp; Patient Care Quality</h4>
-        <p style="margin:0; font-size:0.92rem; color:var(--text-secondary); line-height:1.5;">
-          Gueco Optical Clinic is dedicated to clinical excellence and transparency under the <strong>Philippine Data Privacy Act of 2012 (RA 10173)</strong>. View our terms for appointments, eyewear warranties, and patient rights.
-        </p>
-      </div>
-    </div>
-    <button type="button" onclick="openPrivacyModal()" class="btn btn-outline-primary" style="padding:12px 24px; border-radius:12px; font-weight:700; font-size:0.92rem; display:inline-flex; align-items:center; gap:8px; white-space:nowrap; border-width:1.5px; border-color:var(--clr-primary); color:var(--clr-primary);">
-      <i class="fas fa-file-contract"></i> Read Terms &amp; Conditions
-    </button>
-  </div>
-</section>
-
-<!-- FOOTER -->
-<footer style="border-top:1px solid var(--border-color); background:var(--bg-card); padding:50px 24px 30px; margin-top:60px;">
-  <div style="max-width:1200px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:40px; margin-bottom:40px;">
-    <div>
-      <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
-        <img src="<?= htmlspecialchars(getClinicLogoUrl()) ?>" alt="Logo" style="width:44px; height:44px; border-radius:50%; background:#fff; padding:2px; box-shadow:0 2px 10px rgba(0,173,239,0.35);">
-        <div>
-          <h5 style="margin:0; font-weight:800; font-size:1.15rem; color:var(--text-primary);">Gueco Optical Clinic</h5>
-          <small style="color:var(--text-muted); font-size:0.8rem;">Professional Eye Care &amp; Optical Services</small>
-        </div>
-      </div>
-      <p style="font-size:0.88rem; color:var(--text-secondary); line-height:1.6; max-width:400px; margin-bottom:16px;">
-        Dedicated to delivering comprehensive, high-quality eye examinations and premium optical eyewear to the Capas, Tarlac community since 1986.
-      </p>
-      <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(0,173,239,0.12); border:1px solid rgba(0,173,239,0.3); border-radius:8px; padding:6px 12px; font-size:0.8rem; color:var(--clr-primary); font-weight:600;">
-        <i class="fas fa-check-circle"></i> Licensed &amp; RA 10173 Compliant
-      </div>
-    </div>
-    
-    <div>
-      <h6 style="font-size:0.88rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:18px;">Quick Links</h6>
-      <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; font-size:0.9rem;">
-        <li><a href="#about" style="color:var(--text-secondary); text-decoration:none; transition:color 0.2s;">About Us</a></li>
-        <li><a href="#services" style="color:var(--text-secondary); text-decoration:none; transition:color 0.2s;">Services &amp; Eyewear</a></li>
-        <li><a href="#faq" style="color:var(--text-secondary); text-decoration:none; transition:color 0.2s;">Frequently Asked Questions (FAQs)</a></li>
-        <li><a href="javascript:void(0)" onclick="openPrivacyModal()" style="color:var(--clr-primary); text-decoration:none; font-weight:600;"><i class="fas fa-file-contract me-1"></i>Terms &amp; Conditions</a></li>
-        <li><a href="javascript:void(0)" onclick="openAuthModal()" style="color:var(--text-secondary); text-decoration:none;">Patient Login / Register</a></li>
-      </ul>
-    </div>
-    
-    <div>
-      <h6 style="font-size:0.88rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:18px;">Clinic Information</h6>
-      <div style="display:flex; flex-direction:column; gap:10px; font-size:0.88rem; color:var(--text-secondary);">
-        <div><i class="fas fa-map-marker-alt me-2" style="color:var(--clr-primary);"></i>Capas, Tarlac, Philippines</div>
-        <div><i class="fas fa-clock me-2" style="color:var(--clr-primary);"></i>Mon – Fri: 9:00 AM – 5:00 PM</div>
-        <div><i class="fas fa-calendar-times me-2" style="color:var(--clr-danger);"></i>Sat &amp; Sun: Closed</div>
-      </div>
-    </div>
-  </div>
-  
-  <div style="max-width:1200px; margin:0 auto; padding-top:20px; border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; font-size:0.8rem; color:var(--text-muted);">
-    <div>&copy; <?= date('Y') ?> Gueco Optical Clinic. All rights reserved.</div>
-    <div>
-      <a href="javascript:void(0)" onclick="openPrivacyModal()" style="color:var(--text-muted); text-decoration:underline;">Terms &amp; Conditions</a>
-    </div>
-  </div>
-</footer>
-
-<!-- FLOATING ACTION BUTTON -->
 <?php if($isPatient): ?>
-  <a href="patient/dashboard.php" class="fab">
-    <i class="fas fa-calendar-check"></i> 
-    Book an Appointment
-  </a>
+  <a class="btn float" href="patient/dashboard.php">Book an appointment</a>
 <?php else: ?>
-  <button onclick="openAuthModal()" class="fab">
-    <i class="fas fa-calendar-check"></i> 
-    Book an Appointment
-  </button>
+  <button type="button" class="btn float" onclick="openAuthModal()">Book an appointment</button>
 <?php endif; ?>
 
 <!-- AUTHENTICATION MODAL -->
@@ -3457,21 +2792,30 @@ function toggleTheme() {
   applyLandingTheme(next);
 }
 
+document.getElementById('theme')?.addEventListener('click', toggleTheme);
 document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
 document.getElementById('themeToggleMobile')?.addEventListener('click', toggleTheme);
-// ── SCROLL REVEAL ──────────────────────────────────
-(function() {
-  var revealEls = document.querySelectorAll('.reveal, .reveal-left, .reveal-right');
-  if (!revealEls.length) return;
-  var io = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-        io.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-  revealEls.forEach(function(el) { io.observe(el); });
+// ── SCROLL REVEAL (from reference template) ────────
+(function(){
+  var els = document.querySelectorAll('.reveal');
+  els.forEach(function(e, i){
+    if(e.parentNode && e.parentNode.classList.contains('strip')){
+      e.style.setProperty('--d', (Array.prototype.indexOf.call(e.parentNode.children, e) * .12) + 's');
+    }
+  });
+  if('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(en){
+      en.forEach(function(x){
+        if(x.isIntersecting){
+          x.target.classList.add('in');
+          io.unobserve(x.target);
+        }
+      });
+    }, {threshold: .15});
+    els.forEach(function(e){ io.observe(e); });
+  } else {
+    els.forEach(function(e){ e.classList.add('in'); });
+  }
 })();
 </script>
 <div class="toast-container" id="toastContainer"></div>

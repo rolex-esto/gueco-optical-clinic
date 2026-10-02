@@ -174,11 +174,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── HOMEPAGE SETTINGS ──
     if ($action === 'save_homepage') {
-        $keys = ['hero_badge','hero_headline','hero_highlight','hero_description',
-                 'stat1_value','stat1_label','stat2_value','stat2_label','stat3_value','stat3_label',
-                 'card1_icon','card1_title','card1_desc',
-                 'card2_icon','card2_title','card2_desc',
-                 'card3_icon','card3_title','card3_desc'];
+        $keys = [
+            'hero_headline_start', 'hero_highlight', 'hero_headline_end', 'hero_description',
+            'hero_chip1', 'hero_chip2', 'hero_chip3',
+            'bento_header_title', 'bento_header_sub',
+            'bento_t1_title', 'bento_t1_desc',
+            'bento_t2_title', 'bento_t2_desc',
+            'bento_t3_title', 'bento_t3_desc',
+            'bento_t4_title', 'bento_t4_desc',
+            'about_badge', 'about_title', 'about_p1', 'about_p2',
+            'steps_title',
+            'step1_title', 'step1_desc',
+            'step2_title', 'step2_desc',
+            'step3_title', 'step3_desc',
+            'gallery_title', 'gallery_sub',
+            'close_title', 'close_privacy'
+        ];
 
         // Retrieve existing settings to detect if anything changed
         $currSettings = [];
@@ -195,6 +206,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Handle image uploads (hero lenses, bento image, arch image)
+        $imgFields = ['hero_lens_left', 'hero_lens_right', 'about_arch_img', 'bento_t2_img'];
+        $destDir = __DIR__ . '/../assets/images/';
+        foreach ($imgFields as $imgKey) {
+            if (isset($_FILES[$imgKey]) && $_FILES[$imgKey]['error'] === UPLOAD_ERR_OK) {
+                $fileExt = strtolower(pathinfo($_FILES[$imgKey]['name'], PATHINFO_EXTENSION));
+                if (in_array($fileExt, ['png', 'jpg', 'jpeg', 'webp'])) {
+                    $newFileName = $imgKey . '_' . time() . '.' . $fileExt;
+                    if (move_uploaded_file($_FILES[$imgKey]['tmp_name'], $destDir . $newFileName)) {
+                        $savedPath = 'assets/images/' . $newFileName;
+                        $db->prepare("INSERT INTO site_settings (setting_key, setting_value) VALUES (?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)")->execute([$imgKey, $savedPath]);
+                        $hasChanges = true;
+                    }
+                }
+            }
+            if (!empty($_POST['reset_' . $imgKey])) {
+                $db->prepare("DELETE FROM site_settings WHERE setting_key = ?")->execute([$imgKey]);
+                $hasChanges = true;
+            }
+        }
+
         if (!$hasChanges) {
             $msg = 'No changes were made. Homepage content is already up to date!';
             $msgType = 'info';
@@ -202,8 +234,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $upsert = $db->prepare("INSERT INTO site_settings (setting_key, setting_value) VALUES (?,?)
                                     ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)");
             foreach ($keys as $k) {
-                $val = trim($_POST[$k] ?? '');
-                $upsert->execute([$k, $val]);
+                if (isset($_POST[$k])) {
+                    $val = trim($_POST[$k]);
+                    $upsert->execute([$k, $val]);
+                }
             }
             $msg = 'Homepage content updated successfully! Changes are now live on the patient website.';
             $msgType = 'success';
@@ -646,6 +680,12 @@ document.addEventListener("DOMContentLoaded", function() {
       <p class="pm-studio-subtitle">Easily manage what your patients see on the landing page and booking system — no coding required!</p>
     </div>
   </div>
+  <div class="d-flex align-items-center gap-2">
+    <button type="button" class="btn btn-outline-primary" style="border-radius:12px; font-weight:800; padding:10px 18px; display:inline-flex; align-items:center; gap:8px;" onclick="openFullPagePreview()">
+      <i class="fas fa-desktop"></i>
+      <span>Preview Landing Page</span>
+    </button>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════
@@ -781,54 +821,54 @@ document.addEventListener("DOMContentLoaded", function() {
     </div>
   </div>
 
-  <form method="POST" id="homepageForm" onsubmit="return validateHomepageChange(event, this)">
+  <form method="POST" id="homepageForm" enctype="multipart/form-data" onsubmit="return validateHomepageChange(event, this)">
     <input type="hidden" name="action" value="save_homepage">
     <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
     <input type="hidden" name="active_tab" value="homepage">
 
-    <!-- Section 1: Hero Banner Studio -->
+    <!-- Section 1: Hero Banner & Lenses Studio -->
     <div class="pm-card-box">
       <div class="pm-card-box-header">
-        <div class="pm-header-badge-tag"><i class="fas fa-flag"></i> SECTION 1</div>
-        <h4 class="pm-card-box-title">Hero Banner Studio</h4>
-        <p class="pm-card-box-desc">This is the main headline and introduction displayed at the very top of your landing page.</p>
+        <div class="pm-header-badge-tag"><i class="fas fa-glasses"></i> SECTION 1</div>
+        <h4 class="pm-card-box-title">Hero Banner &amp; Spectacle Lenses Studio</h4>
+        <p class="pm-card-box-desc">Configure the primary headline, blue accent highlight words, intro copy, trust chips, and the two circular spectacle photos displayed on your homepage.</p>
       </div>
 
       <div class="pm-hero-studio-grid">
         <!-- Left: Form Controls -->
         <div class="pm-hero-controls">
-          <div class="pm-field-block">
-            <label class="pm-input-label">
-              <i class="fas fa-certificate text-warning"></i>
-              <span>Top Badge Text</span>
-            </label>
-            <input type="text" name="hero_badge" id="heroBadgeInput" class="form-control pm-styled-input" 
-                   value="<?= gs($settings,'hero_badge','Established in 1986') ?>" 
-                   placeholder="e.g. Established in 1986" oninput="updateHeroLivePreview()">
-            <span class="pm-input-hint">The golden badge shown above your main headline.</span>
-          </div>
-
-          <div class="pm-field-row-2">
+          <div class="pm-field-row-3">
             <div class="pm-field-block">
               <label class="pm-input-label">
                 <i class="fas fa-font text-primary"></i>
-                <span>Headline (First Part)</span>
+                <span>Headline (Start)</span>
               </label>
-              <input type="text" name="hero_headline" id="heroHeadlineInput" class="form-control pm-styled-input" 
-                     value="<?= gs($settings,'hero_headline','See the World') ?>" 
-                     placeholder="e.g. See the World" oninput="updateHeroLivePreview()">
-              <span class="pm-input-hint">Standard primary title text.</span>
+              <input type="text" name="hero_headline_start" id="heroHeadlineStartInput" class="form-control pm-styled-input" 
+                     value="<?= gs($settings,'hero_headline_start','Good eyes,') ?>" 
+                     placeholder="e.g. Good eyes," oninput="updateHeroLivePreview()">
+              <span class="pm-input-hint">Opening text.</span>
             </div>
 
             <div class="pm-field-block">
               <label class="pm-input-label">
                 <i class="fas fa-wand-magic-sparkles text-info"></i>
-                <span>Accent Highlight Words</span>
+                <span>Accent Highlight</span>
               </label>
               <input type="text" name="hero_highlight" id="heroHighlightInput" class="form-control pm-styled-input" 
-                     value="<?= gs($settings,'hero_highlight','Clearly & Beautifully') ?>" 
-                     placeholder="e.g. Clearly & Beautifully" oninput="updateHeroLivePreview()">
-              <span class="pm-input-hint">These words shine with luxury blue gradient.</span>
+                     value="<?= gs($settings,'hero_highlight','great frames,') ?>" 
+                     placeholder="e.g. great frames," oninput="updateHeroLivePreview()">
+              <span class="pm-input-hint">Royal blue accent words.</span>
+            </div>
+
+            <div class="pm-field-block">
+              <label class="pm-input-label">
+                <i class="fas fa-font text-secondary"></i>
+                <span>Headline (End)</span>
+              </label>
+              <input type="text" name="hero_headline_end" id="heroHeadlineEndInput" class="form-control pm-styled-input" 
+                     value="<?= gs($settings,'hero_headline_end','and a clinic you know.') ?>" 
+                     placeholder="e.g. and a clinic you know." oninput="updateHeroLivePreview()">
+              <span class="pm-input-hint">Closing sentence.</span>
             </div>
           </div>
 
@@ -837,13 +877,56 @@ document.addEventListener("DOMContentLoaded", function() {
               <i class="fas fa-align-left text-muted"></i>
               <span>Clinic Introduction Paragraph</span>
             </label>
-            <textarea name="hero_description" id="heroDescInput" class="form-control pm-styled-textarea" rows="3" 
-                      placeholder="Write a warm introduction for your clinic..." oninput="updateHeroLivePreview()"><?= gs($settings,'hero_description') ?></textarea>
-            <span class="pm-input-hint">Brief clinic mission or welcome message.</span>
+            <textarea name="hero_description" id="heroDescInput" class="form-control pm-styled-textarea" rows="2" 
+                      placeholder="Write clinic introduction..." oninput="updateHeroLivePreview()"><?= gs($settings,'hero_description','Eye exams by licensed optometrists, plus glasses and contact lenses you will want to wear. Serving Capas since 1986.') ?></textarea>
+            <span class="pm-input-hint">Brief clinic welcome or mission statement.</span>
+          </div>
+
+          <!-- Trust Chips -->
+          <div class="pm-field-row-3">
+            <div class="pm-field-block">
+              <label class="pm-input-label"><i class="fas fa-clock text-primary"></i> Chip 1 (Hours)</label>
+              <input type="text" name="hero_chip1" id="heroChip1Input" class="form-control pm-styled-input" 
+                     value="<?= gs($settings,'hero_chip1','Open Mon to Fri, 9 AM to 5 PM') ?>" oninput="updateHeroLivePreview()">
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label"><i class="fas fa-map-marker-alt text-danger"></i> Chip 2 (Location)</label>
+              <input type="text" name="hero_chip2" id="heroChip2Input" class="form-control pm-styled-input" 
+                     value="<?= gs($settings,'hero_chip2','Capas, Tarlac') ?>" oninput="updateHeroLivePreview()">
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label"><i class="fas fa-shield-halved text-success"></i> Chip 3 (Compliance)</label>
+              <input type="text" name="hero_chip3" id="heroChip3Input" class="form-control pm-styled-input" 
+                     value="<?= gs($settings,'hero_chip3','RA 10173 compliant') ?>" oninput="updateHeroLivePreview()">
+            </div>
+          </div>
+
+          <!-- Hero Spectacle Lens Images -->
+          <div class="pm-field-row-2 mt-2">
+            <div class="pm-field-block">
+              <label class="pm-input-label"><i class="fas fa-circle-dot text-primary"></i> Left Lens Photo</label>
+              <div class="d-flex align-items-center gap-3">
+                <img src="<?= htmlspecialchars(BASE_URL . gs($settings,'hero_lens_left','assets/images/clinic_boutique.jpg')) ?>" 
+                     style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--clr-primary);" alt="Left Lens">
+                <div class="flex-grow-1">
+                  <input type="file" name="hero_lens_left" class="form-control form-control-sm" accept="image/*">
+                </div>
+              </div>
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label"><i class="fas fa-circle-dot text-info"></i> Right Lens Photo</label>
+              <div class="d-flex align-items-center gap-3">
+                <img src="<?= htmlspecialchars(BASE_URL . gs($settings,'hero_lens_right','assets/images/clinic_grey.jpg')) ?>" 
+                     style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--clr-primary);" alt="Right Lens">
+                <div class="flex-grow-1">
+                  <input type="file" name="hero_lens_right" class="form-control form-control-sm" accept="image/*">
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Right: Interactive Live Mockup -->
+        <!-- Right: Live Mockup -->
         <div class="pm-hero-mockup-wrapper">
           <div class="pm-mockup-banner-top">
             <span class="pm-mockup-dot red"></span>
@@ -851,115 +934,282 @@ document.addEventListener("DOMContentLoaded", function() {
             <span class="pm-mockup-dot green"></span>
             <span class="pm-mockup-url"><i class="fas fa-lock"></i> guecoopticalclinic.com</span>
           </div>
-          <div class="pm-hero-mockup-inner">
-            <div class="pm-mockup-badge" id="prevHeroBadge">
-              <i class="fas fa-certificate text-warning me-1"></i>
-              <span><?= gs($settings,'hero_badge','Established in 1986') ?></span>
-            </div>
-            <h1 class="pm-mockup-h1">
-              <span id="prevHeroHeadline"><?= gs($settings,'hero_headline','See the World') ?></span>
-              <span class="pm-mockup-grad" id="prevHeroHighlight"><?= gs($settings,'hero_highlight','Clearly & Beautifully') ?></span>
+          <div class="pm-hero-mockup-inner" style="background:var(--bg-card);padding:24px;border-radius:0 0 16px 16px;">
+            <h1 class="pm-mockup-h1" style="font-size:1.4rem;line-height:1.2;margin-bottom:10px;">
+              <span id="prevHeadStart"><?= gs($settings,'hero_headline_start','Good eyes,') ?></span>
+              <span style="color:#1a3cb0;font-weight:800;" id="prevHighlight"><?= gs($settings,'hero_highlight','great frames,') ?></span>
+              <span id="prevHeadEnd"><?= gs($settings,'hero_headline_end','and a clinic you know.') ?></span>
             </h1>
-            <p class="pm-mockup-desc" id="prevHeroDesc"><?= gs($settings,'hero_description') ?></p>
-            <div class="pm-mockup-cta">
-              <span class="pm-mockup-btn-primary"><i class="fas fa-calendar-check"></i> Book an Appointment</span>
-              <span class="pm-mockup-btn-outline">Explore Services</span>
+            <p class="pm-mockup-desc" id="prevHeroDesc" style="font-size:0.85rem;line-height:1.4;color:var(--text-muted);margin-bottom:12px;"><?= gs($settings,'hero_description','Eye exams by licensed optometrists, plus glasses and contact lenses you will want to wear. Serving Capas since 1986.') ?></p>
+            <div class="d-flex gap-2 flex-wrap mb-3">
+              <span class="badge bg-light text-dark border" style="font-size:0.75rem;" id="prevChip1"><?= gs($settings,'hero_chip1','Open Mon to Fri, 9 AM to 5 PM') ?></span>
+              <span class="badge bg-light text-dark border" style="font-size:0.75rem;" id="prevChip2"><?= gs($settings,'hero_chip2','Capas, Tarlac') ?></span>
+              <span class="badge bg-light text-dark border" style="font-size:0.75rem;" id="prevChip3"><?= gs($settings,'hero_chip3','RA 10173 compliant') ?></span>
+            </div>
+            <!-- Spectacle Preview Mini -->
+            <div class="d-flex align-items-center justify-content-center" style="gap:10px;padding:12px;background:rgba(26,60,176,0.06);border-radius:14px;">
+              <img src="<?= htmlspecialchars(BASE_URL . gs($settings,'hero_lens_left','assets/images/clinic_boutique.jpg')) ?>" style="width:60px;height:60px;border-radius:50%;border:3px solid #1a3cb0;object-fit:cover;" alt="Lens">
+              <div style="width:16px;height:4px;background:#1a3cb0;border-radius:2px;"></div>
+              <img src="<?= htmlspecialchars(BASE_URL . gs($settings,'hero_lens_right','assets/images/clinic_grey.jpg')) ?>" style="width:60px;height:60px;border-radius:50%;border:3px solid #1a3cb0;object-fit:cover;margin-top:14px;" alt="Lens">
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Section 2: Milestones & Counters -->
+    <!-- Section 2: Services Bento Grid Studio -->
     <div class="pm-card-box mt-4">
       <div class="pm-card-box-header">
-        <div class="pm-header-badge-tag"><i class="fas fa-chart-line"></i> SECTION 2</div>
-        <h4 class="pm-card-box-title">Clinic Milestones &amp; Statistics</h4>
-        <p class="pm-card-box-desc">The 3 quick proof counters displayed directly below the hero section.</p>
+        <div class="pm-header-badge-tag"><i class="fas fa-table-cells-large"></i> SECTION 2</div>
+        <h4 class="pm-card-box-title">Services Bento Grid Studio</h4>
+        <p class="pm-card-box-desc">Customize the 4 bento cards: Eye Exams, Eyeglasses (with photo), Contact Lenses, and Lifetime Aftercare.</p>
       </div>
 
-      <div class="pm-stats-builder-grid">
-        <?php 
-        $statDefaults = [
-            ['stat1', '40+',  'Years of Service', 'fa-award',       '#235EAE'],
-            ['stat2', '10k+', 'Happy Patients',   'fa-smile-beam',  '#00ADEF'],
-            ['stat3', '100%', 'Commitment',       'fa-hand-holding-heart', '#10B981']
-        ];
-        foreach ($statDefaults as [$k, $dv, $dl, $icon, $accent]): 
-        ?>
-        <div class="pm-stat-builder-card">
-          <div class="pm-stat-icon-top" style="color:<?= $accent ?>;">
-            <i class="fas <?= $icon ?>"></i>
-          </div>
-          <div class="pm-stat-inputs">
-            <div class="pm-stat-input-group">
-              <label class="pm-stat-label">Displayed Number</label>
-              <input type="text" name="<?= $k ?>_value" class="form-control pm-stat-number-input" 
-                     value="<?= gs($settings,"{$k}_value",$dv) ?>" placeholder="e.g. 40+">
-            </div>
-            <div class="pm-stat-input-group">
-              <label class="pm-stat-label">Stat Label</label>
-              <input type="text" name="<?= $k ?>_label" class="form-control pm-stat-text-input" 
-                     value="<?= gs($settings,"{$k}_label",$dl) ?>" placeholder="e.g. Years of Service">
-            </div>
-          </div>
+      <div class="pm-field-row-2 mb-3">
+        <div class="pm-field-block">
+          <label class="pm-input-label">Section Header Title</label>
+          <input type="text" name="bento_header_title" class="form-control pm-styled-input fw-bold" 
+                 value="<?= gs($settings,'bento_header_title','Everything for your eyes, under one roof') ?>">
         </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
-
-    <!-- Section 3: Clinic Highlights (3 Feature Cards) -->
-    <div class="pm-card-box mt-4">
-      <div class="pm-card-box-header">
-        <div class="pm-header-badge-tag"><i class="fas fa-layer-group"></i> SECTION 3</div>
-        <h4 class="pm-card-box-title">Clinic Feature Highlights (3 Cards)</h4>
-        <p class="pm-card-box-desc">The 3 luxury cards that describe your clinic's primary strengths. Click the icon to choose a different graphic!</p>
+        <div class="pm-field-block">
+          <label class="pm-input-label">Section Header Subtitle</label>
+          <input type="text" name="bento_header_sub" class="form-control pm-styled-input" 
+                 value="<?= gs($settings,'bento_header_sub','From your first check to the pair you walk out wearing.') ?>">
+        </div>
       </div>
 
       <div class="pm-feature-cards-grid">
-        <?php
-        $cardConfigs = [
-          ['card1', 'fa-user-md',        'Expert Optometrists', 'Our highly trained professionals provide thorough eye exams, accurate prescriptions, and personalized care tailored to your unique visual needs.', 'Bronze Accent', 'pm-accent-bronze'],
-          ['card2', 'fa-glasses',        'Premium Eyewear',     'Choose from a wide selection of stylish frames, premium lenses, and comfortable contact lenses sourced from top international brands.', 'Gold Accent',   'pm-accent-gold'],
-          ['card3', 'fa-map-marker-alt', 'Convenient Location', 'Located in the heart of Capas, Tarlac. We provide a comfortable, welcoming environment with modern facilities for all our patients.',     'Emerald Accent','pm-accent-emerald']
-        ];
-
-        foreach ($cardConfigs as [$k, $di, $dt, $dd, $accentName, $accentClass]):
-          $savedIcon = gs($settings,"{$k}_icon",$di);
-        ?>
-        <div class="pm-feature-builder-card <?= $accentClass ?>">
-          <!-- Hidden Icon Input -->
-          <input type="hidden" name="<?= $k ?>_icon" id="<?= $k ?>_icon_input" value="<?= $savedIcon ?>">
-
-          <!-- Visual Icon Button -->
+        <!-- Tile 1: Eye Exams -->
+        <div class="pm-feature-builder-card pm-accent-bronze">
           <div class="pm-feature-top-bar">
-            <button type="button" class="pm-feature-icon-btn" id="<?= $k ?>_icon_box" 
-                    onclick="openIconPicker('<?= $k ?>')" title="Click to choose a different icon">
-              <i class="fas <?= $savedIcon ?>"></i>
-            </button>
-            <div class="pm-feature-badge-wrap">
-              <span class="pm-badge-accent"><?= $accentName ?></span>
-              <button type="button" class="pm-change-icon-chip" onclick="openIconPicker('<?= $k ?>')">
-                <i class="fas fa-icons"></i> Change Icon
-              </button>
-            </div>
+            <span class="badge bg-primary text-white"><i class="fas fa-eye me-1"></i> Tile 1 (Large Card)</span>
           </div>
-
           <div class="pm-feature-form-body">
             <div class="pm-field-block">
               <label class="pm-input-label">Card Title</label>
-              <input type="text" name="<?= $k ?>_title" class="form-control pm-styled-input fw-bold" 
-                     value="<?= gs($settings,"{$k}_title",$dt) ?>" placeholder="e.g. Expert Optometrists">
+              <input type="text" name="bento_t1_title" class="form-control pm-styled-input fw-bold" 
+                     value="<?= gs($settings,'bento_t1_title','Eye exams that take their time') ?>">
             </div>
-
             <div class="pm-field-block">
               <label class="pm-input-label">Card Description</label>
-              <textarea name="<?= $k ?>_desc" class="form-control pm-styled-textarea" rows="3" 
-                        placeholder="Explain this clinic benefit..."><?= gs($settings,"{$k}_desc",$dd) ?></textarea>
+              <textarea name="bento_t1_desc" class="form-control pm-styled-textarea" rows="3"><?= gs($settings,'bento_t1_desc','A thorough check and a prescription you can trust. Once a year for most people, every six months if you wear contacts or live on screens.') ?></textarea>
             </div>
           </div>
         </div>
-        <?php endforeach; ?>
+
+        <!-- Tile 2: Eyeglasses (Photo Card) -->
+        <div class="pm-feature-builder-card pm-accent-gold">
+          <div class="pm-feature-top-bar">
+            <span class="badge bg-dark text-white"><i class="fas fa-glasses me-1"></i> Tile 2 (Photo Card)</span>
+          </div>
+          <div class="pm-feature-form-body">
+            <div class="pm-field-block">
+              <label class="pm-input-label">Card Title</label>
+              <input type="text" name="bento_t2_title" class="form-control pm-styled-input fw-bold" 
+                     value="<?= gs($settings,'bento_t2_title','Eyeglasses') ?>">
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label">Card Description</label>
+              <textarea name="bento_t2_desc" class="form-control pm-styled-textarea" rows="2"><?= gs($settings,'bento_t2_desc','Frames for every face and budget, with quality lenses fitted in the clinic.') ?></textarea>
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label">Card Background Photo</label>
+              <div class="d-flex align-items-center gap-2">
+                <img src="<?= htmlspecialchars(BASE_URL . gs($settings,'bento_t2_img','assets/images/clinic_frames.jpg')) ?>" 
+                     style="width:48px;height:36px;border-radius:8px;object-fit:cover;" alt="Frames">
+                <input type="file" name="bento_t2_img" class="form-control form-control-sm" accept="image/*">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tile 3: Contact Lenses -->
+        <div class="pm-feature-builder-card pm-accent-emerald">
+          <div class="pm-feature-top-bar">
+            <span class="badge bg-info text-white"><i class="fas fa-circle-dot me-1"></i> Tile 3 (Contacts)</span>
+          </div>
+          <div class="pm-feature-form-body">
+            <div class="pm-field-block">
+              <label class="pm-input-label">Card Title</label>
+              <input type="text" name="bento_t3_title" class="form-control pm-styled-input fw-bold" 
+                     value="<?= gs($settings,'bento_t3_title','Contact lenses') ?>">
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label">Card Description</label>
+              <textarea name="bento_t3_desc" class="form-control pm-styled-textarea" rows="3"><?= gs($settings,'bento_t3_desc','Fitting, trial, and follow-up.') ?></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tile 4: Aftercare -->
+        <div class="pm-feature-builder-card" style="border-top:3px solid #0e1a3a;">
+          <div class="pm-feature-top-bar">
+            <span class="badge bg-secondary text-white"><i class="fas fa-screwdriver-wrench me-1"></i> Tile 4 (Aftercare)</span>
+          </div>
+          <div class="pm-feature-form-body">
+            <div class="pm-field-block">
+              <label class="pm-input-label">Card Title</label>
+              <input type="text" name="bento_t4_title" class="form-control pm-styled-input fw-bold" 
+                     value="<?= gs($settings,'bento_t4_title','Aftercare') ?>">
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label">Card Description</label>
+              <textarea name="bento_t4_desc" class="form-control pm-styled-textarea" rows="3"><?= gs($settings,'bento_t4_desc','Adjustments, repairs, and warranty support.') ?></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: About Clinic & Heritage ("Since 1986") -->
+    <div class="pm-card-box mt-4">
+      <div class="pm-card-box-header">
+        <div class="pm-header-badge-tag"><i class="fas fa-landmark"></i> SECTION 3</div>
+        <h4 class="pm-card-box-title">About Clinic &amp; Heritage Studio</h4>
+        <p class="pm-card-box-desc">Manage the arched photo section, four-decade heritage story, and the badge.</p>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="pm-field-block">
+            <label class="pm-input-label">Arch Badge Label</label>
+            <input type="text" name="about_badge" class="form-control pm-styled-input fw-bold" 
+                   value="<?= gs($settings,'about_badge','Since 1986') ?>">
+            <span class="pm-input-hint">Displayed over the arch photo.</span>
+          </div>
+          <div class="pm-field-block mt-3">
+            <label class="pm-input-label">Arch Image (Portrait / Arched)</label>
+            <div class="d-flex align-items-center gap-3">
+              <img src="<?= htmlspecialchars(BASE_URL . gs($settings,'about_arch_img','assets/images/clinic_boutique.jpg')) ?>" 
+                   style="width:54px;height:68px;border-radius:24px 24px 8px 8px;object-fit:cover;border:2px solid var(--clr-primary);" alt="Arch">
+              <div class="flex-grow-1">
+                <input type="file" name="about_arch_img" class="form-control form-control-sm" accept="image/*">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-8">
+          <div class="pm-field-block">
+            <label class="pm-input-label">Headline Title</label>
+            <input type="text" name="about_title" class="form-control pm-styled-input fw-bold" 
+                   value="<?= gs($settings,'about_title','Four decades of helping Capas see clearly') ?>">
+          </div>
+          <div class="pm-field-block mt-3">
+            <label class="pm-input-label">Story Paragraph 1</label>
+            <textarea name="about_p1" class="form-control pm-styled-textarea" rows="2"><?= gs($settings,'about_p1','Many of our patients now bring their children and parents. We have grown with the town and kept the part that matters: your optometrist knows your name.') ?></textarea>
+          </div>
+          <div class="pm-field-block mt-3">
+            <label class="pm-input-label">Story Paragraph 2</label>
+            <textarea name="about_p2" class="form-control pm-styled-textarea" rows="2"><?= gs($settings,'about_p2','Modern equipment, honest advice, and no pressure to buy more than you need.') ?></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Patient Visit Steps Timeline -->
+    <div class="pm-card-box mt-4">
+      <div class="pm-card-box-header">
+        <div class="pm-header-badge-tag"><i class="fas fa-list-ol"></i> SECTION 4</div>
+        <h4 class="pm-card-box-title">Patient Visit Steps Timeline (1, 2, 3)</h4>
+        <p class="pm-card-box-desc">Walk your patients through their consultation experience from appointment booking to picking up their eyewear.</p>
+      </div>
+
+      <div class="pm-field-block mb-3">
+        <label class="pm-input-label">Section Title</label>
+        <input type="text" name="steps_title" class="form-control pm-styled-input fw-bold" 
+               value="<?= gs($settings,'steps_title','Your visit, start to finish') ?>">
+      </div>
+
+      <div class="pm-feature-cards-grid">
+        <!-- Step 1 -->
+        <div class="pm-feature-builder-card" style="border-top:3px solid var(--clr-primary);">
+          <div class="pm-feature-top-bar">
+            <span class="badge bg-primary text-white" style="font-size:1.1rem;font-weight:900;">Step 1</span>
+          </div>
+          <div class="pm-feature-form-body">
+            <div class="pm-field-block">
+              <label class="pm-input-label">Step 1 Title</label>
+              <input type="text" name="step1_title" class="form-control pm-styled-input fw-bold" 
+                     value="<?= gs($settings,'step1_title','Book a time') ?>">
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label">Step 1 Description</label>
+              <textarea name="step1_desc" class="form-control pm-styled-textarea" rows="2"><?= gs($settings,'step1_desc','Pick a weekday slot through the patient portal.') ?></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="pm-feature-builder-card" style="border-top:3px solid var(--clr-primary);">
+          <div class="pm-feature-top-bar">
+            <span class="badge bg-primary text-white" style="font-size:1.1rem;font-weight:900;">Step 2</span>
+          </div>
+          <div class="pm-feature-form-body">
+            <div class="pm-field-block">
+              <label class="pm-input-label">Step 2 Title</label>
+              <input type="text" name="step2_title" class="form-control pm-styled-input fw-bold" 
+                     value="<?= gs($settings,'step2_title','Get your eyes checked') ?>">
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label">Step 2 Description</label>
+              <textarea name="step2_desc" class="form-control pm-styled-textarea" rows="2"><?= gs($settings,'step2_desc','Bring your current glasses and any old prescription.') ?></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="pm-feature-builder-card" style="border-top:3px solid var(--clr-primary);">
+          <div class="pm-feature-top-bar">
+            <span class="badge bg-primary text-white" style="font-size:1.1rem;font-weight:900;">Step 3</span>
+          </div>
+          <div class="pm-feature-form-body">
+            <div class="pm-field-block">
+              <label class="pm-input-label">Step 3 Title</label>
+              <input type="text" name="step3_title" class="form-control pm-styled-input fw-bold" 
+                     value="<?= gs($settings,'step3_title','Choose your frames') ?>">
+            </div>
+            <div class="pm-field-block">
+              <label class="pm-input-label">Step 3 Description</label>
+              <textarea name="step3_desc" class="form-control pm-styled-textarea" rows="2"><?= gs($settings,'step3_desc','Try them on, then we confirm your pickup date before you pay.') ?></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 5: Gallery & Closing Notice -->
+    <div class="pm-card-box mt-4">
+      <div class="pm-card-box-header">
+        <div class="pm-header-badge-tag"><i class="fas fa-images"></i> SECTION 5</div>
+        <h4 class="pm-card-box-title">Gallery Header &amp; Closing Callout</h4>
+        <p class="pm-card-box-desc">Control the gallery section headers and the closing booking card with privacy notice.</p>
+      </div>
+
+      <div class="pm-field-row-2">
+        <div class="pm-field-block">
+          <label class="pm-input-label">Gallery Heading</label>
+          <input type="text" name="gallery_title" class="form-control pm-styled-input fw-bold" 
+                 value="<?= gs($settings,'gallery_title','Take a look around') ?>">
+        </div>
+        <div class="pm-field-block">
+          <label class="pm-input-label">Gallery Subtitle</label>
+          <input type="text" name="gallery_sub" class="form-control pm-styled-input" 
+                 value="<?= gs($settings,'gallery_sub','Swipe through the clinic.') ?>">
+        </div>
+      </div>
+
+      <div class="pm-field-row-2 mt-3">
+        <div class="pm-field-block">
+          <label class="pm-input-label">Closing Action Card Title</label>
+          <input type="text" name="close_title" class="form-control pm-styled-input fw-bold" 
+                 value="<?= gs($settings,'close_title','Ready for a clearer view?') ?>">
+        </div>
+        <div class="pm-field-block">
+          <label class="pm-input-label">Privacy &amp; Terms Notice</label>
+          <input type="text" name="close_privacy" class="form-control pm-styled-input" 
+                 value="<?= gs($settings,'close_privacy','Our terms for appointments, eyewear warranties, and patient rights follow the Data Privacy Act of 2012 (RA 10173).') ?>">
+        </div>
       </div>
     </div>
 
@@ -967,11 +1217,16 @@ document.addEventListener("DOMContentLoaded", function() {
     <div class="pm-sticky-save-bar">
       <div class="pm-save-bar-left">
         <i class="fas fa-check-circle text-success"></i>
-        <span>Ready to update? Changes will take effect immediately on your live website.</span>
+        <span>Ready to update? You can preview your draft before saving.</span>
       </div>
-      <button type="submit" class="pm-save-action-btn">
-        <i class="fas fa-save"></i> Save All Homepage Changes
-      </button>
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-light" style="border-radius:12px; font-weight:700; padding:11px 20px;" onclick="openFullPagePreview()">
+          <i class="fas fa-eye me-1"></i> Preview Draft
+        </button>
+        <button type="submit" class="pm-save-action-btn">
+          <i class="fas fa-save"></i> Save All Homepage Changes
+        </button>
+      </div>
     </div>
   </form>
 </div>
@@ -1673,9 +1928,158 @@ document.addEventListener("DOMContentLoaded", function() {
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════
+     MODAL: FULL PAGE LIVE PREVIEW (WITH DEVICE VIEWPORT SWITCHER)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="fullPreviewModal" style="z-index: 10600 !important; background: rgba(5, 10, 24, 0.92); backdrop-filter: blur(12px);">
+  <div class="modal-box" style="width: 96vw; max-width: 1400px; height: 94vh; max-height: 94vh; display: flex; flex-direction: column; padding: 0; border-radius: 20px; overflow: hidden; background: #0c1529; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 25px 60px rgba(0,0,0,0.6);">
+    <!-- Header with Viewport Toggles -->
+    <div style="background: #111d38; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #235EAE, #00ADEF); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.1rem;">
+          <i class="fas fa-desktop"></i>
+        </div>
+        <div>
+          <h5 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #fff;">Landing Page Live Preview</h5>
+          <small style="color: #8da4ce; font-size: 0.78rem;">Live preview of your unsaved draft across desktop, tablet, and mobile</small>
+        </div>
+      </div>
+
+      <!-- Viewport Device Controls -->
+      <div style="display: inline-flex; align-items: center; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 4px; gap: 4px;">
+        <button type="button" class="btn btn-sm" id="vpDesktopBtn" onclick="setPreviewViewport('desktop')" style="border-radius: 8px; font-weight: 700; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #235EAE; border: none; color: #fff;">
+          <i class="fas fa-desktop"></i> Desktop (100%)
+        </button>
+        <button type="button" class="btn btn-sm" id="vpTabletBtn" onclick="setPreviewViewport('tablet')" style="border-radius: 8px; font-weight: 700; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: transparent; border: none; color: #8da4ce;">
+          <i class="fas fa-tablet-alt"></i> Tablet (768px)
+        </button>
+        <button type="button" class="btn btn-sm" id="vpMobileBtn" onclick="setPreviewViewport('mobile')" style="border-radius: 8px; font-weight: 700; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: transparent; border: none; color: #8da4ce;">
+          <i class="fas fa-mobile-alt"></i> Mobile (375px)
+        </button>
+      </div>
+
+      <!-- Actions -->
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button type="button" class="btn btn-sm btn-outline-info" onclick="syncDraftToPreview()" title="Refresh preview with current form values" style="border-radius: 8px; font-weight: 700;">
+          <i class="fas fa-rotate me-1"></i> Refresh Draft
+        </button>
+        <button type="button" class="modal-close" onclick="closeFullPagePreview()" style="color: #fff; background: rgba(255,255,255,0.08); border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Frame Container -->
+    <div style="flex: 1; overflow: hidden; background: #080e1c; display: flex; align-items: center; justify-content: center; padding: 16px;">
+      <div id="previewFrameWrap" style="width: 100%; height: 100%; max-width: 100%; transition: max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); background: #fff; position: relative;">
+        <iframe id="previewIframe" src="about:blank" style="width: 100%; height: 100%; border: none; display: block;"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
      PAGE JAVASCRIPT
      ═══════════════════════════════════════════════════════════════ -->
 <script>
+// ── Full Page Preview Functions ──────────────────────────────────────────────
+let previewLoaded = false;
+let currentPreviewViewport = 'desktop';
+
+function openFullPagePreview() {
+    const modal = document.getElementById('fullPreviewModal');
+    if (!modal) return;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    const iframe = document.getElementById('previewIframe');
+    if (iframe) {
+        if (iframe.src === 'about:blank' || !previewLoaded) {
+            iframe.src = '../index.php?preview_mode=1';
+            iframe.onload = function() {
+                previewLoaded = true;
+                setTimeout(syncDraftToPreview, 250);
+            };
+        } else {
+            syncDraftToPreview();
+        }
+    }
+}
+
+function closeFullPagePreview() {
+    const modal = document.getElementById('fullPreviewModal');
+    if (modal) modal.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+function setPreviewViewport(vp) {
+    currentPreviewViewport = vp;
+    const wrap = document.getElementById('previewFrameWrap');
+    const dBtn = document.getElementById('vpDesktopBtn');
+    const tBtn = document.getElementById('vpTabletBtn');
+    const mBtn = document.getElementById('vpMobileBtn');
+
+    [dBtn, tBtn, mBtn].forEach(b => {
+        if (b) {
+            b.style.background = 'transparent';
+            b.style.color = '#8da4ce';
+            b.classList.remove('active');
+        }
+    });
+
+    if (vp === 'desktop') {
+        if (wrap) wrap.style.maxWidth = '100%';
+        if (dBtn) { dBtn.style.background = '#235EAE'; dBtn.style.color = '#fff'; dBtn.classList.add('active'); }
+    } else if (vp === 'tablet') {
+        if (wrap) wrap.style.maxWidth = '768px';
+        if (tBtn) { tBtn.style.background = '#235EAE'; tBtn.style.color = '#fff'; tBtn.classList.add('active'); }
+    } else if (vp === 'mobile') {
+        if (wrap) wrap.style.maxWidth = '375px';
+        if (mBtn) { mBtn.style.background = '#235EAE'; mBtn.style.color = '#fff'; mBtn.classList.add('active'); }
+    }
+}
+
+function syncDraftToPreview() {
+    const form = document.getElementById('homepageForm');
+    const iframe = document.getElementById('previewIframe');
+    if (!form || !iframe || !iframe.contentWindow) return;
+
+    const data = {};
+    const inputs = form.querySelectorAll('input[type="text"], textarea');
+    inputs.forEach(inp => {
+        if (inp.name) data[inp.name] = inp.value;
+    });
+
+    // Handle files if selected
+    const fileInputs = form.querySelectorAll('input[type="file"]');
+    let pendingReads = 0;
+    fileInputs.forEach(fi => {
+        if (fi.files && fi.files[0]) {
+            pendingReads++;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                data[fi.name] = e.target.result;
+                pendingReads--;
+                if (pendingReads === 0) {
+                    iframe.contentWindow.postMessage({ type: 'UPDATE_PREVIEW', data: data }, '*');
+                }
+            };
+            reader.readAsDataURL(fi.files[0]);
+        }
+    });
+
+    if (pendingReads === 0) {
+        iframe.contentWindow.postMessage({ type: 'UPDATE_PREVIEW', data: data }, '*');
+    }
+}
+
+// Auto-sync while typing if preview modal is open
+document.getElementById('homepageForm')?.addEventListener('input', function() {
+    const modal = document.getElementById('fullPreviewModal');
+    if (modal && modal.classList.contains('open')) {
+        syncDraftToPreview();
+    }
+});
+
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(tab) {
     document.querySelectorAll('.pm-tab-pill').forEach(t => t.classList.remove('active'));
@@ -1688,25 +2092,21 @@ function switchTab(tab) {
 
 // ── Hero live preview ────────────────────────────────────────────────────────
 function updateHeroLivePreview() {
-    const badge     = document.getElementById('heroBadgeInput') ? document.getElementById('heroBadgeInput').value : '';
-    const headline  = document.getElementById('heroHeadlineInput') ? document.getElementById('heroHeadlineInput').value : '';
-    const highlight = document.getElementById('heroHighlightInput') ? document.getElementById('heroHighlightInput').value : '';
-    const desc      = document.getElementById('heroDescInput') ? document.getElementById('heroDescInput').value : '';
+    const headStart = document.getElementById('heroHeadlineStartInput')?.value || '';
+    const highlight = document.getElementById('heroHighlightInput')?.value || '';
+    const headEnd   = document.getElementById('heroHeadlineEndInput')?.value || '';
+    const desc      = document.getElementById('heroDescInput')?.value || '';
+    const chip1     = document.getElementById('heroChip1Input')?.value || '';
+    const chip2     = document.getElementById('heroChip2Input')?.value || '';
+    const chip3     = document.getElementById('heroChip3Input')?.value || '';
 
-    const prevBadge = document.getElementById('prevHeroBadge');
-    if (prevBadge) {
-        const badgeSpan = prevBadge.querySelector('span');
-        if (badgeSpan) badgeSpan.textContent = badge;
-    }
-
-    const prevHl = document.getElementById('prevHeroHeadline');
-    if (prevHl) prevHl.textContent = headline + (headline && highlight ? ' ' : '');
-
-    const prevHg = document.getElementById('prevHeroHighlight');
-    if (prevHg) prevHg.textContent = highlight;
-
-    const prevDesc = document.getElementById('prevHeroDesc');
-    if (prevDesc) prevDesc.textContent = desc;
+    if (document.getElementById('prevHeadStart')) document.getElementById('prevHeadStart').textContent = headStart;
+    if (document.getElementById('prevHighlight')) document.getElementById('prevHighlight').textContent = highlight;
+    if (document.getElementById('prevHeadEnd')) document.getElementById('prevHeadEnd').textContent = headEnd;
+    if (document.getElementById('prevHeroDesc')) document.getElementById('prevHeroDesc').textContent = desc;
+    if (document.getElementById('prevChip1')) document.getElementById('prevChip1').textContent = chip1;
+    if (document.getElementById('prevChip2')) document.getElementById('prevChip2').textContent = chip2;
+    if (document.getElementById('prevChip3')) document.getElementById('prevChip3').textContent = chip3;
 }
 
 // ── Services Sub-Page Switching (Categories vs Offered Services) ──────────────

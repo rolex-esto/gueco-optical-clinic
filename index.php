@@ -1899,56 +1899,92 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
   </nav>
 </div></header>
 
+<?php
+$lensLeft = getSiteSetting($siteSettings, 'hero_lens_left', 'assets/images/clinic_boutique.jpg');
+$lensRight = getSiteSetting($siteSettings, 'hero_lens_right', 'assets/images/clinic_grey.jpg');
+$bentoT2Img = getSiteSetting($siteSettings, 'bento_t2_img', 'assets/images/clinic_frames.jpg');
+$aboutArchImg = getSiteSetting($siteSettings, 'about_arch_img', 'assets/images/clinic_boutique.jpg');
+?>
 <main id="top">
 <div class="hero"><div class="wrap hero-in">
   <div>
-    <h1>Good eyes, <em>great frames</em>, and a clinic you know.</h1>
-    <p class="lede">Eye exams by licensed optometrists, plus glasses and contact lenses you will want to wear. Serving Capas since 1986.</p>
+    <h1><?= htmlspecialchars(getSiteSetting($siteSettings, 'hero_headline_start', 'Good eyes,')) ?> <em><?= htmlspecialchars(getSiteSetting($siteSettings, 'hero_highlight', 'great frames,')) ?></em> <?= htmlspecialchars(getSiteSetting($siteSettings, 'hero_headline_end', 'and a clinic you know.')) ?></h1>
+    <p class="lede"><?= htmlspecialchars(getSiteSetting($siteSettings, 'hero_description', 'Eye exams by licensed optometrists, plus glasses and contact lenses you will want to wear. Serving Capas since 1986.')) ?></p>
     <div class="cta-row">
       <button type="button" class="btn" onclick="openAuthModal()">Book an appointment</button>
       <a class="btn line" href="#services">See what we offer</a>
     </div>
-    <div class="chips"><span>Open Mon to Fri, 9 AM to 5 PM</span><span>Capas, Tarlac</span><span>RA 10173 compliant</span></div>
+    <div class="chips">
+      <span><?= htmlspecialchars(getSiteSetting($siteSettings, 'hero_chip1', 'Open Mon to Fri, 9 AM to 5 PM')) ?></span>
+      <span><?= htmlspecialchars(getSiteSetting($siteSettings, 'hero_chip2', 'Capas, Tarlac')) ?></span>
+      <span><?= htmlspecialchars(getSiteSetting($siteSettings, 'hero_chip3', 'RA 10173 compliant')) ?></span>
+    </div>
   </div>
   <div class="lenses" role="img" aria-label="Photos of the clinic framed in a pair of glasses">
-    <div class="lens ph" style="background-image:var(--p-boutique);background-position:60% 50%"></div>
+    <div class="lens ph" style="background-image:url(<?= htmlspecialchars($lensLeft) ?>);background-position:60% 50%"></div>
     <div class="bridge"></div>
-    <div class="lens b ph" style="background-image:var(--p-grey);background-position:25% 50%"></div>
+    <div class="lens b ph" style="background-image:url(<?= htmlspecialchars($lensRight) ?>);background-position:25% 50%"></div>
   </div>
 </div></div>
 
 <section id="services"><div class="wrap">
-  <h2 class="title">Everything for your eyes, under one roof</h2>
-  <p class="sub">From your first check to the pair you walk out wearing.</p>
+  <h2 class="title"><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_header_title', 'Everything for your eyes, under one roof')) ?></h2>
+  <p class="sub"><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_header_sub', 'From your first check to the pair you walk out wearing.')) ?></p>
   <div class="bento">
-    <div class="tile t1"><h3>Eye exams that take their time</h3><p>A thorough check and a prescription you can trust. Once a year for most people, every six months if you wear contacts or live on screens.</p></div>
-    <div class="tile t2 reveal"><h3>Eyeglasses</h3><p>Frames for every face and budget, with quality lenses fitted in the clinic.</p></div>
-    <div class="tile t3"><h3>Contact lenses</h3><p>Fitting, trial, and follow-up.</p></div>
-    <div class="tile t4"><h3>Aftercare</h3><p>Adjustments, repairs, and warranty support.</p></div>
+    <div class="tile t1">
+      <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_t1_title', 'Eye exams that take their time')) ?></h3>
+      <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_t1_desc', 'A thorough check and a prescription you can trust. Once a year for most people, every six months if you wear contacts or live on screens.')) ?></p>
+    </div>
+    <div class="tile t2 reveal" style="background-image:linear-gradient(rgba(10,17,34,.45),rgba(10,17,34,.72)),url(<?= htmlspecialchars($bentoT2Img) ?>);background-size:cover;background-position:30% 75%">
+      <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_t2_title', 'Eyeglasses')) ?></h3>
+      <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_t2_desc', 'Frames for every face and budget, with quality lenses fitted in the clinic.')) ?></p>
+    </div>
+    <div class="tile t3">
+      <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_t3_title', 'Contact lenses')) ?></h3>
+      <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_t3_desc', 'Fitting, trial, and follow-up.')) ?></p>
+    </div>
+    <div class="tile t4">
+      <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_t4_title', 'Aftercare')) ?></h3>
+      <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'bento_t4_desc', 'Adjustments, repairs, and warranty support.')) ?></p>
+    </div>
   </div>
 </div></section>
 
 <section id="about" class="since"><div class="wrap since-in">
-  <div class="arch reveal" role="img" aria-label="Inside the clinic"><b>Since 1986</b></div>
+  <div class="arch reveal" role="img" aria-label="Inside the clinic" style="background-image:url(<?= htmlspecialchars($aboutArchImg) ?>);background-size:cover;background-position:60% 50%">
+    <b><?= htmlspecialchars(getSiteSetting($siteSettings, 'about_badge', 'Since 1986')) ?></b>
+  </div>
   <div>
-    <h2 class="title">Four decades of helping Capas see clearly</h2>
-    <p>Many of our patients now bring their children and parents. We have grown with the town and kept the part that matters: your optometrist knows your name.</p>
-    <p>Modern equipment, honest advice, and no pressure to buy more than you need.</p>
+    <h2 class="title"><?= htmlspecialchars(getSiteSetting($siteSettings, 'about_title', 'Four decades of helping Capas see clearly')) ?></h2>
+    <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'about_p1', 'Many of our patients now bring their children and parents. We have grown with the town and kept the part that matters: your optometrist knows your name.')) ?></p>
+    <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'about_p2', 'Modern equipment, honest advice, and no pressure to buy more than you need.')) ?></p>
   </div>
 </div></section>
 
 <section><div class="wrap">
-  <h2 class="title">Your visit, start to finish</h2>
+  <h2 class="title"><?= htmlspecialchars(getSiteSetting($siteSettings, 'steps_title', 'Your visit, start to finish')) ?></h2>
   <div class="steps">
-    <div class="step"><i>1</i><h3>Book a time</h3><p>Pick a weekday slot through the patient portal.</p></div>
-    <div class="step"><i>2</i><h3>Get your eyes checked</h3><p>Bring your current glasses and any old prescription.</p></div>
-    <div class="step"><i>3</i><h3>Choose your frames</h3><p>Try them on, then we confirm your pickup date before you pay.</p></div>
+    <div class="step">
+      <i>1</i>
+      <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'step1_title', 'Book a time')) ?></h3>
+      <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'step1_desc', 'Pick a weekday slot through the patient portal.')) ?></p>
+    </div>
+    <div class="step">
+      <i>2</i>
+      <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'step2_title', 'Get your eyes checked')) ?></h3>
+      <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'step2_desc', 'Bring your current glasses and any old prescription.')) ?></p>
+    </div>
+    <div class="step">
+      <i>3</i>
+      <h3><?= htmlspecialchars(getSiteSetting($siteSettings, 'step3_title', 'Choose your frames')) ?></h3>
+      <p><?= htmlspecialchars(getSiteSetting($siteSettings, 'step3_desc', 'Try them on, then we confirm your pickup date before you pay.')) ?></p>
+    </div>
   </div>
 </div></section>
 
 <section style="padding-top:0"><div class="wrap">
-  <h2 class="title">Take a look around</h2>
-  <p class="sub">Swipe through the clinic.</p>
+  <h2 class="title"><?= htmlspecialchars(getSiteSetting($siteSettings, 'gallery_title', 'Take a look around')) ?></h2>
+  <p class="sub"><?= htmlspecialchars(getSiteSetting($siteSettings, 'gallery_sub', 'Swipe through the clinic.')) ?></p>
   <div class="strip" tabindex="0" aria-label="Clinic photos">
     <figure class="reveal"><div class="ph" role="img" aria-label="Reception" style="background-image:var(--p-boutique);background-position:50% 60%"></div><figcaption>Reception</figcaption></figure>
     <figure class="reveal"><div class="ph" role="img" aria-label="Frames wall" style="background-image:var(--p-grey);background-position:20% 50%"></div><figcaption>Frames wall</figcaption></figure>
@@ -1961,21 +1997,33 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
 <section id="faqs" style="padding-top:0"><div class="wrap faq-in">
   <aside><h2 class="title">Questions patients ask</h2><p class="sub">Still unsure? Visit us Monday to Friday, 9 AM to 5 PM.</p></aside>
   <div>
-    <details open><summary>How often should I have an eye exam?</summary><p>Once a year is recommended. Routine checkups keep your prescription accurate. If you wear contact lenses, have an existing health condition, or spend long hours on screens, every six months may be better.</p></details>
-    <details><summary>How do I book through the patient portal?</summary><p>Choose Book an appointment, sign in or register, then pick a weekday and time. We are open Monday to Friday, 9 AM to 5 PM.</p></details>
-    <details><summary>What should I bring?</summary><p>Your current glasses or contact lenses, any previous prescription, and a list of medicines you take.</p></details>
-    <details><summary>How long until my glasses are ready?</summary><p>It depends on the lenses and frame you choose. We give you a pickup date before you pay.</p></details>
-    <details><summary>Do you offer warranty and aftercare?</summary><p>Yes. We cover adjustments and repairs. Warranty terms are in our Terms and Conditions.</p></details>
-    <details><summary>Is my personal and medical information private?</summary><p>Yes. We handle your data under the Data Privacy Act of 2012 (RA 10173) and only use it for your care.</p></details>
+    <?php if (empty($clinicFaqs)): ?>
+      <details open><summary>How often should I have an eye exam?</summary><p>Once a year is recommended. Routine checkups keep your prescription accurate. If you wear contact lenses, have an existing health condition, or spend long hours on screens, every six months may be better.</p></details>
+      <details><summary>How do I book through the patient portal?</summary><p>Choose Book an appointment, sign in or register, then pick a weekday and time. We are open Monday to Friday, 9 AM to 5 PM.</p></details>
+      <details><summary>What should I bring?</summary><p>Your current glasses or contact lenses, any previous prescription, and a list of medicines you take.</p></details>
+      <details><summary>How long until my glasses are ready?</summary><p>It depends on the lenses and frame you choose. We give you a pickup date before you pay.</p></details>
+      <details><summary>Do you offer warranty and aftercare?</summary><p>Yes. We cover adjustments and repairs. Warranty terms are in our Terms and Conditions.</p></details>
+      <details><summary>Is my personal and medical information private?</summary><p>Yes. We handle your data under the Data Privacy Act of 2012 (RA 10173) and only use it for your care.</p></details>
+    <?php else: ?>
+      <?php foreach ($clinicFaqs as $idx => $faqItem): ?>
+        <details <?= $idx === 0 ? 'open' : '' ?>>
+          <summary><?= htmlspecialchars($faqItem['question']) ?></summary>
+          <p><?= nl2br(htmlspecialchars($faqItem['answer'])) ?></p>
+        </details>
+      <?php endforeach; ?>
+    <?php endif; ?>
   </div>
 </div></section>
 
 <section id="terms" style="padding-top:0"><div class="wrap">
   <div class="close">
-    <div><h2>Ready for a clearer view?</h2><button type="button" class="btn" onclick="openAuthModal()">Book an appointment</button></div>
+    <div>
+      <h2><?= htmlspecialchars(getSiteSetting($siteSettings, 'close_title', 'Ready for a clearer view?')) ?></h2>
+      <button type="button" class="btn" onclick="openAuthModal()">Book an appointment</button>
+    </div>
     <dl><dt>Where</dt><dd>Capas, Tarlac</dd><dt>Mon to Fri</dt><dd>9:00 AM to 5:00 PM</dd><dt>Sat and Sun</dt><dd>Closed</dd></dl>
   </div>
-  <p class="privacy">Our terms for appointments, eyewear warranties, and patient rights follow the Data Privacy Act of 2012 (RA 10173). <a href="javascript:void(0)" onclick="openPrivacyModal()">Read Terms and Conditions</a></p>
+  <p class="privacy"><?= htmlspecialchars(getSiteSetting($siteSettings, 'close_privacy', 'Our terms for appointments, eyewear warranties, and patient rights follow the Data Privacy Act of 2012 (RA 10173).')) ?> <a href="javascript:void(0)" onclick="openPrivacyModal()">Read Terms and Conditions</a></p>
 </div></section>
 </main>
 
@@ -2816,7 +2864,105 @@ document.getElementById('themeToggleMobile')?.addEventListener('click', toggleTh
   } else {
     els.forEach(function(e){ e.classList.add('in'); });
   }
-})();
+// ── LIVE PREVIEW POSTMESSAGE LISTENER (ADMIN CONTENT STUDIO) ──
+window.addEventListener('message', function(event) {
+  if (!event.data || event.data.type !== 'UPDATE_PREVIEW') return;
+  var d = event.data.data;
+  if (!d) return;
+
+  // Update Hero
+  var h1 = document.querySelector('.hero h1');
+  if (h1) {
+    var start = d.hero_headline_start !== undefined ? d.hero_headline_start : 'Good eyes,';
+    var hl    = d.hero_highlight !== undefined ? d.hero_highlight : 'great frames,';
+    var end   = d.hero_headline_end !== undefined ? d.hero_headline_end : 'and a clinic you know.';
+    h1.innerHTML = (start ? start + ' ' : '') + '<em>' + hl + '</em>' + (end ? ' ' + end : '');
+  }
+  var lede = document.querySelector('.hero p.lede');
+  if (lede && d.hero_description !== undefined) lede.textContent = d.hero_description;
+
+  var chips = document.querySelectorAll('.hero .chips span');
+  if (chips.length >= 3) {
+    if (d.hero_chip1 !== undefined) chips[0].textContent = d.hero_chip1;
+    if (d.hero_chip2 !== undefined) chips[1].textContent = d.hero_chip2;
+    if (d.hero_chip3 !== undefined) chips[2].textContent = d.hero_chip3;
+  }
+  var lensLeft = document.querySelector('.lenses .lens:not(.b)');
+  if (lensLeft && d.hero_lens_left) lensLeft.style.backgroundImage = 'url(' + d.hero_lens_left + ')';
+  var lensRight = document.querySelector('.lenses .lens.b');
+  if (lensRight && d.hero_lens_right) lensRight.style.backgroundImage = 'url(' + d.hero_lens_right + ')';
+
+  // Update Bento
+  var bentoTitle = document.querySelector('#services .title');
+  if (bentoTitle && d.bento_header_title !== undefined) bentoTitle.textContent = d.bento_header_title;
+  var bentoSub = document.querySelector('#services .sub');
+  if (bentoSub && d.bento_header_sub !== undefined) bentoSub.textContent = d.bento_header_sub;
+
+  var t1H3 = document.querySelector('#services .tile.t1 h3');
+  var t1P  = document.querySelector('#services .tile.t1 p');
+  if (t1H3 && d.bento_t1_title !== undefined) t1H3.textContent = d.bento_t1_title;
+  if (t1P && d.bento_t1_desc !== undefined) t1P.textContent = d.bento_t1_desc;
+
+  var t2H3 = document.querySelector('#services .tile.t2 h3');
+  var t2P  = document.querySelector('#services .tile.t2 p');
+  if (t2H3 && d.bento_t2_title !== undefined) t2H3.textContent = d.bento_t2_title;
+  if (t2P && d.bento_t2_desc !== undefined) t2P.textContent = d.bento_t2_desc;
+  if (d.bento_t2_img) {
+    var t2 = document.querySelector('#services .tile.t2');
+    if (t2) t2.style.backgroundImage = 'linear-gradient(rgba(10,17,34,.45),rgba(10,17,34,.72)),url(' + d.bento_t2_img + ')';
+  }
+
+  var t3H3 = document.querySelector('#services .tile.t3 h3');
+  var t3P  = document.querySelector('#services .tile.t3 p');
+  if (t3H3 && d.bento_t3_title !== undefined) t3H3.textContent = d.bento_t3_title;
+  if (t3P && d.bento_t3_desc !== undefined) t3P.textContent = d.bento_t3_desc;
+
+  var t4H3 = document.querySelector('#services .tile.t4 h3');
+  var t4P  = document.querySelector('#services .tile.t4 p');
+  if (t4H3 && d.bento_t4_title !== undefined) t4H3.textContent = d.bento_t4_title;
+  if (t4P && d.bento_t4_desc !== undefined) t4P.textContent = d.bento_t4_desc;
+
+  // Update About
+  var archBadge = document.querySelector('#about .arch b');
+  if (archBadge && d.about_badge !== undefined) archBadge.textContent = d.about_badge;
+  var archImg = document.querySelector('#about .arch');
+  if (archImg && d.about_arch_img) archImg.style.backgroundImage = 'url(' + d.about_arch_img + ')';
+
+  var aboutTitle = document.querySelector('#about .title');
+  if (aboutTitle && d.about_title !== undefined) aboutTitle.textContent = d.about_title;
+  var aboutPs = document.querySelectorAll('#about p');
+  if (aboutPs.length >= 2) {
+    if (d.about_p1 !== undefined) aboutPs[0].textContent = d.about_p1;
+    if (d.about_p2 !== undefined) aboutPs[1].textContent = d.about_p2;
+  }
+
+  // Update Steps
+  var stepsTitle = document.querySelector('#top > section:nth-of-type(3) .title');
+  if (stepsTitle && d.steps_title !== undefined) stepsTitle.textContent = d.steps_title;
+  var steps = document.querySelectorAll('.steps .step');
+  if (steps.length >= 3) {
+    if (d.step1_title !== undefined && steps[0].querySelector('h3')) steps[0].querySelector('h3').textContent = d.step1_title;
+    if (d.step1_desc !== undefined && steps[0].querySelector('p')) steps[0].querySelector('p').textContent = d.step1_desc;
+    if (d.step2_title !== undefined && steps[1].querySelector('h3')) steps[1].querySelector('h3').textContent = d.step2_title;
+    if (d.step2_desc !== undefined && steps[1].querySelector('p')) steps[1].querySelector('p').textContent = d.step2_desc;
+    if (d.step3_title !== undefined && steps[2].querySelector('h3')) steps[2].querySelector('h3').textContent = d.step3_title;
+    if (d.step3_desc !== undefined && steps[2].querySelector('p')) steps[2].querySelector('p').textContent = d.step3_desc;
+  }
+
+  // Update Gallery
+  var galleryTitle = document.querySelector('.strip')?.closest('section')?.querySelector('.title');
+  if (galleryTitle && d.gallery_title !== undefined) galleryTitle.textContent = d.gallery_title;
+  var gallerySub = document.querySelector('.strip')?.closest('section')?.querySelector('.sub');
+  if (gallerySub && d.gallery_sub !== undefined) gallerySub.textContent = d.gallery_sub;
+
+  // Update Close
+  var closeH2 = document.querySelector('#terms .close h2');
+  if (closeH2 && d.close_title !== undefined) closeH2.textContent = d.close_title;
+  var closeP = document.querySelector('#terms .privacy');
+  if (closeP && d.close_privacy !== undefined) {
+    closeP.innerHTML = d.close_privacy + ' <a href="javascript:void(0)" onclick="openPrivacyModal()">Read Terms and Conditions</a>';
+  }
+});
 </script>
 <div class="toast-container" id="toastContainer"></div>
 </body>

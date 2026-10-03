@@ -652,16 +652,71 @@ h1,h2,h3{font-family:var(--head);margin:0;letter-spacing:-.02em}
 .btn.sm{padding:9px 18px;font-size:.92rem}
 .ph{background-size:cover;background-position:center}
 
-header{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);border-bottom:1px solid var(--line)}
-.bar{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px}
-.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:800 1.2rem/1 var(--head);color:var(--ink)}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);border-bottom:1px solid var(--line);transition:background-color .28s ease,border-color .28s ease}
+.bar{display:flex;align-items:center;justify-content:space-between;height:66px;gap:14px;min-width:0}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:800 1.2rem/1 var(--head);color:var(--ink);min-width:0;flex-shrink:1}
 .brand svg{width:36px;color:var(--link);flex-shrink:0}
 .brand small{display:block;font:500 .72rem/1.2 var(--body);color:var(--muted);margin-top:3px}
-nav{display:flex;align-items:center;gap:22px;font-weight:500;font-size:.95rem}
-nav a:not(.btn){text-decoration:none;color:var(--muted)}
+nav{display:flex;align-items:center;gap:20px;font-weight:500;font-size:.95rem;flex-shrink:0}
+nav a:not(.btn){text-decoration:none;color:var(--muted);transition:color .2s ease}
 nav a:not(.btn):hover{color:var(--ink)}
-.theme{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:1.1rem;line-height:1}
-@media(max-width:780px){.hide-s{display:none}nav{gap:10px}}
+
+/* Theme Switcher Button - Responsive, tactile, animated */
+.theme{
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  border:1.5px solid var(--line);
+  background:var(--surface);
+  color:var(--ink);
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.15rem;
+  line-height:1;
+  flex-shrink:0;
+  box-shadow:0 2px 6px rgba(0,0,0,0.04);
+  transition:all .25s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.theme:hover{
+  border-color:var(--link);
+  color:var(--link);
+  transform:scale(1.08);
+  box-shadow:0 4px 12px rgba(26,60,176,0.15);
+}
+.theme:active{
+  transform:scale(0.92);
+}
+[data-theme="dark"] .theme{
+  background:rgba(255,255,255,0.06);
+  border-color:rgba(255,255,255,0.15);
+  color:#fbbf24;
+}
+[data-theme="dark"] .theme:hover{
+  border-color:#fbbf24;
+  box-shadow:0 0 16px rgba(251,191,36,0.3);
+}
+
+@media(max-width:780px){
+  .hide-s{display:none}
+  nav{gap:10px}
+}
+@media(max-width:480px){
+  .wrap{padding:0 14px}
+  .bar{height:60px;gap:8px}
+  .brand svg{width:30px}
+  .brand{font-size:1.05rem;gap:8px}
+  .brand small{display:none}
+  nav{gap:8px}
+  .btn.sm{padding:8px 12px;font-size:0.84rem}
+  .theme{width:38px;height:38px;font-size:1.05rem}
+}
+@media(max-width:360px){
+  .btn.sm{padding:7px 9px;font-size:0.8rem}
+}
 
 /* hero */
 .hero{background:var(--surface);color:var(--ink);overflow:hidden;border-bottom:1px solid var(--line)}
@@ -1896,7 +1951,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     <?php else: ?>
       <button type="button" class="btn sm" onclick="openAuthModal()">Book a visit</button>
     <?php endif; ?>
-    <button class="theme" id="theme" aria-label="Switch light or dark mode" onclick="toggleTheme()">◐</button>
+    <button class="theme" id="theme" aria-label="Switch light or dark mode" title="Toggle color theme" onclick="toggleTheme()"><i id="themeIcon" class="fas fa-moon"></i></button>
   </nav>
 </div></header>
 
@@ -2040,7 +2095,7 @@ $galleryItem5Caption = getSiteSetting($siteSettings, 'gallery_item5_caption', 'W
 
 <footer><div class="wrap foot">
   <div><b>Gueco Optical Clinic</b>Eye care and optical services<br>Capas, Tarlac, Philippines</div>
-  <div><b>Pages</b><a href="#services">Services</a><a href="#about">About</a><a href="#faqs">FAQs</a><a href="javascript:void(0)" onclick="openPrivacyModal()">Terms and Conditions</a><a href="javascript:void(0)" onclick="openAuthModal()">Patient login or register</a></div>
+  <div><b>Pages</b><a href="#services">Services</a><a href="#about">About</a><a href="#faqs">FAQs</a><a href="javascript:void(0)" onclick="openPrivacyModal()">Terms and Conditions</a><a href="javascript:void(0)" onclick="openAuthModal()">Patient login or register</a><a href="javascript:void(0)" onclick="toggleTheme()"><i class="fas fa-circle-half-stroke me-1"></i> Dark / Light Mode</a></div>
   <div><b>Hours</b>Mon to Fri, 9 AM to 5 PM<br>Sat and Sun closed<br><br>&copy; 2026 Gueco Optical Clinic</div>
 </div></footer>
 
@@ -2821,11 +2876,22 @@ initPasswordValidator('newPass', 'newConfirmPass', 'new');
 
 // Theme logic
 function updateThemeIcons(theme) {
-  const iconClass = (theme === 'dark') ? 'fas fa-sun' : 'fas fa-moon';
+  const isDark = (theme === 'dark');
   const icon = document.getElementById('themeIcon');
-  if (icon) icon.className = iconClass;
+  const btn = document.getElementById('theme');
+  if (icon) {
+    icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+    icon.style.color = isDark ? '#fbbf24' : 'inherit';
+  }
+  if (btn) {
+    btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    btn.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
   const iconMobile = document.getElementById('themeIconMobile');
-  if (iconMobile) iconMobile.className = iconClass;
+  if (iconMobile) {
+    iconMobile.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+    iconMobile.style.color = isDark ? '#fbbf24' : 'inherit';
+  }
 }
 
 function applyLandingTheme(theme) {

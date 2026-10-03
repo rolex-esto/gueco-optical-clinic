@@ -455,7 +455,7 @@ if (!function_exists('getSiteSetting')) {
   <title>Gueco Optical Clinic — Vision Care Center</title>
   <meta name="description" content="Book appointments and access professional eye care at Gueco Optical Clinic, Capas, Tarlac.">
   
-  <!-- Immediate Theme Initialization & Caret Browsing Prevention -->
+  <!-- Immediate Theme Initialization, Management & Caret Browsing Prevention -->
   <script>
     (function() {
       try {
@@ -470,6 +470,63 @@ if (!function_exists('getSiteSetting')) {
         document.documentElement.setAttribute("data-theme", "<?= $currentTheme ?>");
       }
     })();
+
+    var _themeToggling = false;
+
+    function updateThemeIcons(theme) {
+      var isDark = (theme === 'dark');
+      var btns = document.querySelectorAll('.theme, #theme, #themeToggle, #themeToggleMobile');
+      btns.forEach(function(b) {
+        b.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+        b.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+        b.innerHTML = isDark 
+          ? '<i id="themeIcon" class="fas fa-sun" style="color:#fbbf24; font-size:1.15rem;"></i>' 
+          : '<i id="themeIcon" class="fas fa-moon" style="color:var(--ink); font-size:1.15rem;"></i>';
+      });
+      var iconMobile = document.getElementById('themeIconMobile');
+      if (iconMobile) {
+        iconMobile.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+        iconMobile.style.color = isDark ? '#fbbf24' : 'inherit';
+      }
+    }
+
+    function applyLandingTheme(theme) {
+      if (theme !== 'light' && theme !== 'dark') theme = 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+      try {
+        localStorage.setItem('gueco_theme', theme);
+        localStorage.setItem('gueco-theme', theme);
+        localStorage.setItem('guecoTheme', theme);
+        localStorage.setItem('theme', theme);
+        document.cookie = "gueco_theme=" + theme + "; path=/; max-age=31536000; SameSite=Lax";
+        document.cookie = "theme=" + theme + "; path=/; max-age=31536000; SameSite=Lax";
+      } catch(e) {}
+      updateThemeIcons(theme);
+    }
+
+    function toggleTheme(e) {
+      if (e) {
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      }
+      if (_themeToggling) return false;
+      _themeToggling = true;
+      setTimeout(function() { _themeToggling = false; }, 250);
+
+      var current = document.documentElement.getAttribute('data-theme') || 'dark';
+      var next = (current === 'light') ? 'dark' : 'light';
+      applyLandingTheme(next);
+      return false;
+    }
+
+    window.toggleTheme = toggleTheme;
+    window.applyLandingTheme = applyLandingTheme;
+    window.updateThemeIcons = updateThemeIcons;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var current = document.documentElement.getAttribute('data-theme') || 'dark';
+      updateThemeIcons(current);
+    });
 
     // Prevent accidental browser Caret Browsing (F7) activation
     window.addEventListener('keydown', function(e) {
@@ -641,7 +698,7 @@ if (!function_exists('getSiteSetting')) {
 :root[data-theme="light"], [data-theme="light"]{--bg:#f3f6fc;--surface:#fff;--ink:#0e1a3a;--muted:#4f5c78;--line:#d6deec;--blue:#1a3cb0;--blue-ink:#fff;--link:#1a3cb0;--tint:#c9dcff;--sky:#dce8ff;--navy:#0e1a3a;--navy-ink:#eef2fb}
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 76px);scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.6 var(--body)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.6 var(--body);transition:background-color .28s ease,color .28s ease}
 a{color:inherit}
 .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
 :focus-visible{outline:3px solid var(--link);outline-offset:3px;border-radius:6px}
@@ -719,7 +776,7 @@ nav a:not(.btn):hover{color:var(--ink)}
 }
 
 /* hero */
-.hero{background:var(--surface);color:var(--ink);overflow:hidden;border-bottom:1px solid var(--line)}
+.hero{background:var(--surface);color:var(--ink);overflow:hidden;border-bottom:1px solid var(--line);transition:background-color .28s ease,color .28s ease,border-color .28s ease}
 .hero-in{display:grid;grid-template-columns:1.05fr 1fr;gap:32px;align-items:center;padding-top:56px;padding-bottom:72px}
 .hero h1{font-size:clamp(2.6rem,6.4vw,4.8rem);line-height:1;font-weight:800}
 .hero h1 em{font-style:normal;color:var(--link)}
@@ -739,7 +796,7 @@ section{padding:72px 0}
 .title{font-size:clamp(2rem,4.4vw,3rem);line-height:1.05;font-weight:800;max-width:18ch}
 .sub{color:var(--muted);max-width:52ch;margin:14px 0 36px}
 .bento{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-.tile{border-radius:28px;padding:28px;min-height:220px;display:flex;flex-direction:column;justify-content:flex-end}
+.tile{border-radius:28px;padding:28px;min-height:220px;display:flex;flex-direction:column;justify-content:flex-end;transition:background-color .28s ease,color .28s ease}
 .tile h3{font-size:1.45rem;line-height:1.15;margin-bottom:8px}
 .tile p{margin:0;max-width:40ch}
 .t1{grid-column:span 2;grid-row:span 2;background:var(--tint);color:var(--ink);border-radius:28px 28px 28px 120px}
@@ -751,7 +808,7 @@ section{padding:72px 0}
 @media(max-width:520px){.bento{grid-template-columns:1fr}.t1,.t2{grid-column:auto}}
 
 /* since */
-.since{background:var(--sky)}
+.since{background:var(--sky);transition:background-color .28s ease}
 .since-in{display:grid;grid-template-columns:.9fr 1.1fr;gap:56px;align-items:center}
 .arch{aspect-ratio:4/5;border-radius:999px 999px 28px 28px;background-image:var(--p-boutique);background-size:cover;background-position:60% 50%;position:relative;max-width:420px;width:100%}
 .arch b{position:absolute;right:-14px;bottom:28px;background:#fff;color:var(--blue);font:800 1.5rem/1 var(--head);padding:16px 22px;border-radius:20px;transform:rotate(-4deg);box-shadow:0 4px 14px rgba(0,0,0,0.08)}
@@ -776,7 +833,7 @@ section{padding:72px 0}
 /* faq */
 .faq-in{display:grid;grid-template-columns:.8fr 1.2fr;gap:56px;align-items:start}
 .faq-in aside{position:sticky;top:96px}
-details{background:var(--surface);border:1px solid var(--line);border-radius:20px;margin-bottom:12px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:20px;margin-bottom:12px;transition:background-color .28s ease,border-color .28s ease}
 summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 22px;font:700 1.08rem/1.35 var(--head)}
 summary::-webkit-details-marker{display:none}
 summary::after{content:"+";flex:none;width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font:500 1.4rem/1 var(--body);transition:transform .2s}
@@ -785,7 +842,7 @@ details p{margin:0;padding:0 22px 20px;color:var(--muted);max-width:60ch}
 @media(max-width:780px){.faq-in{grid-template-columns:1fr;gap:28px}.faq-in aside{position:static}}
 
 /* closing */
-.close{background:var(--sky);color:var(--ink);border-radius:36px;padding:clamp(32px,6vw,64px);display:grid;grid-template-columns:1.2fr 1fr;gap:32px;align-items:center}
+.close{background:var(--sky);color:var(--ink);border-radius:36px;padding:clamp(32px,6vw,64px);display:grid;grid-template-columns:1.2fr 1fr;gap:32px;align-items:center;transition:background-color .28s ease,color .28s ease}
 .close h2{font-size:clamp(2rem,4.4vw,3.2rem);line-height:1.05;font-weight:800}
 .close dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 18px;color:var(--muted)}
 .close dt{opacity:.9}.close dd{margin:0;font-weight:600;color:var(--ink)}
@@ -793,7 +850,7 @@ details p{margin:0;padding:0 22px 20px;color:var(--muted);max-width:60ch}
 .privacy{margin-top:20px;color:var(--muted);font-size:.95rem;max-width:70ch}
 .privacy a{color:var(--link);font-weight:600}
 @media(max-width:780px){.close{grid-template-columns:1fr}}
-footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);font-size:.93rem}
+footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);font-size:.93rem;transition:border-color .28s ease,color .28s ease}
 .foot{display:flex;flex-wrap:wrap;gap:24px 56px;justify-content:space-between}
 .foot b{display:block;color:var(--ink);margin-bottom:6px;font-family:var(--head)}
 .foot a{display:block;text-decoration:none;padding:2px 0}
@@ -1951,7 +2008,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     <?php else: ?>
       <button type="button" class="btn sm" onclick="openAuthModal()">Book a visit</button>
     <?php endif; ?>
-    <button class="theme" id="theme" aria-label="Switch light or dark mode" title="Toggle color theme" onclick="toggleTheme()"><i id="themeIcon" class="fas fa-moon"></i></button>
+    <button class="theme" id="theme" type="button" aria-label="Toggle light or dark theme" title="Toggle color theme" onclick="toggleTheme(event)"><i id="themeIcon" class="<?= $currentTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon' ?>" style="<?= $currentTheme === 'dark' ? 'color:#fbbf24;' : '' ?>"></i></button>
   </nav>
 </div></header>
 
@@ -2095,7 +2152,7 @@ $galleryItem5Caption = getSiteSetting($siteSettings, 'gallery_item5_caption', 'W
 
 <footer><div class="wrap foot">
   <div><b>Gueco Optical Clinic</b>Eye care and optical services<br>Capas, Tarlac, Philippines</div>
-  <div><b>Pages</b><a href="#services">Services</a><a href="#about">About</a><a href="#faqs">FAQs</a><a href="javascript:void(0)" onclick="openPrivacyModal()">Terms and Conditions</a><a href="javascript:void(0)" onclick="openAuthModal()">Patient login or register</a><a href="javascript:void(0)" onclick="toggleTheme()"><i class="fas fa-circle-half-stroke me-1"></i> Dark / Light Mode</a></div>
+  <div><b>Pages</b><a href="#services">Services</a><a href="#about">About</a><a href="#faqs">FAQs</a><a href="javascript:void(0)" onclick="openPrivacyModal()">Terms and Conditions</a><a href="javascript:void(0)" onclick="openAuthModal()">Patient login or register</a><a href="javascript:void(0)" onclick="toggleTheme(event)"><i class="fas fa-circle-half-stroke me-1"></i> Dark / Light Mode</a></div>
   <div><b>Hours</b>Mon to Fri, 9 AM to 5 PM<br>Sat and Sun closed<br><br>&copy; 2026 Gueco Optical Clinic</div>
 </div></footer>
 
@@ -2874,53 +2931,10 @@ function initPasswordValidator(passId, confirmId, prefix) {
 initPasswordValidator('regPass', 'regConfirmPass', 'reg');
 initPasswordValidator('newPass', 'newConfirmPass', 'new');
 
-// Theme logic
-function updateThemeIcons(theme) {
-  const isDark = (theme === 'dark');
-  const icon = document.getElementById('themeIcon');
-  const btn = document.getElementById('theme');
-  if (icon) {
-    icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
-    icon.style.color = isDark ? '#fbbf24' : 'inherit';
-  }
-  if (btn) {
-    btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
-    btn.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
-  }
-  const iconMobile = document.getElementById('themeIconMobile');
-  if (iconMobile) {
-    iconMobile.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
-    iconMobile.style.color = isDark ? '#fbbf24' : 'inherit';
-  }
+// Sync theme icons with current state
+if (typeof updateThemeIcons === 'function') {
+  updateThemeIcons(document.documentElement.getAttribute('data-theme') || 'dark');
 }
-
-function applyLandingTheme(theme) {
-  if (theme !== 'light' && theme !== 'dark') theme = 'dark';
-  document.documentElement.setAttribute('data-theme', theme);
-  try {
-    localStorage.setItem('gueco_theme', theme);
-    localStorage.setItem('gueco-theme', theme);
-    localStorage.setItem('guecoTheme', theme);
-    localStorage.setItem('theme', theme);
-    document.cookie = "gueco_theme=" + theme + "; path=/; max-age=31536000; SameSite=Lax";
-    document.cookie = "theme=" + theme + "; path=/; max-age=31536000; SameSite=Lax";
-  } catch(e) {}
-  updateThemeIcons(theme);
-}
-
-const savedTheme = localStorage.getItem('gueco_theme') || localStorage.getItem('gueco-theme') || localStorage.getItem('theme') || localStorage.getItem('guecoTheme') || '<?= $currentTheme ?>';
-applyLandingTheme(savedTheme);
-
-function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme');
-  const isDark = current ? current === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)').matches);
-  const next = isDark ? 'light' : 'dark';
-  applyLandingTheme(next);
-}
-
-document.getElementById('theme')?.addEventListener('click', toggleTheme);
-document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
-document.getElementById('themeToggleMobile')?.addEventListener('click', toggleTheme);
 // ── SCROLL REVEAL (from reference template) ────────
 (function(){
   var els = document.querySelectorAll('.reveal');

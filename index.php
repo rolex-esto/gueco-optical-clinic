@@ -930,11 +930,11 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     
     .auth-card {
       background: linear-gradient(165deg, rgba(20, 30, 52, 0.98) 0%, rgba(10, 16, 30, 0.99) 100%);
-      border: 2px solid rgba(0, 173, 239, 0.45);
+      border: 2px solid rgba(26, 60, 176, 0.45);
       border-radius: 28px;
       width: 100%; max-width: 530px;
       box-shadow: 0 35px 95px -15px rgba(0, 0, 0, 0.92), 
-                  0 0 50px rgba(0, 173, 239, 0.25),
+                  0 0 50px rgba(26, 60, 176, 0.25),
                   inset 0 1px 1px 0 rgba(255, 255, 255, 0.25);
       position: relative;
       animation: modalPopIn .32s cubic-bezier(0.16, 1, 0.3, 1);
@@ -951,7 +951,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     [data-theme="light"] .auth-card {
       background: #FFFFFF;
       border: 2px solid #CBD5E1;
-      box-shadow: 0 30px 85px -10px rgba(35, 94, 174, 0.25),
+      box-shadow: 0 30px 85px -10px rgba(26, 60, 176, 0.22),
                   0 12px 30px rgba(0, 0, 0, 0.08),
                   inset 0 1px 0 #FFFFFF;
     }
@@ -970,8 +970,8 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     .auth-brand-emblem {
       width: 50px; height: 50px; border-radius: 16px;
       background: #FFFFFF;
-      border: 1.5px solid rgba(0, 173, 239, 0.35);
-      box-shadow: 0 6px 18px rgba(0, 173, 239, 0.25), inset 0 1px 0 #FFFFFF;
+      border: 1.5px solid rgba(26, 60, 176, 0.35);
+      box-shadow: 0 6px 18px rgba(26, 60, 176, 0.18), inset 0 1px 0 #FFFFFF;
       display: flex; align-items: center; justify-content: center;
       padding: 6px; flex-shrink: 0;
     }
@@ -1019,14 +1019,14 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     .auth-tab:hover { color: var(--text-primary); }
     .auth-tab.active {
       color: #fff;
-      background: linear-gradient(135deg, #00ADEF 0%, #235EAE 100%);
-      box-shadow: 0 4px 16px rgba(0, 173, 239, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      background: linear-gradient(135deg, #1a3cb0 0%, #244ec9 100%);
+      box-shadow: 0 4px 16px rgba(26, 60, 176, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
     }
     [data-theme="light"] .auth-tab.active {
       background: #FFFFFF;
-      color: #0284C7;
-      border: 1.5px solid rgba(0, 173, 239, 0.45);
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      color: #1a3cb0;
+      border: 1.5px solid #1a3cb0;
+      box-shadow: 0 4px 14px rgba(26, 60, 176, 0.12);
     }
     
     .auth-panel { padding: 22px 28px 26px; display: none; }
@@ -1044,7 +1044,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
       display: flex; align-items: center; font-size: .92rem; font-weight: 800; letter-spacing: .01em; color: #F8FAFC; margin-bottom: 8px;
     }
     [data-theme="light"] .form-label { color: #0F172A; }
-    .form-label i { color: #00ADEF; font-size: 1.02rem; margin-right: 7px; }
+    .form-label i { color: #1a3cb0; font-size: 1.02rem; margin-right: 7px; }
     
     .form-control, .form-select {
       width: 100%; height: 52px; padding: 12px 18px; border-radius: 14px; 
@@ -1060,12 +1060,12 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     }
     [data-theme="dark"] .form-control:focus, [data-theme="dark"] .form-select:focus {
       background: rgba(15, 23, 42, 0.95) !important;
-      border-color: #00ADEF !important; outline: none;
-      box-shadow: 0 0 0 4px rgba(0, 173, 239, 0.35) !important;
+      border-color: #3b82f6 !important; outline: none;
+      box-shadow: 0 0 0 4px rgba(26, 60, 176, 0.35) !important;
     }
     [data-theme="light"] .form-control, [data-theme="light"] .form-select {
       background: #FFFFFF !important;
-      border: 2px solid #94A3B8 !important;
+      border: 2px solid #CBD5E1 !important;
       color: #0F172A !important;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     }
@@ -1074,17 +1074,19 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     }
     [data-theme="light"] .form-control:focus, [data-theme="light"] .form-select:focus {
       background: #FFFFFF !important;
-      border-color: #00ADEF !important; outline: none;
-      box-shadow: 0 0 0 4px rgba(0, 173, 239, 0.25) !important;
+      border-color: #1a3cb0 !important; outline: none;
+      box-shadow: 0 0 0 4px rgba(26, 60, 176, 0.18) !important;
     }
     .is-invalid { border-color: #EF4444 !important; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.25) !important; }
 
     .auth-forgot-link {
-      font-size: .92rem; color: #38BDF8; text-decoration: none; font-weight: 700;
+      font-size: .92rem; color: #1a3cb0; text-decoration: none; font-weight: 700;
       transition: color 0.2s;
     }
-    [data-theme="light"] .auth-forgot-link { color: #0284C7; }
-    .auth-forgot-link:hover { text-decoration: underline; color: #00ADEF; }
+    [data-theme="light"] .auth-forgot-link { color: #1a3cb0; }
+    .auth-forgot-link:hover { text-decoration: underline; color: #153299; }
+    [data-theme="dark"] .auth-forgot-link { color: #60a5fa; }
+    [data-theme="dark"] .auth-forgot-link:hover { color: #93c5fd; }
 
     /* Password Security Requirements Indicator Box */
     .pass-req-box {
@@ -1092,8 +1094,8 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
       margin-bottom: 14px;
       padding: 10px 14px;
       border-radius: 14px;
-      background: rgba(35, 94, 174, 0.1);
-      border: 1px solid rgba(0, 173, 239, 0.25);
+      background: rgba(26, 60, 176, 0.08);
+      border: 1px solid rgba(26, 60, 176, 0.22);
       font-size: 0.82rem;
       transition: all 0.25s ease;
     }
@@ -1103,7 +1105,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     }
     .pass-req-header {
       font-weight: 800;
-      color: #38BDF8;
+      color: #1a3cb0;
       margin-bottom: 8px;
       display: flex;
       align-items: center;
@@ -1111,7 +1113,10 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
       font-size: 0.82rem;
     }
     [data-theme="light"] .pass-req-header {
-      color: #0284C7;
+      color: #1a3cb0;
+    }
+    [data-theme="dark"] .pass-req-header {
+      color: #60a5fa;
     }
     .pass-req-grid {
       display: grid;
@@ -1218,8 +1223,8 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
       box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
     }
     .toast.info .toast-badge, .toast:not(.danger):not(.success) .toast-badge {
-      background: linear-gradient(135deg, #00ADEF 0%, #235EAE 100%);
-      box-shadow: 0 4px 12px rgba(0, 173, 239, 0.4);
+      background: linear-gradient(135deg, #1a3cb0 0%, #244ec9 100%);
+      box-shadow: 0 4px 12px rgba(26, 60, 176, 0.4);
     }
     .toast-msg {
       flex: 1;
@@ -1255,24 +1260,24 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     /* PRIMARY SUBMIT BUTTON */
     .btn-primary {
       width: 100%; height: 54px; border-radius: 14px; border: none;
-      background: linear-gradient(135deg, #00ADEF 0%, #235EAE 100%);
-      color: #fff; font-family: inherit; font-size: 1.06rem; font-weight: 800;
+      background: linear-gradient(135deg, #1a3cb0 0%, #244ec9 100%) !important;
+      color: #fff !important; font-family: inherit; font-size: 1.06rem; font-weight: 800;
       cursor: pointer; transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
-      box-shadow: 0 8px 24px -2px rgba(0, 173, 239, 0.45),
-                  inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      box-shadow: 0 8px 24px -2px rgba(26, 60, 176, 0.45),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.35);
       display: flex; align-items: center; justify-content: center; gap: 10px;
       margin-top: 8px; margin-bottom: 4px;
     }
     .btn-primary:hover {
-      background: linear-gradient(135deg, #0284C7 0%, #1D4ED8 100%) !important;
+      background: linear-gradient(135deg, #153299 0%, #1a3cb0 100%) !important;
       color: #fff !important;
       transform: translateY(-2px);
-      box-shadow: 0 12px 30px -2px rgba(0, 173, 239, 0.65),
+      box-shadow: 0 12px 30px -2px rgba(26, 60, 176, 0.65),
                   inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
     .btn-primary:active {
       transform: translateY(1px);
-      box-shadow: 0 3px 10px rgba(0, 173, 239, 0.35);
+      box-shadow: 0 3px 10px rgba(26, 60, 176, 0.35);
     }
     
     .form-pass-wrap { position:relative; }
@@ -1284,8 +1289,8 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
       transition: all .2s;
     }
     [data-theme="dark"] .pass-toggle { color: #94A3B8; }
-    .pass-toggle:hover { color: #00ADEF; background: rgba(0, 173, 239, 0.12); }
-    [data-theme="dark"] .pass-toggle:hover { color: #38BDF8; background: rgba(0, 173, 239, 0.2); }
+    .pass-toggle:hover { color: #1a3cb0; background: rgba(26, 60, 176, 0.1); }
+    [data-theme="dark"] .pass-toggle:hover { color: #60a5fa; background: rgba(26, 60, 176, 0.25); }
 
     /* Hide native browser password reveal eye (prevents duplicate redundant eye in Edge/Chromium) */
     input[type="password"]::-ms-reveal,
@@ -1317,16 +1322,16 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     .btn-google-auth {
       display: flex; align-items: center; justify-content: center; gap: 12px;
       width: 100%; height: 54px; border-radius: 14px;
-      background: #FFFFFF; color: #0F172A; border: 2px solid #94A3B8;
+      background: #FFFFFF; color: #0F172A; border: 2px solid #CBD5E1;
       font-size: 1.02rem; font-weight: 800; text-decoration: none !important;
       cursor: pointer; transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
       margin-bottom: 0;
     }
     .btn-google-auth:hover {
-      background: #F8FAFC; border-color: #00ADEF; color: #0284C7;
+      background: #F8FAFC; border-color: #1a3cb0; color: #1a3cb0;
       transform: translateY(-2px);
-      box-shadow: 0 8px 22px rgba(0, 173, 239, 0.2);
+      box-shadow: 0 8px 22px rgba(26, 60, 176, 0.18);
     }
     .btn-google-auth:active {
       transform: translateY(1px);
@@ -1337,9 +1342,9 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     }
     [data-theme="dark"] .btn-google-auth:hover {
-      background: #F1F5F9; border-color: #00ADEF; color: #0284C7;
+      background: #F1F5F9; border-color: #1a3cb0; color: #1a3cb0;
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0, 173, 239, 0.35);
+      box-shadow: 0 8px 24px rgba(26, 60, 176, 0.3);
     }
     .google-svg { flex-shrink: 0; }
 
@@ -1797,10 +1802,10 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
       font-size: 1.02rem;
       font-weight: 800;
       border-radius: 14px;
-      background: linear-gradient(135deg, #00ADEF 0%, #235EAE 100%);
+      background: linear-gradient(135deg, #1a3cb0 0%, #244ec9 100%);
       color: #FFFFFF;
       border: none;
-      box-shadow: 0 8px 24px rgba(0, 173, 239, 0.4);
+      box-shadow: 0 8px 24px rgba(26, 60, 176, 0.4);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
@@ -1809,7 +1814,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 110px;color:var(--muted);
     }
     .btn-terms-agree:hover {
       transform: translateY(-2px);
-      box-shadow: 0 12px 30px rgba(0, 173, 239, 0.55);
+      box-shadow: 0 12px 30px rgba(26, 60, 176, 0.55);
     }
 
     @media(max-width:992px){
@@ -2424,9 +2429,9 @@ $galleryItem5Caption = getSiteSetting($siteSettings, 'gallery_item5_caption', 'W
         <!-- Terms and Conditions Consent -->
         <div class="form-group" style="margin-top: 6px; margin-bottom: 16px;">
           <div style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.92rem; color: var(--text-secondary); line-height: 1.5; font-weight: 500;">
-            <input type="checkbox" name="privacy_consent" id="privacyConsent" class="<?= $errorField === 'privacy_consent' ? 'is-invalid' : '' ?>" value="1" required style="margin-top: 3px; cursor: pointer; accent-color: var(--clr-primary); width: 18px; height: 18px; flex-shrink: 0;">
+            <input type="checkbox" name="privacy_consent" id="privacyConsent" class="<?= $errorField === 'privacy_consent' ? 'is-invalid' : '' ?>" value="1" required style="margin-top: 3px; cursor: pointer; accent-color: #1a3cb0; width: 18px; height: 18px; flex-shrink: 0;">
             <label for="privacyConsent" style="cursor: pointer;">
-              I agree to the <a href="javascript:void(0)" onclick="openPrivacyModal()" style="color: var(--clr-primary); font-weight: 700; text-decoration: underline;">Terms and Conditions</a> for optical care services and portal access. <span style="color:var(--clr-danger)">*</span>
+              I agree to the <a href="javascript:void(0)" onclick="openPrivacyModal()" style="color: #1a3cb0; font-weight: 700; text-decoration: underline;">Terms and Conditions</a> for optical care services and portal access. <span style="color:var(--clr-danger)">*</span>
             </label>
           </div>
         </div>
@@ -2660,7 +2665,7 @@ function showPopModal(title, msg, type = 'error') {
     const isSucc = type === 'success';
     const icon = isErr ? 'error' : (isSucc ? 'success' : (type === 'warning' ? 'warning' : 'info'));
     const header = title || (isErr ? 'Notice' : (isSucc ? 'Success!' : 'Notice'));
-    const btnColor = isErr ? '#EF4444' : (isSucc ? '#10B981' : '#235EAE');
+    const btnColor = isErr ? '#EF4444' : (isSucc ? '#10B981' : '#1a3cb0');
     const customCls = 'patient-swal-popup' + (isErr ? ' patient-swal-danger' : (isSucc ? ' patient-swal-success' : ''));
 
     Swal.fire({
